@@ -220,15 +220,7 @@ transition: opacity 0.2s, filter 0.2s, transform 0.2s;
 }
 
 /* ── Repeated warnings ── */
-.repeated-pair {
-  border-left: 3px solid rgba(239, 68, 68, 0.6);
-  background: rgba(239, 68, 68, 0.06) !important;
-}
 
-.repeated-game {
-  border-left: 4px solid rgba(239, 68, 68, 0.8);
-  background: rgba(239, 68, 68, 0.08) !important;
-}
 /* ── Played Round ── */
 .played-round .match-card, .played-round .rest-btn,
 .played-round .Lplayer-btn, .played-round .Rplayer-btn,
@@ -452,7 +444,7 @@ padding: 0.5rem; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 background: none; border: none; color: var(--text);
 font-weight: 600; cursor: pointer; padding: 4px 8px;
 border-radius: var(--r-sm); transition: background 0.15s;
-width: 100%;
+width: 99%;
 }
 .team-btn:hover { background: rgba(255,255,255,0.05); }
 .vs { display: inline-block; width: 0.2rem; color: var(--muted); font-weight: 700; text-align: center; }
@@ -508,9 +500,8 @@ border-color: var(--border) !important;
 }
 
 /* Repeated warnings */
-.repeated-pair { outline: 1px solid rgba(239,68,68,0.4) !important; background: rgba(239,68,68,0.07) !important; }
-.repeated-game { outline: 2px solid rgba(239,68,68,0.5) !important; background: rgba(239,68,68,0.1) !important; }
-
+.repeated-pair { box-shadow: inset 0 0 0 1px rgba(239,68,68,0.4); background: rgba(239,68,68,0.07) !important; }
+.repeated-game { box-shadow: inset 0 0 0 2px rgba(239,68,68,0.5); background: rgba(239,68,68,0.1) !important; }
 /* Win cup */
 .win-cup {
 position: absolute; left: 90%; transform: translateX(-50%);

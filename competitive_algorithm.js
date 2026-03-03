@@ -1,8 +1,3 @@
-/* ============================================================
-   COMPETITIVE ALGORITHM — Tier calculation, point tracking, match fairness
-   File: competitive_algorithm.js
-   ============================================================ */
-
 // ============================================================
 //  COMPETITIVE ROUND ALGORITHM
 //  Full implementation based on discussion
@@ -476,10 +471,13 @@ function CompetitiveRound(state) {
   // ── 7. Update pair + opponent memory ─────────────────────
   updateAfterRound(state, finalGames.map(g => [g.pair1, g.pair2]));
 
+  state.roundIndex = (state.roundIndex || 0) + 1;
+
   return {
+    round:   state.roundIndex,
     games:   finalGames,
     resting,
-    tierMap  // expose for UI if needed
+    tierMap
   };
 }
 
