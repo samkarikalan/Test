@@ -1732,17 +1732,11 @@ function newImportAddPlayers(){
 
 function newImportAddIfNotExists(list, player) {
   const exists = list.some(
-    p => p.displayName.trim().toLowerCase() ===
-         player.displayName.trim().toLowerCase()
+    p => p.displayName.trim().toLowerCase() === player.displayName.trim().toLowerCase()
   );
-
-  if (!exists) {
-    list.push(player);
-    return true;
-  }
-
-  return false;
+  return !exists;  // just return whether it's safe to add — don't push
 }
+
 
 function addPlayer() {
 
