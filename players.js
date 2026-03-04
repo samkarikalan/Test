@@ -749,25 +749,103 @@ function newImportHandleCardClick(e) {
 /* =========================
    SELECTED LIST
 ========================= */
-function newImportRefreshSelectedCards() {
-  newImportSelectedCards.innerHTML = "";
-  newImportSelectedCount.textContent = newImportState.selectedPlayers.length;
-
-  newImportState.selectedPlayers.forEach((p, i) => {
-    const card = document.createElement("div");
-    card.className = "newImport-player-card";
-    card.innerHTML = `
-      <div class="newImport-player-top">
-        <img src="${p.gender === "Male" ? "male.png" : "female.png"}">
-        <div class="newImport-player-name">${p.displayName}</div>
-      </div>
-      <div class="newImport-player-actions">
-        <button onclick="newImportRemoveSelected(${i})">×</button>
-      </div>
-    `;
-    newImportSelectedCards.appendChild(card);
-  });
+function newImportDeleteFavoriteSet(setName) {
+  if (!confirm(`Delete set "${setName}"?`)) return;
+  const sets = newImportLoadFavoriteSets().filter(s => s.name !== setName);
+  newImportSaveFavoriteSets(sets);
+  newImportRefreshSelectCards();
 }
+
+function newImportRefreshSelectCards() {
+  if (newImportState.currentSelectMode === "addplayers") return;
+
+  newImportSelectCards.innerHTML = "";
+
+  // ── Favorite Sets (top of favorites tab only) ──
+  if (newImportState.currentSelectMode === "favorites") {
+    const sets = newImportLoadFavoriteSets();
+    sets.forEach(set => {
+      const safeName = set.name.replace(/'/g, "\\'");
+
+      const setCard = document.createElement("div");
+      setCard.className = "newImport-set-card";
+      setCard.dataset.setName = set.name;
+
+      setCard.innerHTML = `
+        <div class="newImport-set-header">
+          <div class="newImport-set-info" onclick="newImportToggleSetExpand(this)">
+            <span class="newImport-set-icon">★</span>
+            <span class="newImport-set-name">${set.name}</span>
+            <span class="newImport-set-count">${set.players.length} players</span>
+            <span class="newImport-set-chevron">▶</span>
+          </div>
+          <div class="newImport-set-actions">
+            <button class="newImport-ok-btn newImport-set-addall-btn"
+              onclick="newImportLoadSetToSelected('${safeName}')">+ All</button>
+            <button class="circle-btn delete"
+              onclick="newImportDeleteFavoriteSet('${safeName}')">×</button>
+          </div>
+        </div>
+        <div class="newImport-set-players" style="display:none">
+          ${set.players.map(p => `
+            <div class="newImport-player-card">
+              <div class="newImport-player-top">
+                <img src="${p.gender === 'Male' ? 'male.png' : 'female.png'}">
+                <div class="newImport-player-name">${p.displayName}</div>
+              </div>
+              <div class="newImport-player-actions">
+                <button class="circle-btn add" onclick="newImportAddOneFromSet('${p.displayName.replace(/'/g, "\\'")}', '${p.gender}')">+</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+      newImportSelectCards.appendChild(setCard);
+    });
+  }
+
+  // ── Individual players (history / favorites) ──
+  const source =
+    newImportState.currentSelectMode === "favorites"
+      ? [...newImportState.favoritePlayers]
+      : [...newImportState.historyPlayers];
+
+  source.sort((a, b) =>
+    a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" })
+  );
+
+  const search = newImportSearch.value.toLowerCase();
+
+  source
+    .filter(p => p.displayName.toLowerCase().includes(search))
+    .forEach(p => {
+      const added = newImportState.selectedPlayers.some(sp => sp.displayName === p.displayName);
+      const fav   = newImportState.favoritePlayers.some(fp => fp.displayName === p.displayName);
+
+      const card = document.createElement("div");
+      card.className = "newImport-player-card";
+      card.innerHTML = `
+        <div class="newImport-player-top">
+          <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
+               data-action="gender" data-player="${p.displayName}">
+          <div class="newImport-player-name">${p.displayName}</div>
+        </div>
+        <div class="newImport-player-actions">
+          <button class="circle-btn favorite ${fav ? 'active-favorite' : ''}"
+            data-action="favorite" data-player="${p.displayName}">
+            ${fav ? "★" : "☆"}
+          </button>
+          <button class="circle-btn delete" data-action="delete" data-player="${p.displayName}">×</button>
+          <button class="circle-btn add ${added ? 'active-added' : ''}"
+            data-action="add" data-player="${p.displayName}" ${added ? "disabled" : ""}>
+            ${added ? "✓" : "+"}
+          </button>
+        </div>
+      `;
+      newImportSelectCards.appendChild(card);
+    });
+}
+
 
 function newImportRemoveSelected(i) {
   newImportState.selectedPlayers.splice(i, 1);
@@ -866,11 +944,7 @@ function newImportSaveFavoriteSet() {
   newImportShowSelectMode("favorites");
 }
 
-function newImportDeleteFavoriteSet(setName) {
-  const sets = newImportLoadFavoriteSets().filter(s => s.name !== setName);
-  newImportSaveFavoriteSets(sets);
-  newImportRefreshSelectCards();
-}
+
 
 function newImportLoadSetToSelected(setName) {
   const sets = newImportLoadFavoriteSets();
