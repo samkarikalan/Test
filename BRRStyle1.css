@@ -412,6 +412,60 @@ display: block;
 }
 
 
+
+
+/* ── Add Players section ── */
+.addplayer-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: nowrap;
+}
+.addplayer-select {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+.addplayer-btn {
+  flex: 1;
+  text-align: center;
+  padding: 10px 8px;
+  font-size: 0.85rem;
+}
+.addplayer-set-btn {
+  background: var(--accent);
+  opacity: 0.75;
+}
+
+/* ── Favorite Set name input ── */
+.addplayer-setname-row {
+  margin-top: 10px;
+}
+.addplayer-setname-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+.addplayer-setname-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.addplayer-setname-actions .addplayer-btn {
+  flex: 1;
+}
+
+/* ── Favorite Set cards ── */
 .newImport-set-card {
   width: 100%;
   border: 1px solid var(--border);
@@ -423,13 +477,9 @@ display: block;
   justify-content: space-between;
   gap: 10px;
   cursor: pointer;
+  box-sizing: border-box;
 }
-.newImport-set-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
+.newImport-set-info { display: flex; align-items: center; gap: 8px; flex: 1; }
 .newImport-set-icon { font-size: 1rem; color: gold; }
 .newImport-set-name { font-weight: 600; flex: 1; }
 .newImport-set-count { font-size: 0.8rem; opacity: 0.6; }
