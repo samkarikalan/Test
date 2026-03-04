@@ -125,7 +125,7 @@ display: none; overflow: hidden; z-index: 1000; min-width: 130px;
   border-bottom: 3px solid transparent;
   font-family: var(--font-body);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 16px;
   padding: 6px 4px;
   border-radius: 0;
   cursor: pointer;
@@ -411,10 +411,11 @@ display: block;
   padding: 0; /* ← no extra padding on the slot */
 }
 
+/* ============================================================
+   ADD PLAYERS SECTION
+============================================================ */
 
-
-
-/* ── Add Players section ── */
+/* ── Add Players row (gender + buttons) ── */
 .addplayer-row {
   display: flex;
   gap: 8px;
@@ -439,13 +440,14 @@ display: block;
 }
 .addplayer-set-btn {
   background: var(--accent);
-  opacity: 0.75;
+  opacity: 0.85;
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 12px var(--accent-glow);
 }
 
-/* ── Favorite Set name input ── */
-.addplayer-setname-row {
-  margin-top: 10px;
-}
+/* ── Favorite Set name input row ── */
+.addplayer-setname-row { margin-top: 10px; }
 .addplayer-setname-input {
   width: 100%;
   padding: 10px 12px;
@@ -455,35 +457,36 @@ display: block;
   color: var(--text);
   font-size: 0.9rem;
   box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s;
 }
+.addplayer-setname-input:focus { border-color: var(--accent); }
+.addplayer-setname-input::placeholder { color: var(--muted); }
 .addplayer-setname-actions {
   display: flex;
   gap: 8px;
   margin-top: 8px;
 }
-.addplayer-setname-actions .addplayer-btn {
-  flex: 1;
-}
+.addplayer-setname-actions .addplayer-btn { flex: 1; }
 
-/* ── Favorite Set cards ── */
+/* ============================================================
+   FAVORITE SET CARDS
+============================================================ */
+
+/* ── Outer card wrapper ── */
 .newImport-set-card {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   padding: 10px 12px;
   background: var(--surface2);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  cursor: pointer;
+  flex-direction: column;
   box-sizing: border-box;
+  margin-bottom: 6px;
 }
-.newImport-set-info { display: flex; align-items: center; gap: 8px; flex: 1; }
-.newImport-set-icon { font-size: 1rem; color: gold; }
-.newImport-set-name { font-weight: 600; flex: 1; }
-.newImport-set-count { font-size: 0.8rem; opacity: 0.6; }
 
+/* ── Header row (★ name count chevron | +All ×) ── */
 .newImport-set-header {
   display: flex;
   align-items: center;
@@ -491,27 +494,68 @@ display: block;
   width: 100%;
   gap: 8px;
 }
+
+/* ── Left side — clickable expand ── */
 .newImport-set-info {
   display: flex;
   align-items: center;
   gap: 8px;
   flex: 1;
   cursor: pointer;
+  user-select: none;
 }
+.newImport-set-icon    { font-size: 1rem; color: gold; flex-shrink: 0; }
+.newImport-set-name    { font-weight: 700; flex: 1; color: var(--text); }
+.newImport-set-count   { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
 .newImport-set-chevron {
-  font-size: 0.7rem;
-  opacity: 0.5;
+  font-size: 0.75rem;
+  color: var(--muted);
+  min-width: 12px;
+  text-align: center;
   transition: transform 0.2s;
 }
+
+/* ── Right side — action buttons ── */
 .newImport-set-actions {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 .newImport-set-addall-btn {
-  padding: 4px 10px;
+  padding: 5px 12px;
   font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: var(--r-sm);
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 8px var(--accent-glow);
+  transition: opacity 0.15s;
+  white-space: nowrap;
 }
+.newImport-set-addall-btn:hover { opacity: 0.85; }
+
+.newImport-set-delete-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--red);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.newImport-set-delete-btn:hover { opacity: 0.8; }
+
+/* ── Expanded player list ── */
 .newImport-set-players {
   width: 100%;
   margin-top: 8px;
@@ -522,4 +566,51 @@ display: block;
   padding-top: 8px;
 }
 
-
+/* ── Single player row inside expanded set ── */
+.newImport-set-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  background: var(--surface3);
+  border: 1px solid var(--border);
+}
+.newImport-set-player-img {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.newImport-set-player-name {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.newImport-set-player-add-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.newImport-set-player-add-btn:hover    { opacity: 0.85; transform: scale(1.08); }
+.newImport-set-player-add-btn:disabled {
+  background: var(--green);
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
