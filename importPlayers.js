@@ -289,8 +289,13 @@ function newImportRefreshSelectCards() {
   source
     .filter(p => p.displayName.toLowerCase().includes(search))
     .forEach(p => {
-      const added = newImportState.selectedPlayers.some(sp => sp.displayName === p.displayName);
-      const fav   = newImportState.favoritePlayers.some(fp => fp.displayName === p.displayName);
+      const nameNorm = p.displayName.trim().toLowerCase();
+      // Case-insensitive match for both checks
+      const added = newImportState.selectedPlayers.some(sp => sp.displayName.trim().toLowerCase() === nameNorm);
+      // In Favorites tab the player is already a favourite by definition — always orange
+      const fav = newImportState.currentSelectMode === "favorites"
+        ? true
+        : newImportState.favoritePlayers.some(fp => fp.displayName.trim().toLowerCase() === nameNorm);
 
       const card = document.createElement("div");
       card.className = "newImport-player-card";
@@ -397,7 +402,8 @@ function newImportHandleCardClick(e) {
       ? newImportState.favoritePlayers
       : newImportState.historyPlayers;
 
-  const player = source.find(p => p.displayName === playerName);
+  const playerNameNorm = playerName.trim().toLowerCase();
+  const player = source.find(p => p.displayName.trim().toLowerCase() === playerNameNorm);
   if (!player) return;
 
   // ADD TO SELECTED
@@ -423,7 +429,7 @@ function newImportHandleCardClick(e) {
 
   // TOGGLE FAVORITE
   if (action === "favorite") {
-    const i = newImportState.favoritePlayers.findIndex(p => p.displayName === player.displayName);
+    const i = newImportState.favoritePlayers.findIndex(p => p.displayName.trim().toLowerCase() === player.displayName.trim().toLowerCase());
     if (i >= 0) {
       newImportState.favoritePlayers.splice(i, 1);
     } else {
