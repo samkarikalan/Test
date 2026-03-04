@@ -16,9 +16,7 @@
   <script src="competitive_algorithm.js" defer></script>
   <script src="games.js" defer></script>
   <script src="rounds.js" defer></script>
-  <script src="players.js"></script>
-<script src="importPlayers.js"></script>
-
+  <script src="players.js" defer></script>
   <script src="settings.js" defer></script>
   <script src="summary.js" defer></script>
   <script src="help.js" defer></script>
@@ -307,33 +305,34 @@
         <div id="newImportSelectCards" class="newImport-cards-container"></div>
 
         <div id="newImportAddPlayersSection" style="display:none">
-  <div class="card">
+          <div class="card">
 
-    <textarea id="players-names" rows="3" placeholder="John&#10;Mike&#10;Sarah"></textarea>
+            <textarea id="players-names" rows="3" placeholder="John&#10;Mike&#10;Sarah"></textarea>
 
-    <div class="addplayer-row">
-      <select id="player-gender" class="addplayer-select">
-        <option value="Male">Male</option>
-        <option value="Female">Female</option>
-      </select>
-      <button class="newImport-ok-btn addplayer-btn" onclick="addPlayer()">Add Player</button>
-      <button class="newImport-ok-btn addplayer-btn addplayer-set-btn" onclick="newImportToggleFavoriteSetInput()">★ Favorite Set</button>
-    </div>
+            <div class="addplayer-row">
+              <select id="player-gender" class="addplayer-select">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
 
-    <div id="newImportFavoriteSetRow" style="display:none">
-      <div class="addplayer-setname-row">
-        <input id="newImportSetName" type="text" class="addplayer-setname-input" placeholder="Set name e.g. Monday Group">
-      </div>
-      <div class="addplayer-setname-actions">
-        <button class="newImport-ok-btn addplayer-btn" onclick="newImportSaveFavoriteSet()">Save Set</button>
-        <button class="newImport-cancel-btn addplayer-btn" onclick="newImportToggleFavoriteSetInput()">Cancel</button>
-      </div>
-    </div>
+            <div class="addplayer-row">
+              <button class="newImport-ok-btn addplayer-btn" onclick="addPlayer()">Add Player</button>
+              <button class="newImport-ok-btn addplayer-btn addplayer-set-btn" onclick="newImportToggleFavoriteSetInput()">★ Favorite Set</button>
+            </div>
 
-  </div>
-</div>
+            <div id="newImportFavoriteSetRow" style="display:none">
+              <div class="addplayer-setname-row">
+                <input id="newImportSetName" type="text" class="addplayer-setname-input" placeholder="Set name e.g. Monday Group">
+              </div>
+              <div class="addplayer-setname-actions">
+                <button class="newImport-ok-btn addplayer-btn" onclick="newImportSaveFavoriteSet()">Save Set</button>
+                <button class="newImport-cancel-btn addplayer-btn" onclick="newImportToggleFavoriteSetInput()">Cancel</button>
+              </div>
+            </div>
 
-
+          </div>
+        </div>
 
       </div>
     </div>
