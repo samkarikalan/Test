@@ -1737,7 +1737,18 @@ function newImportAddIfNotExists(list, player) {
   return !exists;  // just return whether it's safe to add — don't push
 }
 
+// ================= UNIVERSAL ADD UTILITY =================
+function addToListIfNotExists(list, player) {
+  const exists = list.findIndex(
+    p => p.displayName.trim().toLowerCase() === player.displayName.trim().toLowerCase()
+  );
+  if (exists >= 0) return false;
+  list.push({...player});
+  return true;
+}
 
+
+// ================= ADD PLAYER =================
 function addPlayer() {
 
   const textarea = document.getElementById("players-names");
@@ -1746,57 +1757,38 @@ function addPlayer() {
   const text = textarea.value.trim();
   if (!text) return;
 
-  const defaultGender =
-    document.getElementById("player-gender")?.value || "Male";
+  const defaultGender = document.getElementById("player-gender")?.value || "Male";
 
-  const lines = text.split(/\r?\n/);
-
-  // ======================
-  // GENDER LOOKUP (multi-language)
-  // ======================
-  const genderLookup = {};
-
+  // Build multi-language gender lookup
+  const genderLookup = { male: "Male", m: "Male", female: "Female", f: "Female" };
   if (typeof translations !== "undefined") {
     Object.values(translations).forEach(langObj => {
-      if (langObj.male)
-        genderLookup[langObj.male.toLowerCase()] = "Male";
-
-      if (langObj.female)
-        genderLookup[langObj.female.toLowerCase()] = "Female";
+      if (langObj.male)   genderLookup[langObj.male.toLowerCase()]   = "Male";
+      if (langObj.female) genderLookup[langObj.female.toLowerCase()] = "Female";
     });
   }
 
-  // fallback English
-  genderLookup["male"] = "Male";
-  genderLookup["m"] = "Male";
-  genderLookup["female"] = "Female";
-  genderLookup["f"] = "Female";
-
+  // Parse each line into { displayName, gender }
   const extractedPlayers = [];
 
-  for (let line of lines) {
-
+  for (let line of text.split(/\r?\n/)) {
     line = line.trim();
     if (!line) continue;
 
     let gender = defaultGender;
 
-    // Remove numbering (1. John → John)
-    const match = line.match(/^(\d+\.?\s*)?(.*)$/);
-    if (match) line = match[2].trim();
+    // Remove leading numbering: "1. John" → "John"
+    const numMatch = line.match(/^(\d+\.?\s*)?(.*)$/);
+    if (numMatch) line = numMatch[2].trim();
 
-    // name, gender
+    // "name, gender" format
     if (line.includes(",")) {
-      const parts = line.split(",").map(p => p.trim());
-      line = parts[0];
-
-      if (parts[1]) {
-        const g = parts[1].toLowerCase();
-        if (genderLookup[g]) gender = genderLookup[g];
-      }
+      const [name, g] = line.split(",").map(p => p.trim());
+      line = name;
+      if (g && genderLookup[g.toLowerCase()]) gender = genderLookup[g.toLowerCase()];
     }
 
-    // name (gender)
+    // "name (gender)" format
     const parenMatch = line.match(/\(([^)]+)\)/);
     if (parenMatch) {
       const inside = parenMatch[1].trim().toLowerCase();
@@ -1808,68 +1800,46 @@ function addPlayer() {
 
     const normalized = line.toLowerCase();
 
-    // prevent duplicates ONLY inside selectedPlayers
-    const exists =
-      newImportState.selectedPlayers.some(
-        p => p.displayName.trim().toLowerCase() === normalized
-      ) ||
-      extractedPlayers.some(
-        p => p.displayName.trim().toLowerCase() === normalized
-      );
+    // Skip if already in selectedPlayers or already in this batch
+    const isDuplicate =
+      newImportState.selectedPlayers.some(p => p.displayName.trim().toLowerCase() === normalized) ||
+      extractedPlayers.some(p => p.displayName.trim().toLowerCase() === normalized);
 
-    if (!exists) {
-      extractedPlayers.push({
-        displayName: line,
-        gender: gender
-      });
+    if (!isDuplicate) {
+      extractedPlayers.push({ displayName: line, gender });
     }
   }
 
   if (!extractedPlayers.length) return;
 
-// ======================
-// ADD TO SELECTED + HISTORY
-// ======================
-extractedPlayers.forEach(player => {
+  extractedPlayers.forEach(player => {
 
-  // Add to selected
-  newImportAddIfNotExists(
-    newImportState.selectedPlayers,
-    player
-  );
+    // Add to selected (unique)
+    addToListIfNotExists(newImportState.selectedPlayers, player);
 
-  // Add to history
-  if (newImportAddIfNotExists(
-        newImportState.historyPlayers,
-        {...player}
-      )) {
-    // keep newest on top
-    newImportState.historyPlayers.unshift(player);
-  }
+    // Add to history (unique, newest on top)
+    const added = addToListIfNotExists(newImportState.historyPlayers, player);
+    if (added) {
+      newImportState.historyPlayers.pop();
+      newImportState.historyPlayers.unshift({...player});
+    }
 
-});
+  });
 
-// keep max 50
-newImportState.historyPlayers =
-  newImportState.historyPlayers.slice(0, 50);
+  // Keep max 50 history entries
+  newImportState.historyPlayers = newImportState.historyPlayers.slice(0, 50);
+  localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
 
-// save history
-localStorage.setItem(
-  "newImportHistory",
-  JSON.stringify(newImportState.historyPlayers)
-);
+  newImportRefreshSelectedCards();
+  newImportRefreshSelectCards();
 
-newImportRefreshSelectedCards();
-newImportRefreshSelectCards();
-
-  // ======================
-  // RESET UI
-  // ======================
+  // Reset UI
   textarea.value = "";
   textarea.style.height = "40px";
   textarea.focus();
 }
-// ================= CLEAR LISTS =================
+
+
 function newImportClearHistory(){
   if(!confirm("Clear history?")) return;
   newImportState.historyPlayers=[];
