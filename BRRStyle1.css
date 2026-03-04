@@ -410,3 +410,26 @@ display: block;
 #roundsSlotAnchor {
   padding: 0; /* ← no extra padding on the slot */
 }
+
+
+.newImport-set-card {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+.newImport-set-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.newImport-set-icon { font-size: 1rem; color: gold; }
+.newImport-set-name { font-weight: 600; flex: 1; }
+.newImport-set-count { font-size: 0.8rem; opacity: 0.6; }
