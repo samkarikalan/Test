@@ -305,17 +305,27 @@
         <div id="newImportSelectCards" class="newImport-cards-container"></div>
 
         <div id="newImportAddPlayersSection" style="display:none">
-          <div class="card">
-            <textarea id="players-names" rows="3" placeholder="John, Mike, Sarah"></textarea>
-            <div class="row-addplayer">
-              <select id="player-gender">
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-              <button class="add-button" onclick="addPlayer()">Add Player</button>
-            </div>
-          </div>
-        </div>
+  <div class="card">
+    <textarea id="players-names" rows="3" placeholder="John, Mike, Sarah"></textarea>
+    <div class="row-addplayer">
+      <select id="player-gender">
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+      </select>
+      <button class="add-button" onclick="addPlayer()">Add Player</button>
+      <button class="add-button" onclick="newImportToggleFavoriteSetInput()">★ Favorite Set</button>
+    </div>
+    <!-- Revealed on click -->
+    <div id="newImportFavoriteSetRow" style="display:none; margin-top:8px;">
+      <div class="row-addplayer">
+        <input id="newImportSetName" type="text" placeholder="Set name e.g. Monday Group" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text);">
+        <button class="add-button" onclick="newImportSaveFavoriteSet()">Save</button>
+        <button class="add-button" onclick="newImportToggleFavoriteSetInput()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
       </div>
     </div>
