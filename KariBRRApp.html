@@ -306,25 +306,31 @@
 
         <div id="newImportAddPlayersSection" style="display:none">
   <div class="card">
-    <textarea id="players-names" rows="3" placeholder="John, Mike, Sarah"></textarea>
-    <div class="row-addplayer">
-      <select id="player-gender">
+
+    <textarea id="players-names" rows="3" placeholder="John&#10;Mike&#10;Sarah"></textarea>
+
+    <div class="addplayer-row">
+      <select id="player-gender" class="addplayer-select">
         <option value="Male">Male</option>
         <option value="Female">Female</option>
       </select>
-      <button class="add-button" onclick="addPlayer()">Add Player</button>
-      <button class="add-button" onclick="newImportToggleFavoriteSetInput()">★ Favorite Set</button>
+      <button class="newImport-ok-btn addplayer-btn" onclick="addPlayer()">Add Player</button>
+      <button class="newImport-ok-btn addplayer-btn addplayer-set-btn" onclick="newImportToggleFavoriteSetInput()">★ Favorite Set</button>
     </div>
-    <!-- Revealed on click -->
-    <div id="newImportFavoriteSetRow" style="display:none; margin-top:8px;">
-      <div class="row-addplayer">
-        <input id="newImportSetName" type="text" placeholder="Set name e.g. Monday Group" style="flex:1; padding:6px; border-radius:6px; border:1px solid var(--border); background:var(--surface2); color:var(--text);">
-        <button class="add-button" onclick="newImportSaveFavoriteSet()">Save</button>
-        <button class="add-button" onclick="newImportToggleFavoriteSetInput()">Cancel</button>
+
+    <div id="newImportFavoriteSetRow" style="display:none">
+      <div class="addplayer-setname-row">
+        <input id="newImportSetName" type="text" class="addplayer-setname-input" placeholder="Set name e.g. Monday Group">
+      </div>
+      <div class="addplayer-setname-actions">
+        <button class="newImport-ok-btn addplayer-btn" onclick="newImportSaveFavoriteSet()">Save Set</button>
+        <button class="newImport-cancel-btn addplayer-btn" onclick="newImportToggleFavoriteSetInput()">Cancel</button>
       </div>
     </div>
+
   </div>
 </div>
+
 
 
       </div>
