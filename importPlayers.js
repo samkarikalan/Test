@@ -238,6 +238,9 @@ function newImportRefreshSelectCards() {
             <div class="newImport-set-player-row">
               <img src="${p.gender === 'Male' ? 'male.png' : 'female.png'}" class="newImport-set-player-img">
               <span class="newImport-set-player-name">${p.displayName}</span>
+              <button class="newImport-set-player-remove-btn"
+                data-setname="${safeName}"
+                data-name="${p.displayName.replace(/"/g, '&quot;')}">×</button>
               <button class="newImport-set-player-add-btn"
                 data-name="${p.displayName.replace(/"/g, '&quot;')}"
                 data-gender="${p.gender}">+</button>
@@ -328,6 +331,20 @@ function newImportHandleSetClick(e) {
   if (e.target.matches(".newImport-set-delete-btn")) {
     const setName = e.target.dataset.setname;
     newImportDeleteFavoriteSet(setName);
+    return;
+  }
+
+  // ── × Remove single player from set ──
+  if (e.target.matches(".newImport-set-player-remove-btn")) {
+    const setName     = e.target.dataset.setname;
+    const displayName = e.target.dataset.name;
+    const sets        = newImportLoadFavoriteSets();
+    const set         = sets.find(s => s.name === setName);
+    if (set) {
+      set.players = set.players.filter(p => p.displayName !== displayName);
+      newImportSaveFavoriteSets(sets);
+      newImportRefreshSelectCards();
+    }
     return;
   }
 
