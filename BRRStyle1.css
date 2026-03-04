@@ -483,3 +483,43 @@ display: block;
 .newImport-set-icon { font-size: 1rem; color: gold; }
 .newImport-set-name { font-weight: 600; flex: 1; }
 .newImport-set-count { font-size: 0.8rem; opacity: 0.6; }
+
+.newImport-set-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+.newImport-set-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  cursor: pointer;
+}
+.newImport-set-chevron {
+  font-size: 0.7rem;
+  opacity: 0.5;
+  transition: transform 0.2s;
+}
+.newImport-set-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.newImport-set-addall-btn {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+}
+.newImport-set-players {
+  width: 100%;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+
