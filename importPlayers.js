@@ -170,11 +170,32 @@ function newImportShowSelectMode(mode) {
 }
 
 /* =========================
+   VALID PLAYER NAME FILTER
+   Strips junk from old paste-import leftovers
+========================= */
+function isValidPlayerName(name) {
+  if (!name || typeof name !== "string") return false;
+  const n = name.trim();
+  if (n.length < 2)   return false;       // too short
+  if (n.length > 40)  return false;       // too long (URLs, sentences)
+  if (n.startsWith("*")) return false;    // schedule/annotation lines
+  if (n.includes("http")) return false;   // URLs
+  if (n.includes("www.")) return false;   // URLs
+  if (n.includes(".com")) return false;   // URLs
+  if (n.includes(".slotbooking")) return false;
+  if (/^[\d\s\-:\/]+$/.test(n)) return false;  // pure numbers/dates/times
+  return true;
+}
+
+/* =========================
    STORAGE — HISTORY
 ========================= */
 function newImportLoadHistory() {
   const data = localStorage.getItem("newImportHistory");
-  newImportState.historyPlayers = data ? newImportDeduplicate(JSON.parse(data)) : [];
+  const raw  = data ? JSON.parse(data) : [];
+  // Filter out junk entries saved from old paste-import
+  const cleaned = raw.filter(p => isValidPlayerName(p.displayName));
+  newImportState.historyPlayers = newImportDeduplicate(cleaned);
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
 }
 
@@ -550,11 +571,13 @@ function addPlayer() {
     // Add to selected (unique)
     addToListIfNotExists(newImportState.selectedPlayers, player);
 
-    // Add to history (unique, newest on top)
-    const added = addToListIfNotExists(newImportState.historyPlayers, player);
-    if (added) {
-      newImportState.historyPlayers.pop();
-      newImportState.historyPlayers.unshift({ ...player });
+    // Add to history (unique, newest on top) — skip invalid names
+    if (isValidPlayerName(player.displayName)) {
+      const added = addToListIfNotExists(newImportState.historyPlayers, player);
+      if (added) {
+        newImportState.historyPlayers.pop();
+        newImportState.historyPlayers.unshift({ ...player });
+      }
     }
   });
 
@@ -565,7 +588,7 @@ function addPlayer() {
   newImportRefreshSelectCards();
 
   textarea.value        = "";
-  textarea.style.height = "40px";
+  textarea.style.height = "";   // let CSS min-height take over
   textarea.focus();
 }
 
