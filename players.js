@@ -6,14 +6,14 @@
 document.addEventListener("DOMContentLoaded", function () {
   const textarea = document.getElementById("players-names");
   if (!textarea) return;
-  const defaultHeight = 40;
-  function autoResize(el) {
-    el.style.height = "auto";
-    el.style.height = el.scrollHeight + "px";
-  }
-  textarea.addEventListener("input", function () { autoResize(this); });
+  // Grow on input, but never shrink below the CSS min-height (3 rows)
+  textarea.addEventListener("input", function () {
+    this.style.height = "auto";
+    this.style.height = this.scrollHeight + "px";
+  });
   textarea.addEventListener("blur", function () {
-    if (!this.value.trim()) this.style.height = defaultHeight + "px";
+    // Reset to natural size when empty so CSS min-height takes over
+    if (!this.value.trim()) this.style.height = "";
   });
 });
 

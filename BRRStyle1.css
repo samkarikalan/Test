@@ -312,7 +312,7 @@ transition: all 0.25s; margin: 4px 0; cursor: grab;
 .circle-btn.active-added    { background: var(--accent); color: #fff; border-color: transparent; }
 .circle-btn.delete          { background: var(--red); color: #fff; border-color: transparent; }
 .circle-btn:disabled        { opacity: 0.4; cursor: not-allowed; }
-#players-names { width: 95%; font-size: 1rem; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-sm); color: var(--text); padding: 10px; outline: none; }
+#players-names { width: 95%; font-size: 1rem; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-sm); color: var(--text); padding: 10px; outline: none; min-height: 80px; resize: none; overflow: hidden; box-sizing: border-box; }
 #players-names::placeholder { color: var(--muted); }
 
 .app-dark { background: var(--bg); color: var(--text); }
