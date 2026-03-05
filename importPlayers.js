@@ -158,6 +158,8 @@ function newImportShowSelectMode(mode) {
     }
     return;
   }
+  // Leaving addplayers tab — reset star toggle state
+  newImportResetFavToggle();
 
   listContainer.style.display = "flex";
   addSection.style.display    = "none";
@@ -272,6 +274,13 @@ function newImportRefreshSelectCards() {
                 data-gender="${p.gender}">+</button>
             </div>
           `).join("")}
+          <div class="newImport-set-addplayer-row">
+            <input type="text"
+              class="newImport-set-addplayer-input"
+              data-setname="${safeName}"
+              placeholder="Add player name...">
+            <button class="newImport-set-addplayer-btn" data-setname="${safeName}">+</button>
+          </div>
         </div>
       `;
 
@@ -332,8 +341,9 @@ function newImportRefreshSelectCards() {
    All via event delegation on newImportSelectCards
 ========================= */
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("newImportSelectCards")
-    ?.addEventListener("click", newImportHandleSetClick);
+  const container = document.getElementById("newImportSelectCards");
+  container?.addEventListener("click",   newImportHandleSetClick);
+  container?.addEventListener("keydown", newImportHandleSetClick);
 });
 
 function newImportHandleSetClick(e) {
@@ -362,6 +372,36 @@ function newImportHandleSetClick(e) {
   if (e.target.matches(".newImport-set-delete-btn")) {
     const setName = e.target.dataset.setname;
     newImportDeleteFavoriteSet(setName);
+    return;
+  }
+
+  // ── + Add new player to set from inline input ──
+  if (e.target.matches(".newImport-set-addplayer-btn")) {
+    const setName = e.target.dataset.setname;
+    const input   = e.target.closest(".newImport-set-addplayer-row")
+                      ?.querySelector(".newImport-set-addplayer-input");
+    if (!input) return;
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+    const sets = newImportLoadFavoriteSets();
+    const set  = sets.find(s => s.name === setName);
+    if (!set) return;
+    // Check duplicate within set
+    if (set.players.some(p => p.displayName.trim().toLowerCase() === name.toLowerCase())) {
+      input.value = "";
+      input.placeholder = "Already in set!";
+      setTimeout(() => { input.placeholder = "Add player name..."; }, 2000);
+      return;
+    }
+    set.players.push({ displayName: name, gender: "Male" });
+    newImportSaveFavoriteSets(sets);
+    newImportRefreshSelectCards();
+    return;
+  }
+
+  // ── Enter key on add-player-to-set input ──
+  if (e.target.matches(".newImport-set-addplayer-input") && e.type === "keydown" && e.key === "Enter") {
+    e.target.nextElementSibling?.click();
     return;
   }
 
@@ -513,6 +553,17 @@ function newImportClearFavorites() {
 /* =========================
    FAVORITE SETS — SAVE INPUT TOGGLE
 ========================= */
+function newImportResetFavToggle() {
+  const row  = document.getElementById("newImportFavoriteSetRow");
+  const icon = document.getElementById("addPlayerFavToggle");
+  if (row)  row.style.display  = "none";
+  if (icon) {
+    icon.textContent = "☆";
+    icon.style.color = "rgba(255,255,255,0.5)";
+  }
+  newImportState.addToFavOnAdd = false;
+}
+
 function newImportToggleAddFav() {
   const row  = document.getElementById("newImportFavoriteSetRow");
   const icon = document.getElementById("addPlayerFavToggle");
@@ -554,6 +605,13 @@ function newImportSaveFavoriteSet() {
     s => s.name.trim().toLowerCase() === setName.toLowerCase()
   );
   if (existingIdx >= 0) {
+    // Same name exists — ask user to confirm overwrite or pick a new name
+    const overwrite = confirm(`A set named "${sets[existingIdx].name}" already exists.\nOverwrite it?`);
+    if (!overwrite) {
+      setNameInput.focus();
+      setNameInput.select();
+      return;
+    }
     sets[existingIdx].players = players;
   } else {
     sets.push({ name: setName, players });
@@ -561,7 +619,7 @@ function newImportSaveFavoriteSet() {
   newImportSaveFavoriteSets(sets);
 
   setNameInput.value = "";
-  document.getElementById("newImportFavoriteSetRow").style.display = "none";
+  newImportResetFavToggle();
   newImportShowSelectMode("favorites");
 }
 
