@@ -656,6 +656,7 @@ function report() {
     card.innerHTML = `
       <div class="rank">#${index + 1}</div>
       <div class="name">${p.name}</div>
+      <span class="rating-badge">${(p.rating || 1.0).toFixed(1)}</span>
       <div class="stat wins">${wins}</div>
       <div class="stat played">${played}</div>
       <div class="stat rest">${rest}</div>
@@ -697,6 +698,7 @@ function workedreport() {
     card.innerHTML = `
       <div class="rank">#${index + 1}</div>
       <div class="name">${p.name.replace(/^\d+\.?\s*/, "")}</div>
+      <span class="rating-badge">${(p.rating || 1.0).toFixed(1)}</span>
       <div class="stat played" style="border-color:${getPlayedColor(played)}">${played}</div>
       <div class="stat rest" style="border-color:${getRestColor(rest)}">${rest}</div>
     `;

@@ -272,6 +272,7 @@ function newImportRefreshSelectCards() {
                 data-gender="${p.gender}"
                 title="Tap to toggle gender">
               <span class="newImport-set-player-name">${p.displayName}</span>
+              <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;">${((schedulerState.allPlayers.find(sp=>sp.name.trim().toLowerCase()===p.displayName.trim().toLowerCase())?.rating)||1.0).toFixed(1)}</span>
               <button class="newImport-set-player-remove-btn"
                 data-setname="${safeName}"
                 data-name="${p.displayName.replace(/"/g, '&quot;')}">×</button>
@@ -319,6 +320,8 @@ function newImportRefreshSelectCards() {
 
       const card = document.createElement("div");
       card.className = "newImport-player-card";
+      const savedP1 = schedulerState.allPlayers.find(sp => sp.name.trim().toLowerCase() === nameNorm);
+      const rating1 = savedP1 ? (savedP1.rating || 1.0).toFixed(1) : '1.0';
       card.innerHTML = `
         <div class="newImport-player-top">
           <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
@@ -326,6 +329,7 @@ function newImportRefreshSelectCards() {
           <div class="newImport-player-name">${p.displayName}</div>
         </div>
         <div class="newImport-player-actions">
+          <span class="rating-badge">${rating1}</span>
           <button class="circle-btn favorite ${fav ? 'active-favorite' : ''}"
             data-action="favorite" data-player="${p.displayName}">
             ${fav ? "★" : "☆"}
@@ -531,12 +535,16 @@ function newImportRefreshSelectedCards() {
   newImportState.selectedPlayers.forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "newImport-player-card";
+    const nameNorm2 = p.displayName.trim().toLowerCase();
+    const savedP2 = schedulerState.allPlayers.find(sp => sp.name.trim().toLowerCase() === nameNorm2);
+    const rating2 = savedP2 ? (savedP2.rating || 1.0).toFixed(1) : '1.0';
     card.innerHTML = `
       <div class="newImport-player-top">
         <img src="${p.gender === "Male" ? "male.png" : "female.png"}">
         <div class="newImport-player-name">${p.displayName}</div>
       </div>
       <div class="newImport-player-actions">
+        <span class="rating-badge">${rating2}</span>
         <button onclick="newImportRemoveSelected(${i})">×</button>
       </div>
     `;
