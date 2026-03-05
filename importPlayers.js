@@ -514,11 +514,26 @@ function newImportClearFavorites() {
    FAVORITE SETS — SAVE INPUT TOGGLE
 ========================= */
 function newImportToggleAddFav() {
-  newImportState.addToFavOnAdd = !newImportState.addToFavOnAdd;
+  const row  = document.getElementById("newImportFavoriteSetRow");
   const icon = document.getElementById("addPlayerFavToggle");
-  if (!icon) return;
-  icon.textContent = newImportState.addToFavOnAdd ? "★" : "☆";
-  icon.style.color = newImportState.addToFavOnAdd ? "var(--amber)" : "rgba(255,255,255,0.5)";
+  if (!row || !icon) return;
+
+  const isOpen = row.style.display !== "none";
+
+  if (isOpen) {
+    // Close — turn star off
+    row.style.display            = "none";
+    icon.textContent             = "☆";
+    icon.style.color             = "rgba(255,255,255,0.5)";
+    newImportState.addToFavOnAdd = false;
+  } else {
+    // Open — turn star on
+    row.style.display            = "block";
+    icon.textContent             = "★";
+    icon.style.color             = "var(--amber)";
+    newImportState.addToFavOnAdd = true;
+    document.getElementById("newImportSetName")?.focus();
+  }
 }
 
 function newImportSaveFavoriteSet() {
