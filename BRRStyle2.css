@@ -542,13 +542,30 @@ box-shadow: 0 2px 10px rgba(0,0,0,0.25);
 
 /* Player card */
 .player-card {
-background: var(--surface2); border: 1px solid var(--border2);
-border-radius: var(--r-xl); padding: 0 12px;
-display: flex; align-items: center; gap: 8px;
-margin: 3px 0; transition: border-color 0.2s;
-height: 44px; min-height: 44px; box-sizing: border-box;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: var(--r-xl); padding: 0 10px;
+  display: grid;
+  grid-template-columns: 36px 1fr 52px 36px 36px 36px;
+  align-items: center; gap: 4px;
+  margin: 3px 0; transition: border-color 0.2s;
+  height: 44px; min-height: 44px; box-sizing: border-box;
 }
 .player-card:hover { border-color: var(--accent); }
+.player-card .rank  { font-weight: 700; font-size: 0.85rem; color: var(--accent); text-align: center; }
+.player-card .name  { font-size: 0.88rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-card .rating-badge { justify-self: center; }
+.player-card .stat  { font-size: 0.85rem; color: var(--text); text-align: center; }
+
+.report-header {
+  display: grid;
+  grid-template-columns: 36px 1fr 52px 36px 36px 36px;
+  align-items: center; gap: 4px;
+  padding: 6px 10px; margin-bottom: 4px;
+  background: var(--accent); border-radius: var(--r-xl);
+  font-size: 0.78rem; font-weight: 700; color: #fff;
+}
+.report-header > div { text-align: center; }
+.report-header .header-name { text-align: left; }
 
 /* Fixed pair item */
 .fixed-pair-item {
@@ -558,12 +575,7 @@ display: flex; align-items: center; justify-content: space-between;
 margin: 4px 0; color: var(--text);
 }
 
-/* Report */
-.report-header {
-font-family: var(--font-display); font-size: 1rem;
-font-weight: 700; color: var(--text); padding: 10px 0 4px;
-border-bottom: 1px solid var(--border); margin-bottom: 8px;
-}
+
 
 /* Export classes */
 .export-round       { margin-bottom: 16px; }

@@ -637,6 +637,7 @@ function report() {
   header.innerHTML = `
     <div class="header-rank" data-i18n="rank">Rank</div>
     <div class="header-name" data-i18n="name">Name</div>
+    <div class="header-rating">Rating</div>
     <div class="header-wins" data-i18n="wins">Wins</div>
     <div class="header-played" data-i18n="played">Played</div>
     <div class="header-rested" data-i18n="rested">Rested</div>
