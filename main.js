@@ -58,18 +58,47 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* =========================
-   MASTER SYNC — single source of truth for ratings
-   Rating lives ONLY in newImportHistory (master DB).
-   Call this after ANY change to inject fresh ratings everywhere.
+   RATING — single source of truth
+   localStorage("newImportHistory") is the ONLY store for ratings.
+   getRating / setRating are the ONLY way to read or write.
+   syncRatings updates every visible badge — called on tab change + after any write.
 ========================= */
-function syncPlayersFromMaster() {
-  const master = (newImportState && newImportState.historyPlayers) ? newImportState.historyPlayers : [];
 
-  // Inject rating into every session player from master DB
-  schedulerState.allPlayers.forEach(p => {
-    const hp = master.find(h => h.displayName.trim().toLowerCase() === p.name.trim().toLowerCase());
-    p.rating = (hp && hp.rating !== undefined) ? hp.rating : 1.0;
+function getRating(name) {
+  try {
+    const master = JSON.parse(localStorage.getItem("newImportHistory") || "[]");
+    const hp = master.find(h => h.displayName.trim().toLowerCase() === name.trim().toLowerCase());
+    return (hp && hp.rating !== undefined) ? hp.rating : 1.0;
+  } catch(e) { return 1.0; }
+}
+
+function setRating(name, rating) {
+  try {
+    const master = JSON.parse(localStorage.getItem("newImportHistory") || "[]");
+    const hp = master.find(h => h.displayName.trim().toLowerCase() === name.trim().toLowerCase());
+    if (hp) {
+      hp.rating = Math.min(5.0, Math.max(1.0, Math.round(rating * 10) / 10));
+      localStorage.setItem("newImportHistory", JSON.stringify(master));
+      // Also update in-memory historyPlayers so current session stays consistent
+      if (newImportState && newImportState.historyPlayers) {
+        const mp = newImportState.historyPlayers.find(h => h.displayName.trim().toLowerCase() === name.trim().toLowerCase());
+        if (mp) mp.rating = hp.rating;
+      }
+    }
+  } catch(e) { console.error("setRating error", e); }
+}
+
+function syncRatings() {
+  // Update every rating badge currently in the DOM by player name
+  document.querySelectorAll(".rating-badge[data-player]").forEach(badge => {
+    const name = badge.getAttribute("data-player");
+    if (name) badge.textContent = getRating(name).toFixed(1);
   });
+}
+
+// Keep syncPlayersFromMaster as alias for backwards compatibility
+function syncPlayersFromMaster() {
+  syncRatings();
 }
 
 
@@ -118,6 +147,9 @@ function showPage(pageID, el) {
   // Update active tab styling
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   if (el) el.classList.add('active');
+
+  // Sync all rating badges on the newly visible page
+  syncRatings();
 
   // ── Move shared player slot to the active page ──
   const slot = document.getElementById('sharedPlayerSlot');

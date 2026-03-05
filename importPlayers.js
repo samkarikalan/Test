@@ -278,7 +278,7 @@ function newImportRefreshSelectCards() {
                 data-gender="${p.gender}"
                 title="Tap to toggle gender">
               <span class="newImport-set-player-name">${p.displayName}</span>
-              <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;">${(p.rating || 1.0).toFixed(1)}</span>
+              <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;" data-player="${p.displayName}">${getRating(p.displayName).toFixed(1)}</span>
               <button class="newImport-set-player-remove-btn"
                 data-setname="${safeName}"
                 data-name="${p.displayName.replace(/"/g, '&quot;')}">×</button>
@@ -326,7 +326,7 @@ function newImportRefreshSelectCards() {
 
       const card = document.createElement("div");
       card.className = "newImport-player-card";
-      const rating1 = (p.rating || 1.0).toFixed(1);
+      const rating1 = getRating(p.displayName).toFixed(1);
       card.innerHTML = `
         <div class="newImport-player-top">
           <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
@@ -334,7 +334,7 @@ function newImportRefreshSelectCards() {
           <div class="newImport-player-name">${p.displayName}</div>
         </div>
         <div class="newImport-player-actions">
-          <span class="rating-badge">${rating1}</span>
+          <span class="rating-badge" data-player="${p.displayName}">${rating1}</span>
           <button class="circle-btn favorite ${fav ? 'active-favorite' : ''}"
             data-action="favorite" data-player="${p.displayName}">
             ${fav ? "★" : "☆"}
@@ -540,14 +540,14 @@ function newImportRefreshSelectedCards() {
   newImportState.selectedPlayers.forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "newImport-player-card";
-    const rating2 = (p.rating || 1.0).toFixed(1);
+    const rating2 = getRating(p.displayName).toFixed(1);
     card.innerHTML = `
       <div class="newImport-player-top">
         <img src="${p.gender === "Male" ? "male.png" : "female.png"}">
         <div class="newImport-player-name">${p.displayName}</div>
       </div>
       <div class="newImport-player-actions">
-        <span class="rating-badge">${rating2}</span>
+        <span class="rating-badge" data-player="${p.displayName}">${rating2}</span>
         <button onclick="newImportRemoveSelected(${i})">×</button>
       </div>
     `;

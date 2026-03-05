@@ -304,7 +304,7 @@ function playerMgmtRenderList() {
            title="Tap to toggle gender">
       <span class="player-mgmt-name">${p.displayName}</span>
       <input type="number" class="rating-edit-input"
-        value="${(p.rating || 1.0).toFixed(1)}"
+        value="${getRating(p.displayName).toFixed(1)}"
         min="1.0" max="5.0" step="0.1"
         onchange="playerMgmtSaveRating('${p.displayName}', this.value)">
       <button class="player-mgmt-del-btn"
@@ -316,18 +316,10 @@ function playerMgmtRenderList() {
 
 // ── Save rating to master DB ──
 function playerMgmtSaveRating(displayName, value) {
-  const rating = Math.round(parseFloat(value) * 10) / 10;
-  if (isNaN(rating) || rating < 1.0 || rating > 5.0) return;
-  const key = displayName.trim().toLowerCase();
-
-  // Write to master DB only
-  const hp = newImportState.historyPlayers.find(p => p.displayName.trim().toLowerCase() === key);
-  if (!hp) return;
-  hp.rating = rating;
-  localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
-
-  // Inject into all players and refresh
-  syncPlayersFromMaster();
+  const rating = parseFloat(value);
+  if (isNaN(rating)) return;
+  setRating(displayName, rating);  // single write gateway
+  syncRatings();                   // refresh all visible badges
   updatePlayerList();
 }
 

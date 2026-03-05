@@ -413,10 +413,7 @@ function groupByTier(state, players) {
   const weak   = [];
 
   for (const p of players) {
-    // Look up rating from allPlayers master record
-    const playerObj = state.allPlayers.find(pl => pl.name === p);
-    const rating = playerObj ? (playerObj.rating || 1.0) : 1.0;
-
+    const rating = getRating(p);
     if (rating >= 3.6)      strong.push(p);
     else if (rating >= 2.1) inter.push(p);
     else                    weak.push(p);
