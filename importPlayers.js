@@ -151,6 +151,11 @@ function newImportShowSelectMode(mode) {
     searchInput.style.display    = "none";
     clearHistory.style.display   = "none";
     clearFavorites.style.display = "none";
+    // Use translated placeholder
+    const ta = document.getElementById("players-names");
+    if (ta && typeof translations !== "undefined" && translations[currentLang]?.importExample) {
+      ta.placeholder = translations[currentLang].importExample;
+    }
     return;
   }
 
@@ -508,11 +513,12 @@ function newImportClearFavorites() {
 /* =========================
    FAVORITE SETS — SAVE INPUT TOGGLE
 ========================= */
-function newImportToggleFavoriteSetInput() {
-  const row = document.getElementById("newImportFavoriteSetRow");
-  const isVisible = row.style.display !== "none";
-  row.style.display = isVisible ? "none" : "block";
-  if (!isVisible) document.getElementById("newImportSetName").focus();
+function newImportToggleAddFav() {
+  newImportState.addToFavOnAdd = !newImportState.addToFavOnAdd;
+  const btn = document.getElementById("addPlayerFavToggle");
+  if (!btn) return;
+  btn.textContent = newImportState.addToFavOnAdd ? "★" : "☆";
+  btn.classList.toggle("active", newImportState.addToFavOnAdd);
 }
 
 function newImportSaveFavoriteSet() {
@@ -585,10 +591,17 @@ function addPlayer() {
         newImportState.historyPlayers.unshift({ ...player });
       }
     }
+    // Also add to favorites if star toggle is ON
+    if (newImportState.addToFavOnAdd) {
+      addToListIfNotExists(newImportState.favoritePlayers, player);
+    }
   });
 
   newImportState.historyPlayers = newImportState.historyPlayers.slice(0, 50);
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
+  if (newImportState.addToFavOnAdd) {
+    newImportSaveFavorites();
+  }
 
   newImportRefreshSelectedCards();
   newImportRefreshSelectCards();

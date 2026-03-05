@@ -18,7 +18,6 @@
   <script src="rounds.js" defer></script>
   <script src="players.js" defer></script>
   <script src="importPlayers.js" defer></script>
-
   <script src="settings.js" defer></script>
   <script src="summary.js" defer></script>
   <script src="help.js" defer></script>
@@ -320,17 +319,7 @@
 
             <div class="addplayer-row">
               <button class="newImport-ok-btn addplayer-btn" onclick="addPlayer()">Add Player</button>
-              <button class="newImport-ok-btn addplayer-btn addplayer-set-btn" onclick="newImportToggleFavoriteSetInput()">★ Favorite Set</button>
-            </div>
-
-            <div id="newImportFavoriteSetRow" style="display:none">
-              <div class="addplayer-setname-row">
-                <input id="newImportSetName" type="text" class="addplayer-setname-input" placeholder="Set name e.g. Monday Group">
-              </div>
-              <div class="addplayer-setname-actions">
-                <button class="newImport-ok-btn addplayer-btn" onclick="newImportSaveFavoriteSet()">Save Set</button>
-                <button class="newImport-cancel-btn addplayer-btn" onclick="newImportToggleFavoriteSetInput()">Cancel</button>
-              </div>
+              <button id="addPlayerFavToggle" class="addplayer-fav-toggle" onclick="newImportToggleAddFav()" title="Also add to Favorites">☆</button>
             </div>
 
           </div>

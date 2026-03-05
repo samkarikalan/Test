@@ -592,6 +592,28 @@ display: block;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.addplayer-fav-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--border2);
+  background: var(--surface2);
+  color: var(--muted);
+  font-size: 1.3rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.addplayer-fav-toggle.active {
+  background: var(--amber);
+  border-color: transparent;
+  color: #fff;
+}
+.addplayer-fav-toggle:hover { transform: scale(1.08); }
+
 .newImport-set-player-add-btn,
 .newImport-set-player-remove-btn {
   width: 28px;
