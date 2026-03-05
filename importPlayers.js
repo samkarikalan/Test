@@ -515,10 +515,10 @@ function newImportClearFavorites() {
 ========================= */
 function newImportToggleAddFav() {
   newImportState.addToFavOnAdd = !newImportState.addToFavOnAdd;
-  const btn = document.getElementById("addPlayerFavToggle");
-  if (!btn) return;
-  btn.textContent = newImportState.addToFavOnAdd ? "★" : "☆";
-  btn.classList.toggle("active", newImportState.addToFavOnAdd);
+  const icon = document.getElementById("addPlayerFavToggle");
+  if (!icon) return;
+  icon.textContent = newImportState.addToFavOnAdd ? "★" : "☆";
+  icon.style.color = newImportState.addToFavOnAdd ? "var(--amber)" : "rgba(255,255,255,0.5)";
 }
 
 function newImportSaveFavoriteSet() {

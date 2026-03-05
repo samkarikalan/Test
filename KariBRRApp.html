@@ -318,8 +318,9 @@
             </div>
 
             <div class="addplayer-row">
-              <button class="newImport-ok-btn addplayer-btn" onclick="addPlayer()">Add Player</button>
-              <button id="addPlayerFavToggle" class="addplayer-fav-toggle" onclick="newImportToggleAddFav()" title="Also add to Favorites">☆</button>
+              <button class="newImport-ok-btn addplayer-btn" onclick="addPlayer()">
+                Add Player &nbsp;<span id="addPlayerFavToggle" class="addplayer-fav-toggle-icon" onclick="event.stopPropagation(); newImportToggleAddFav()">☆</span>
+              </button>
             </div>
 
           </div>
