@@ -58,21 +58,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* =========================
-   MASTER SYNC
-   Called once on load — pulls ratings/gender from
-   newImportHistory (master DB) into schedulerState.allPlayers
+   MASTER SYNC — single source of truth for ratings
+   Rating lives ONLY in newImportHistory (master DB).
+   Call this after ANY change to inject fresh ratings everywhere.
 ========================= */
 function syncPlayersFromMaster() {
   const master = (newImportState && newImportState.historyPlayers) ? newImportState.historyPlayers : [];
-  if (!master.length) return;
 
+  // Inject rating into every session player from master DB
   schedulerState.allPlayers.forEach(p => {
     const hp = master.find(h => h.displayName.trim().toLowerCase() === p.name.trim().toLowerCase());
-    if (hp) {
-      if (hp.rating !== undefined) p.rating = hp.rating;
-      if (hp.gender !== undefined) p.gender = hp.gender;
-    }
-    if (p.rating === undefined || p.rating === null) p.rating = 1.0;
+    p.rating = (hp && hp.rating !== undefined) ? hp.rating : 1.0;
   });
 }
 

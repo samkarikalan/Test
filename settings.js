@@ -320,12 +320,13 @@ function playerMgmtSaveRating(displayName, value) {
   if (isNaN(rating) || rating < 1.0 || rating > 5.0) return;
   const key = displayName.trim().toLowerCase();
 
-  // Update master DB
+  // Write to master DB only
   const hp = newImportState.historyPlayers.find(p => p.displayName.trim().toLowerCase() === key);
-  if (hp) hp.rating = rating;
+  if (!hp) return;
+  hp.rating = rating;
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
 
-  // Sync into schedulerState and refresh Players tab
+  // Inject into all players and refresh
   syncPlayersFromMaster();
   updatePlayerList();
 }
@@ -337,8 +338,8 @@ function playerMgmtToggleGender(displayName) {
   if (!hp) return;
   hp.gender = hp.gender === "Female" ? "Male" : "Female";
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
-  const sp = schedulerState.allPlayers.find(p => p.name.trim().toLowerCase() === key);
-  if (sp) { sp.gender = hp.gender; saveAllPlayersState(); }
+  syncPlayersFromMaster();
+  updatePlayerList();
   playerMgmtRenderList();
 }
 

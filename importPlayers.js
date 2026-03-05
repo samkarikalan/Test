@@ -115,6 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
 ========================= */
 function newImportShowModal() {
   newImportModal.style.display = "flex";
+  syncPlayersFromMaster(); // ensure latest ratings before rendering
   newImportLoadHistory();
   newImportLoadFavorites();
   newImportRefreshSelectCards();
@@ -200,18 +201,15 @@ function isValidPlayerName(name) {
 function newImportLoadHistory() {
   const data = localStorage.getItem("newImportHistory");
   const raw  = data ? JSON.parse(data) : [];
-  // Filter out junk entries saved from old paste-import
+  // Filter junk, deduplicate, preserve rating as-is from storage
   const cleaned = raw.filter(p => isValidPlayerName(p.displayName));
   const deduped = newImportDeduplicate(cleaned);
-  // Also sync any ratings already in schedulerState (in case history is stale)
   deduped.forEach(hp => {
-    const key = hp.displayName.trim().toLowerCase();
-    const sp  = schedulerState.allPlayers.find(p => p.name.trim().toLowerCase() === key);
-    if (sp && sp.rating !== undefined) hp.rating = sp.rating;
-    else if (hp.rating === undefined)  hp.rating = 1.0;
+    if (hp.rating === undefined || hp.rating === null) hp.rating = 1.0;
   });
   newImportState.historyPlayers = deduped;
-  localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
+  // Sync ratings into session players now that history is loaded
+  if (typeof syncPlayersFromMaster === 'function') syncPlayersFromMaster();
 }
 
 /* =========================
@@ -280,7 +278,7 @@ function newImportRefreshSelectCards() {
                 data-gender="${p.gender}"
                 title="Tap to toggle gender">
               <span class="newImport-set-player-name">${p.displayName}</span>
-              <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;">${(() => { const key = p.displayName.trim().toLowerCase(); const hp = newImportState.historyPlayers.find(h => h.displayName.trim().toLowerCase() === key); return (hp && hp.rating !== undefined ? hp.rating : p.rating || 1.0).toFixed(1); })()}</span>
+              <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;">${(p.rating || 1.0).toFixed(1)}</span>
               <button class="newImport-set-player-remove-btn"
                 data-setname="${safeName}"
                 data-name="${p.displayName.replace(/"/g, '&quot;')}">×</button>
@@ -328,8 +326,7 @@ function newImportRefreshSelectCards() {
 
       const card = document.createElement("div");
       card.className = "newImport-player-card";
-      const masterP1 = newImportState.historyPlayers.find(h => h.displayName.trim().toLowerCase() === nameNorm);
-      const rating1 = (masterP1 && masterP1.rating !== undefined ? masterP1.rating : p.rating || 1.0).toFixed(1);
+      const rating1 = (p.rating || 1.0).toFixed(1);
       card.innerHTML = `
         <div class="newImport-player-top">
           <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
@@ -543,8 +540,7 @@ function newImportRefreshSelectedCards() {
   newImportState.selectedPlayers.forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "newImport-player-card";
-    const masterP2 = newImportState.historyPlayers.find(h => h.displayName.trim().toLowerCase() === p.displayName.trim().toLowerCase());
-    const rating2 = (masterP2 && masterP2.rating !== undefined ? masterP2.rating : p.rating || 1.0).toFixed(1);
+    const rating2 = (p.rating || 1.0).toFixed(1);
     card.innerHTML = `
       <div class="newImport-player-top">
         <img src="${p.gender === "Male" ? "male.png" : "female.png"}">

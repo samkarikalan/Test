@@ -526,6 +526,18 @@ for (const game of games) {
 
 /// 7️⃣ 🏆 Update WIN COUNT + RATINGS
 if (getPlayMode() === "competitive") {
+  const master = newImportState.historyPlayers; // ratings live here only
+
+  const getMasterRating = (name) => {
+    const hp = master.find(h => h.displayName.trim().toLowerCase() === name.trim().toLowerCase());
+    return (hp && hp.rating !== undefined) ? hp.rating : 1.0;
+  };
+
+  const setMasterRating = (name, rating) => {
+    const hp = master.find(h => h.displayName.trim().toLowerCase() === name.trim().toLowerCase());
+    if (hp) hp.rating = rating;
+  };
+
   for (const game of games) {
     if (!game.winner) continue;
 
@@ -537,40 +549,31 @@ if (getPlayMode() === "competitive") {
       schedulerState.winCount.set(p, (schedulerState.winCount.get(p) || 0) + 1);
     }
 
-    // ── Rating update ──
-    const getPlayerRating = (name) => {
-      const pl = schedulerState.allPlayers.find(p => p.name === name);
-      return pl ? (pl.rating || 1.0) : 1.0;
-    };
-
-    const winAvg  = winners.reduce((s, p) => s + getPlayerRating(p), 0) / winners.length;
-    const loseAvg = losers.reduce((s, p)  => s + getPlayerRating(p), 0) / losers.length;
+    // ── Rating update — read/write master DB directly ──
+    const winAvg  = winners.reduce((s, p) => s + getMasterRating(p), 0) / winners.length;
+    const loseAvg = losers.reduce((s, p)  => s + getMasterRating(p), 0) / losers.length;
     const gap = loseAvg - winAvg; // positive = winners were weaker
 
-    // Gain for winners based on strength gap
-    const winGain = gap > 0.3 ? 0.4 : gap > -0.3 ? 0.2 : 0.1;
-    // Loss for losers based on strength gap
+    const winGain  = gap > 0.3 ? 0.4 : gap > -0.3 ? 0.2 : 0.1;
     const loseLoss = gap < -0.3 ? 0.4 : gap < 0.3 ? 0.2 : 0.1;
 
     for (const p of winners) {
-      const pl = schedulerState.allPlayers.find(pl => pl.name === p);
-      if (!pl) continue;
-      pl.rating = Math.min(5.0, Math.round(((pl.rating || 1.0) + winGain) * 10) / 10);
+      const current = getMasterRating(p);
+      setMasterRating(p, Math.min(5.0, Math.round((current + winGain) * 10) / 10));
     }
 
     for (const p of losers) {
-      const pl = schedulerState.allPlayers.find(pl => pl.name === p);
-      if (!pl) continue;
-      const current = pl.rating || 1.0;
-      // Protected below 2.0 — never lose rating
+      const current = getMasterRating(p);
       if (current >= 2.0) {
-        pl.rating = Math.max(1.0, Math.round((current - loseLoss) * 10) / 10);
+        setMasterRating(p, Math.max(1.0, Math.round((current - loseLoss) * 10) / 10));
       }
     }
   }
 
-  // Save updated ratings to master DB
-  saveAllPlayersState();
+  // Persist master DB then inject ratings everywhere
+  localStorage.setItem("newImportHistory", JSON.stringify(master));
+  syncPlayersFromMaster();
+  updatePlayerList();
 }
 
 // after tracking pairs & games

@@ -125,30 +125,10 @@ function removeFixedPairsForPlayer(playerName) {
    RATING SYNC — schedulerState → history
    Called after save so import history carries latest ratings
 ========================= */
-function syncRatingsToHistory() {
-  if (!newImportState || !newImportState.historyPlayers) return;
-  let changed = false;
-  newImportState.historyPlayers.forEach(hp => {
-    const key = hp.displayName.trim().toLowerCase();
-    const sp  = schedulerState.allPlayers.find(p => p.name.trim().toLowerCase() === key);
-    if (sp && sp.rating !== undefined) {
-      if (hp.rating !== sp.rating) { hp.rating = sp.rating; changed = true; }
-    }
-  });
-  if (changed) {
-    localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
-  }
-}
+
 function saveAllPlayersState() {
-  // Migrate existing players — ensure rating field exists
-  schedulerState.allPlayers.forEach(p => {
-    if (p.rating === undefined || p.rating === null) p.rating = 1.0;
-  });
-  localStorage.setItem("schedulerPlayers",  JSON.stringify(schedulerState.allPlayers));
-  // Sync ratings back to import history so next session carries updated ratings
-  syncRatingsToHistory();
-  localStorage.setItem("newImportHistory",  JSON.stringify(newImportState.historyPlayers));
-  localStorage.setItem("newImportFavorites",JSON.stringify(newImportState.favoritePlayers));
+  localStorage.setItem("schedulerPlayers",   JSON.stringify(schedulerState.allPlayers));
+  localStorage.setItem("newImportFavorites", JSON.stringify(newImportState.favoritePlayers));
 }
 
 /* =========================
@@ -246,10 +226,7 @@ function addPlayersFromInputUI() {
       !existing &&
       !extractedNames.some(e => e.name.trim().toLowerCase() === nameKey)
     ) {
-      // Always pull latest rating from master DB at time of import
-      const masterPlayer = newImportState.historyPlayers.find(h => h.displayName.trim().toLowerCase() === nameKey);
-      const histRating = masterPlayer ? (masterPlayer.rating || 1.0) : (typeof p.rating === 'number' ? p.rating : 1.0);
-      extractedNames.push({ name, gender, active: true, rating: histRating });
+      extractedNames.push({ name, gender, active: true });
     }
   });
   schedulerState.allPlayers.push(...extractedNames);
@@ -351,7 +328,7 @@ function addPlayersFromText() {
     const exists =
       schedulerState.allPlayers.some(p => p.name.trim().toLowerCase() === normalized) ||
       extractedNames.some(p => p.name.trim().toLowerCase() === normalized);
-    if (!exists) extractedNames.push({ name: line, gender, active: true, rating: 1.0 });
+    if (!exists) extractedNames.push({ name: line, gender, active: true });
   }
   if (!extractedNames.length) return;
   schedulerState.allPlayers.push(...extractedNames);
