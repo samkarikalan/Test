@@ -175,7 +175,12 @@ function toggleGender(index, iconEl) {
   if (!player) return;
   player.gender = player.gender === "Male" ? "Female" : "Male";
   const genderClass = player.gender.toLowerCase();
-  iconEl.textContent = getGenderIcon(player.gender);
+  // Update img src if using image avatar, or textContent if emoji
+  if (iconEl.tagName === "IMG") {
+    iconEl.src = player.gender === "Female" ? "female.png" : "male.png";
+  } else {
+    iconEl.textContent = getGenderIcon(player.gender);
+  }
   iconEl.classList.remove("male", "female");
   iconEl.classList.add(genderClass);
   const card = iconEl.closest(".player-edit-card");
@@ -340,18 +345,14 @@ function createPlayerCard(player, index) {
   card.addEventListener("dragstart", onDragStart);
   card.addEventListener("dragover",  onDragOver);
   card.addEventListener("drop",      onDrop);
-  const genderIcon =
-    player.gender === "Male"   ? "👨‍💼" :
-    player.gender === "Female" ? "🙎‍♀️" : "❔";
+  const genderImg = player.gender === "Female" ? "female.png" : "male.png";
   card.innerHTML = `
     <div class="pec-col pec-active">
       <input type="checkbox" ${player.active ? "checked" : ""} onchange="toggleActive(${index}, this)">
     </div>
     <div class="pec-col pec-sl">${index + 1}</div>
     <div class="pec-col pec-gender">
-      <span class="gender-icon ${player.gender.toLowerCase()}" onclick="toggleGender(${index}, this)">
-        ${genderIcon}
-      </span>
+      <img src="${genderImg}" class="gender-icon pec-gender-img" onclick="toggleGender(${index}, this)" title="Tap to toggle gender">
     </div>
     <div class="pec-col pec-name" onclick="editPlayerName(${index})">${player.name}</div>
     <div class="pec-col pec-delete">
