@@ -403,17 +403,23 @@ function extractActiveFixedPairs(state, playing) {
 }
 
 function groupByTier(state, players) {
+  // Tier boundaries based on persistent player rating (master DB)
+  // 1.0 – 2.0  → Weak
+  // 2.1 – 3.5  → Intermediate
+  // 3.6 – 5.0  → Strong
 
   const strong = [];
-  const inter = [];
-  const weak = [];
+  const inter  = [];
+  const weak   = [];
 
   for (const p of players) {
-    const rating = state.winCount.get(p) || 0;
+    // Look up rating from allPlayers master record
+    const playerObj = state.allPlayers.find(pl => pl.name === p);
+    const rating = playerObj ? (playerObj.rating || 1.0) : 1.0;
 
-    if (rating >= state.strongThreshold) strong.push(p);
-    else if (rating >= state.interThreshold) inter.push(p);
-    else weak.push(p);
+    if (rating >= 3.6)      strong.push(p);
+    else if (rating >= 2.1) inter.push(p);
+    else                    weak.push(p);
   }
 
   return { strong, inter, weak };

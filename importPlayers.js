@@ -202,7 +202,15 @@ function newImportLoadHistory() {
   const raw  = data ? JSON.parse(data) : [];
   // Filter out junk entries saved from old paste-import
   const cleaned = raw.filter(p => isValidPlayerName(p.displayName));
-  newImportState.historyPlayers = newImportDeduplicate(cleaned);
+  const deduped = newImportDeduplicate(cleaned);
+  // Also sync any ratings already in schedulerState (in case history is stale)
+  deduped.forEach(hp => {
+    const key = hp.displayName.trim().toLowerCase();
+    const sp  = schedulerState.allPlayers.find(p => p.name.trim().toLowerCase() === key);
+    if (sp && sp.rating !== undefined) hp.rating = sp.rating;
+    else if (hp.rating === undefined)  hp.rating = 1.0;
+  });
+  newImportState.historyPlayers = deduped;
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
 }
 
@@ -272,7 +280,7 @@ function newImportRefreshSelectCards() {
                 data-gender="${p.gender}"
                 title="Tap to toggle gender">
               <span class="newImport-set-player-name">${p.displayName}</span>
-              <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;">${((schedulerState.allPlayers.find(sp=>sp.name.trim().toLowerCase()===p.displayName.trim().toLowerCase())?.rating)||1.0).toFixed(1)}</span>
+              <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;">${(p.rating || 1.0).toFixed(1)}</span>
               <button class="newImport-set-player-remove-btn"
                 data-setname="${safeName}"
                 data-name="${p.displayName.replace(/"/g, '&quot;')}">×</button>
@@ -320,8 +328,7 @@ function newImportRefreshSelectCards() {
 
       const card = document.createElement("div");
       card.className = "newImport-player-card";
-      const savedP1 = schedulerState.allPlayers.find(sp => sp.name.trim().toLowerCase() === nameNorm);
-      const rating1 = savedP1 ? (savedP1.rating || 1.0).toFixed(1) : '1.0';
+      const rating1 = (p.rating || 1.0).toFixed(1);
       card.innerHTML = `
         <div class="newImport-player-top">
           <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
@@ -535,9 +542,7 @@ function newImportRefreshSelectedCards() {
   newImportState.selectedPlayers.forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "newImport-player-card";
-    const nameNorm2 = p.displayName.trim().toLowerCase();
-    const savedP2 = schedulerState.allPlayers.find(sp => sp.name.trim().toLowerCase() === nameNorm2);
-    const rating2 = savedP2 ? (savedP2.rating || 1.0).toFixed(1) : '1.0';
+    const rating2 = (p.rating || 1.0).toFixed(1);
     card.innerHTML = `
       <div class="newImport-player-top">
         <img src="${p.gender === "Male" ? "male.png" : "female.png"}">

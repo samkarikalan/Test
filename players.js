@@ -120,12 +120,33 @@ function removeFixedPairsForPlayer(playerName) {
 /* =========================
    PLAYER STATE SAVE
 ========================= */
+
+/* =========================
+   RATING SYNC — schedulerState → history
+   Called after save so import history carries latest ratings
+========================= */
+function syncRatingsToHistory() {
+  if (!newImportState || !newImportState.historyPlayers) return;
+  let changed = false;
+  newImportState.historyPlayers.forEach(hp => {
+    const key = hp.displayName.trim().toLowerCase();
+    const sp  = schedulerState.allPlayers.find(p => p.name.trim().toLowerCase() === key);
+    if (sp && sp.rating !== undefined) {
+      if (hp.rating !== sp.rating) { hp.rating = sp.rating; changed = true; }
+    }
+  });
+  if (changed) {
+    localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
+  }
+}
 function saveAllPlayersState() {
   // Migrate existing players — ensure rating field exists
   schedulerState.allPlayers.forEach(p => {
     if (p.rating === undefined || p.rating === null) p.rating = 1.0;
   });
   localStorage.setItem("schedulerPlayers",  JSON.stringify(schedulerState.allPlayers));
+  // Sync ratings back to import history so next session carries updated ratings
+  syncRatingsToHistory();
   localStorage.setItem("newImportHistory",  JSON.stringify(newImportState.historyPlayers));
   localStorage.setItem("newImportFavorites",JSON.stringify(newImportState.favoritePlayers));
 }
@@ -219,11 +240,15 @@ function addPlayersFromInputUI() {
   importPlayers.forEach(p => {
     const name   = p.displayName.trim();
     const gender = p.gender || "Male";
+    const nameKey = name.toLowerCase();
+    const existing = schedulerState.allPlayers.find(e => e.name.trim().toLowerCase() === nameKey);
     if (
-      !schedulerState.allPlayers.some(e => e.name.trim().toLowerCase() === name.toLowerCase()) &&
-      !extractedNames.some(e => e.name.trim().toLowerCase() === name.toLowerCase())
+      !existing &&
+      !extractedNames.some(e => e.name.trim().toLowerCase() === nameKey)
     ) {
-      extractedNames.push({ name, gender, active: true, rating: 1.0 });
+      // Carry rating from history if available, else default 1.0
+      const histRating = (typeof p.rating === 'number') ? p.rating : 1.0;
+      extractedNames.push({ name, gender, active: true, rating: histRating });
     }
   });
   schedulerState.allPlayers.push(...extractedNames);
