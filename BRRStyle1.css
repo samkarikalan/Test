@@ -477,10 +477,10 @@ display: block;
 /* ── Outer card wrapper ── */
 .newImport-set-card {
   width: 100%;
-  border: 1px solid var(--border);
+  border: 2px solid var(--accent);
   border-radius: var(--r-md);
   padding: 10px 12px;
-  background: var(--surface2);
+  background: var(--accent-dim);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -582,7 +582,10 @@ display: block;
   height: 26px;
   border-radius: 50%;
   flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.15s;
 }
+.newImport-set-player-img:hover { transform: scale(1.15); }
 .newImport-set-player-name {
   flex: 1;
   font-size: 0.9rem;

@@ -264,7 +264,13 @@ function newImportRefreshSelectCards() {
         <div class="newImport-set-players" style="display:none">
           ${set.players.map(p => `
             <div class="newImport-set-player-row">
-              <img src="${p.gender === 'Male' ? 'male.png' : 'female.png'}" class="newImport-set-player-img">
+              <img src="${p.gender === 'Male' ? 'male.png' : 'female.png'}"
+                class="newImport-set-player-img"
+                data-action="set-gender"
+                data-setname="${safeName}"
+                data-name="${p.displayName.replace(/"/g, '&quot;')}"
+                data-gender="${p.gender}"
+                title="Tap to toggle gender">
               <span class="newImport-set-player-name">${p.displayName}</span>
               <button class="newImport-set-player-remove-btn"
                 data-setname="${safeName}"
@@ -372,6 +378,23 @@ function newImportHandleSetClick(e) {
   if (e.target.matches(".newImport-set-delete-btn")) {
     const setName = e.target.dataset.setname;
     newImportDeleteFavoriteSet(setName);
+    return;
+  }
+
+  // ── Gender toggle for set player ──
+  if (e.target.matches(".newImport-set-player-img")) {
+    const setName  = e.target.dataset.setname;
+    const name     = e.target.dataset.name;
+    const sets     = newImportLoadFavoriteSets();
+    const set      = sets.find(s => s.name === setName);
+    if (!set) return;
+    const player   = set.players.find(p => p.displayName === name);
+    if (!player) return;
+    player.gender  = player.gender === "Male" ? "Female" : "Male";
+    newImportSaveFavoriteSets(sets);
+    // Update img src immediately without full refresh
+    e.target.src           = player.gender === "Male" ? "male.png" : "female.png";
+    e.target.dataset.gender = player.gender;
     return;
   }
 
