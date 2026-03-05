@@ -546,7 +546,7 @@ background: var(--surface2); border: 1px solid var(--border2);
 border-radius: var(--r-xl); padding: 0 12px;
 display: flex; align-items: center; gap: 8px;
 margin: 3px 0; transition: border-color 0.2s;
-height: 52px; min-height: 52px; box-sizing: border-box;
+height: 44px; min-height: 44px; box-sizing: border-box;
 }
 .player-card:hover { border-color: var(--accent); }
 

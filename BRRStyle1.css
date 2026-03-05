@@ -215,7 +215,7 @@ align-items: center; gap: 5px; font-size: 0.92rem;
 padding: 0 12px; border-radius: var(--r-xl);
 border: 1px solid var(--border2); background: var(--surface2);
 transition: all 0.25s; margin: 3px 0; cursor: grab;
-height: 52px; min-height: 52px; box-sizing: border-box;
+height: 44px; min-height: 44px; box-sizing: border-box;
 }
 .player-edit-card:active { cursor: grabbing; opacity: 0.85; }
 .player-edit-card.male { background: linear-gradient(135deg,rgba(108,99,255,0.1),var(--surface2)); border-color: rgba(108,99,255,0.25); }
@@ -304,7 +304,7 @@ height: 52px; min-height: 52px; box-sizing: border-box;
 .newImport-search:focus { border-color: var(--accent); }
 .newImport-search::placeholder { color: var(--muted); }
 .newImport-list-actions { display: flex; gap: 8px; margin-bottom: 8px; }
-.newImport-player-card { width: 100%; border: 1px solid var(--border2); border-radius: var(--r-xl); padding: 0 14px; height: 52px; min-height: 52px; box-sizing: border-box; background: var(--surface2); display: flex; align-items: center; gap: 10px; }
+.newImport-player-card { width: 100%; border: 1px solid var(--border2); border-radius: var(--r-xl); padding: 0 14px; height: 44px; min-height: 44px; box-sizing: border-box; background: var(--surface2); display: flex; align-items: center; gap: 10px; }
 .newImport-player-top { display: flex; align-items: center; gap: 8px; flex: 1; }
 .newImport-player-top img { width: 26px; height: 26px; cursor: pointer; border-radius: 50%; }
 .newImport-player-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); font-weight: 500; }
