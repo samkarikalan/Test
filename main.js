@@ -52,9 +52,29 @@ function updateSummaryPageAccess() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+  syncPlayersFromMaster();
   updateRoundsPageAccess();
   updateSummaryPageAccess();
 });
+
+/* =========================
+   MASTER SYNC
+   Called once on load — pulls ratings/gender from
+   newImportHistory (master DB) into schedulerState.allPlayers
+========================= */
+function syncPlayersFromMaster() {
+  const master = (newImportState && newImportState.historyPlayers) ? newImportState.historyPlayers : [];
+  if (!master.length) return;
+
+  schedulerState.allPlayers.forEach(p => {
+    const hp = master.find(h => h.displayName.trim().toLowerCase() === p.name.trim().toLowerCase());
+    if (hp) {
+      if (hp.rating !== undefined) p.rating = hp.rating;
+      if (hp.gender !== undefined) p.gender = hp.gender;
+    }
+    if (p.rating === undefined || p.rating === null) p.rating = 1.0;
+  });
+}
 
 
 function updateRoundsPageAccess() {

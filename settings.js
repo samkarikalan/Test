@@ -325,9 +325,9 @@ function playerMgmtSaveRating(displayName, value) {
   if (hp) hp.rating = rating;
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
 
-  // Also update schedulerState if player is in current session
-  const sp = schedulerState.allPlayers.find(p => p.name.trim().toLowerCase() === key);
-  if (sp) { sp.rating = rating; saveAllPlayersState(); }
+  // Sync into schedulerState and refresh Players tab
+  syncPlayersFromMaster();
+  updatePlayerList();
 }
 
 // ── Toggle gender ──

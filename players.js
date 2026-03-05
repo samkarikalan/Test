@@ -246,8 +246,9 @@ function addPlayersFromInputUI() {
       !existing &&
       !extractedNames.some(e => e.name.trim().toLowerCase() === nameKey)
     ) {
-      // Carry rating from history if available, else default 1.0
-      const histRating = (typeof p.rating === 'number') ? p.rating : 1.0;
+      // Always pull latest rating from master DB at time of import
+      const masterPlayer = newImportState.historyPlayers.find(h => h.displayName.trim().toLowerCase() === nameKey);
+      const histRating = masterPlayer ? (masterPlayer.rating || 1.0) : (typeof p.rating === 'number' ? p.rating : 1.0);
       extractedNames.push({ name, gender, active: true, rating: histRating });
     }
   });
@@ -425,10 +426,6 @@ function onDrop(e) {
 }
 
 function updatePlayerList() {
-  // Migrate: ensure every player has a rating field
-  schedulerState.allPlayers.forEach(p => {
-    if (p.rating === undefined || p.rating === null) p.rating = 1.0;
-  });
   const container = document.getElementById("playerList");
   container.innerHTML = "";
   schedulerState.allPlayers.forEach((player, index) => {
