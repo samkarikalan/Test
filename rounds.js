@@ -673,7 +673,8 @@ function report() {
     const rest = schedulerState.restCount.get(p.name) || 0;
 
     const card = document.createElement("div");
-    card.className = "player-card";
+    const topClass = index === 0 ? "top-1" : index === 1 ? "top-2" : index === 2 ? "top-3" : "";
+    card.className = `player-card ${topClass}`;
     card.innerHTML = `
       <div class="rank">#${index + 1}</div>
       <div class="name">${p.name}</div>
@@ -718,7 +719,8 @@ function workedreport() {
     const rest = schedulerState.restCount.get(p.name) || 0;
 
     const card = document.createElement("div");
-    card.className = "player-card";
+    const topClass = index === 0 ? "top-1" : index === 1 ? "top-2" : index === 2 ? "top-3" : "";
+    card.className = `player-card ${topClass}`;
     card.innerHTML = `
       <div class="rank">#${index + 1}</div>
       <div class="name">${p.name.replace(/^\d+\.?\s*/, "")}</div>

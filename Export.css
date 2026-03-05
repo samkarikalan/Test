@@ -22,51 +22,7 @@
 }
 
 
-/* Summary */
-.report-header,
-.player-card {
-  display: grid;
-  grid-template-columns: 50px 1fr minmax(60px, auto) minmax(60px, auto) minmax(60px, auto);
-  align-items: center;
-  gap: 10px;
-}
-
-/* Header styling */
-.report-header {
-  margin: 5px 0;
-  background: #800080;
-  font-weight: bold;
-  color: #fff;
-  padding: 6px;
-  border-radius: 6px;
-  margin-bottom: 1px;
-  position: sticky;
-  z-index: 10;
-}
-
-/* Player card styling */
-.player-card {
-  background: #296472;
-  color: #fff;
-  padding: 2px;
-  margin: 5px 0;
-  border-radius: 1.1rem;
-  border: 1px solid #555;
-  box-shadow: 0 0 4px rgba(0,0,0,0.4);
-}
-
-/* Rank styling */
-.player-card .rank {
-  text-align: center;
-  font-size: 1.1rem;
-  font-weight: bold;
-}
-
-/* Name column */
-.player-card .name {
-  font-size: 1.1rem;
-  padding-left: 6px;
-}
+/* Summary styles handled by BRRStyle2.css */
 
 
 .export-round {
