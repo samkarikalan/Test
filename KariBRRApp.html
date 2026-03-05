@@ -98,6 +98,42 @@
           <div class="btn warn" onclick="showConfirm('confirmResetGames', resetRounds)" data-i18n="resetExcept"></div>
         </div>
       </div>
+
+      <!-- Player Management -->
+      <div class="settings-card card-players-mgmt">
+        <div class="sec">👥 Player Management</div>
+        <div id="playerMgmtLocked" class="player-mgmt-locked">
+          <p class="player-mgmt-hint">Unlock to edit player ratings, gender and manage the player database.</p>
+          <button class="admin-btn" onclick="playerMgmtUnlock()">🔐 Admin Unlock</button>
+        </div>
+        <div id="playerMgmtUnlocked" style="display:none">
+          <div class="player-mgmt-toolbar">
+            <button class="player-mgmt-add-btn" onclick="playerMgmtAddNew()">+ Add Player</button>
+            <button class="player-mgmt-pwd-btn" onclick="playerMgmtChangePwd()">🔑 Change Password</button>
+            <button class="admin-btn" onclick="playerMgmtLock()">🔓 Lock</button>
+          </div>
+          <div id="playerMgmtList" class="player-mgmt-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Admin Password Modal -->
+  <div id="adminModal" class="admin-modal-overlay" style="display:none">
+    <div class="admin-modal">
+      <div class="admin-modal-title" id="adminModalTitle">🔐 Admin Access</div>
+      <input type="password" id="adminPasswordInput" class="admin-password-input"
+        placeholder="Enter password" onkeydown="if(event.key==='Enter') adminVerifyPassword()">
+      <div id="adminPasswordConfirmRow" style="display:none">
+        <input type="password" id="adminPasswordConfirm" class="admin-password-input"
+          placeholder="Confirm new password" style="margin-top:8px">
+      </div>
+      <div class="admin-modal-actions">
+        <button class="admin-modal-cancel" onclick="adminCloseModal()">Cancel</button>
+        <button class="admin-modal-ok" onclick="adminVerifyPassword()">OK</button>
+      </div>
+      <div class="admin-modal-error" id="adminModalError"></div>
     </div>
   </div>
 
@@ -130,27 +166,7 @@
     <div class="browse-arrow">›</div>
   </div>
 
-  <!-- Admin Rating Button -->
-  <div class="admin-bar">
-    <button class="admin-btn" id="adminToggleBtn" onclick="adminPromptPassword()">
-      🔐 Admin Rating
-    </button>
-    <span class="admin-status" id="adminStatus"></span>
-  </div>
 
-  <!-- Admin Password Modal -->
-  <div id="adminModal" class="admin-modal-overlay" style="display:none">
-    <div class="admin-modal">
-      <div class="admin-modal-title">🔐 Admin Access</div>
-      <input type="password" id="adminPasswordInput" class="admin-password-input"
-        placeholder="Enter password" onkeydown="if(event.key==='Enter') adminVerifyPassword()">
-      <div class="admin-modal-actions">
-        <button class="admin-modal-cancel" onclick="adminCloseModal()">Cancel</button>
-        <button class="admin-modal-ok" onclick="adminVerifyPassword()">Unlock</button>
-      </div>
-      <div class="admin-modal-error" id="adminModalError"></div>
-    </div>
-  </div>
 
   <!-- sharedPlayerSlot moves here when players tab active -->
   <div id="playersSlotAnchor"></div>
