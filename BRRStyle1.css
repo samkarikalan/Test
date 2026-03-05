@@ -210,7 +210,7 @@ transition: all 0.2s; box-shadow: 0 4px 14px var(--accent-glow);
 
 /* ── Player Edit Card ── */
 .player-edit-card {
-display: grid; grid-template-columns: 20px 20px 35px 1fr 55px;
+display: grid; grid-template-columns: 20px 20px 35px 1fr auto 40px;
 align-items: center; gap: 5px; font-size: 0.92rem;
 padding: 0 12px; border-radius: var(--r-xl);
 border: 1px solid var(--border2); background: var(--surface2);
@@ -228,6 +228,14 @@ height: 44px; min-height: 44px; box-sizing: border-box;
 .pec-gender-img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; cursor: pointer; transition: transform 0.15s; }
 .pec-gender-img:hover { transform: scale(1.12); }
 .pec-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; color: var(--text); }
+.pec-rating { display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; }
+.rating-badge {
+  font-size: 0.72rem; font-weight: 700;
+  padding: 2px 7px; border-radius: 20px;
+  background: var(--accent-dim); color: var(--accent);
+  border: 1px solid var(--accent); white-space: nowrap;
+  letter-spacing: 0.02em;
+}
 .pec-delete { text-align: right; }
 .pec-delete .delete { all: unset; font-size: 22px; cursor: pointer; color: var(--muted); transition: color 0.2s; }
 .pec-delete .delete:hover { color: var(--red); }

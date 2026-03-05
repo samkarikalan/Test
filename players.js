@@ -121,6 +121,10 @@ function removeFixedPairsForPlayer(playerName) {
    PLAYER STATE SAVE
 ========================= */
 function saveAllPlayersState() {
+  // Migrate existing players — ensure rating field exists
+  schedulerState.allPlayers.forEach(p => {
+    if (p.rating === undefined || p.rating === null) p.rating = 1.0;
+  });
   localStorage.setItem("schedulerPlayers",  JSON.stringify(schedulerState.allPlayers));
   localStorage.setItem("newImportHistory",  JSON.stringify(newImportState.historyPlayers));
   localStorage.setItem("newImportFavorites",JSON.stringify(newImportState.favoritePlayers));
@@ -219,7 +223,7 @@ function addPlayersFromInputUI() {
       !schedulerState.allPlayers.some(e => e.name.trim().toLowerCase() === name.toLowerCase()) &&
       !extractedNames.some(e => e.name.trim().toLowerCase() === name.toLowerCase())
     ) {
-      extractedNames.push({ name, gender, active: true });
+      extractedNames.push({ name, gender, active: true, rating: 1.0 });
     }
   });
   schedulerState.allPlayers.push(...extractedNames);
@@ -321,7 +325,7 @@ function addPlayersFromText() {
     const exists =
       schedulerState.allPlayers.some(p => p.name.trim().toLowerCase() === normalized) ||
       extractedNames.some(p => p.name.trim().toLowerCase() === normalized);
-    if (!exists) extractedNames.push({ name: line, gender, active: true });
+    if (!exists) extractedNames.push({ name: line, gender, active: true, rating: 1.0 });
   }
   if (!extractedNames.length) return;
   schedulerState.allPlayers.push(...extractedNames);
@@ -355,6 +359,9 @@ function createPlayerCard(player, index) {
       <img src="${genderImg}" class="gender-icon pec-gender-img" onclick="toggleGender(${index}, this)" title="Tap to toggle gender">
     </div>
     <div class="pec-col pec-name" onclick="editPlayerName(${index})">${player.name}</div>
+    <div class="pec-col pec-rating">
+      <span class="rating-badge">${(player.rating || 1.0).toFixed(1)}</span>
+    </div>
     <div class="pec-col pec-delete">
       <button class="pec-btn delete" onclick="deletePlayer(${index})">🗑</button>
     </div>
@@ -393,6 +400,10 @@ function onDrop(e) {
 }
 
 function updatePlayerList() {
+  // Migrate: ensure every player has a rating field
+  schedulerState.allPlayers.forEach(p => {
+    if (p.rating === undefined || p.rating === null) p.rating = 1.0;
+  });
   const container = document.getElementById("playerList");
   container.innerHTML = "";
   schedulerState.allPlayers.forEach((player, index) => {
