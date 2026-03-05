@@ -309,7 +309,7 @@ transition: all 0.25s; margin: 4px 0; cursor: grab;
 .circle-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface3); color: var(--text-dim); cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
 .circle-btn:hover { transform: scale(1.08); }
 .circle-btn.active-favorite { background: var(--amber); color: #fff; border-color: transparent; }
-.circle-btn.active-added    { background: var(--accent); color: #fff; border-color: transparent; }
+.circle-btn.active-added    { background: var(--amber); color: #fff; border-color: transparent; }
 .circle-btn.delete          { background: var(--red); color: #fff; border-color: transparent; }
 .circle-btn:disabled        { opacity: 0.4; cursor: not-allowed; }
 #players-names { width: 95%; font-size: 1rem; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--r-sm); color: var(--text); padding: 10px; outline: none; min-height: 80px; resize: none; overflow: hidden; box-sizing: border-box; }
