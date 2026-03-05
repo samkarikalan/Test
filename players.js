@@ -385,7 +385,14 @@ function createPlayerCard(player, index) {
     </div>
     <div class="pec-col pec-name" onclick="editPlayerName(${index})">${player.name}</div>
     <div class="pec-col pec-rating">
-      <span class="rating-badge">${(player.rating || 1.0).toFixed(1)}</span>
+      ${adminUnlocked
+        ? `<input type="number" class="rating-edit-input"
+            value="${(player.rating || 1.0).toFixed(1)}"
+            min="1.0" max="5.0" step="0.1"
+            onchange="adminSaveRating(${index}, this.value)"
+            onclick="event.stopPropagation()">`
+        : `<span class="rating-badge">${(player.rating || 1.0).toFixed(1)}</span>`
+      }
     </div>
     <div class="pec-col pec-delete">
       <button class="pec-btn delete" onclick="deletePlayer(${index})">🗑</button>
@@ -475,4 +482,61 @@ function debounce(func, delay = 250) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), delay);
   };
+}
+
+/* =========================
+   ADMIN RATING MODE
+========================= */
+let adminUnlocked = false;
+const ADMIN_DEFAULT_PASSWORD = "1234";
+
+function adminGetPassword() {
+  return localStorage.getItem("adminPassword") || ADMIN_DEFAULT_PASSWORD;
+}
+
+function adminPromptPassword() {
+  if (adminUnlocked) {
+    adminLock();
+    return;
+  }
+  const modal = document.getElementById("adminModal");
+  const input = document.getElementById("adminPasswordInput");
+  const err   = document.getElementById("adminModalError");
+  err.textContent = "";
+  input.value = "";
+  modal.style.display = "flex";
+  setTimeout(() => input.focus(), 100);
+}
+
+function adminCloseModal() {
+  document.getElementById("adminModal").style.display = "none";
+}
+
+function adminVerifyPassword() {
+  const input = document.getElementById("adminPasswordInput").value;
+  const err   = document.getElementById("adminModalError");
+  if (input === adminGetPassword()) {
+    adminUnlocked = true;
+    adminCloseModal();
+    document.getElementById("adminToggleBtn").textContent = "🔓 Lock Admin";
+    document.getElementById("adminStatus").textContent = "Rating edit ON";
+    updatePlayerList(); // re-render cards with editable ratings
+  } else {
+    err.textContent = "Wrong password. Try again.";
+    document.getElementById("adminPasswordInput").value = "";
+  }
+}
+
+function adminLock() {
+  adminUnlocked = false;
+  document.getElementById("adminToggleBtn").textContent = "🔐 Admin Rating";
+  document.getElementById("adminStatus").textContent = "";
+  updatePlayerList(); // re-render cards back to read-only
+}
+
+function adminSaveRating(index, value) {
+  const rating = parseFloat(value);
+  if (isNaN(rating) || rating < 1.0 || rating > 5.0) return;
+  schedulerState.allPlayers[index].rating = Math.round(rating * 10) / 10;
+  saveAllPlayersState();
 }
