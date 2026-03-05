@@ -635,12 +635,11 @@ function report() {
   const header = document.createElement("div");
   header.className = "report-header";
   header.innerHTML = `
-    <div class="header-rank" data-i18n="rank">Rank</div>
-    <div class="header-name" data-i18n="name">Name</div>
-    <div class="header-rating">Rating</div>
-    <div class="header-wins" data-i18n="wins">Wins</div>
-    <div class="header-played" data-i18n="played">Played</div>
-    <div class="header-rested" data-i18n="rested">Rested</div>
+    <div class="header-rank">Rank</div>
+    <div class="header-name">Name</div>
+    <div class="header-wins">W</div>
+    <div class="header-played">P</div>
+    <div class="header-rested">R</div>
   `;
   container.appendChild(header);
 
@@ -678,10 +677,13 @@ function report() {
     card.innerHTML = `
       <div class="rank">#${index + 1}</div>
       <div class="name">${p.name}</div>
-      <span class="rating-badge">${(p.rating || 1.0).toFixed(1)}</span>
       <div class="stat wins">${wins}</div>
       <div class="stat played">${played}</div>
       <div class="stat rest">${rest}</div>
+      <span class="rating-badge">${(p.rating || 1.0).toFixed(1)}</span>
+      <div class="stat-label lbl-wins">W</div>
+      <div class="stat-label lbl-played">P</div>
+      <div class="stat-label lbl-rest">R</div>
     `;
     container.appendChild(card);
   });
