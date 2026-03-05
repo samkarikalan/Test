@@ -524,7 +524,7 @@ for (const game of games) {
   gamesMap.add(gameKey);
 }
 
-/// 7️⃣ 🏆 Update COMPETITIVE RANK POINTS (+2 / -2)
+/// 7️⃣ 🏆 Update WIN COUNT + RATINGS
 if (getPlayMode() === "competitive") {
   for (const game of games) {
     if (!game.winner) continue;
@@ -532,24 +532,45 @@ if (getPlayMode() === "competitive") {
     const winners = game.winner === 'L' ? game.pair1 : game.pair2;
     const losers  = game.winner === 'L' ? game.pair2 : game.pair1;
 
+    // Track win counts (used for leaderboard display)
     for (const p of winners) {
-      schedulerState.rankPoints.set(
-        p,
-        (schedulerState.rankPoints.get(p) || 0) + 2
-      );
-	  schedulerState.winCount.set(
-	    p,
-	    (schedulerState.winCount.get(p) || 0) + 1
-	  );	
+      schedulerState.winCount.set(p, (schedulerState.winCount.get(p) || 0) + 1);
+    }
+
+    // ── Rating update ──
+    const getPlayerRating = (name) => {
+      const pl = schedulerState.allPlayers.find(p => p.name === name);
+      return pl ? (pl.rating || 1.0) : 1.0;
+    };
+
+    const winAvg  = winners.reduce((s, p) => s + getPlayerRating(p), 0) / winners.length;
+    const loseAvg = losers.reduce((s, p)  => s + getPlayerRating(p), 0) / losers.length;
+    const gap = loseAvg - winAvg; // positive = winners were weaker
+
+    // Gain for winners based on strength gap
+    const winGain = gap > 0.3 ? 0.4 : gap > -0.3 ? 0.2 : 0.1;
+    // Loss for losers based on strength gap
+    const loseLoss = gap < -0.3 ? 0.4 : gap < 0.3 ? 0.2 : 0.1;
+
+    for (const p of winners) {
+      const pl = schedulerState.allPlayers.find(pl => pl.name === p);
+      if (!pl) continue;
+      pl.rating = Math.min(5.0, Math.round(((pl.rating || 1.0) + winGain) * 10) / 10);
     }
 
     for (const p of losers) {
-      schedulerState.rankPoints.set(
-        p,
-        (schedulerState.rankPoints.get(p) || 0) - 2
-      );
+      const pl = schedulerState.allPlayers.find(pl => pl.name === p);
+      if (!pl) continue;
+      const current = pl.rating || 1.0;
+      // Protected below 2.0 — never lose rating
+      if (current >= 2.0) {
+        pl.rating = Math.max(1.0, Math.round((current - loseLoss) * 10) / 10);
+      }
     }
   }
+
+  // Save updated ratings to master DB
+  saveAllPlayersState();
 }
 
 // after tracking pairs & games
