@@ -280,7 +280,7 @@ function newImportRefreshSelectCards() {
                 data-gender="${p.gender}"
                 title="Tap to toggle gender">
               <span class="newImport-set-player-name">${p.displayName}</span>
-              <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;">${(p.rating || 1.0).toFixed(1)}</span>
+              <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;">${(() => { const key = p.displayName.trim().toLowerCase(); const hp = newImportState.historyPlayers.find(h => h.displayName.trim().toLowerCase() === key); return (hp && hp.rating !== undefined ? hp.rating : p.rating || 1.0).toFixed(1); })()}</span>
               <button class="newImport-set-player-remove-btn"
                 data-setname="${safeName}"
                 data-name="${p.displayName.replace(/"/g, '&quot;')}">×</button>
@@ -328,7 +328,8 @@ function newImportRefreshSelectCards() {
 
       const card = document.createElement("div");
       card.className = "newImport-player-card";
-      const rating1 = (p.rating || 1.0).toFixed(1);
+      const masterP1 = newImportState.historyPlayers.find(h => h.displayName.trim().toLowerCase() === nameNorm);
+      const rating1 = (masterP1 && masterP1.rating !== undefined ? masterP1.rating : p.rating || 1.0).toFixed(1);
       card.innerHTML = `
         <div class="newImport-player-top">
           <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
@@ -542,7 +543,8 @@ function newImportRefreshSelectedCards() {
   newImportState.selectedPlayers.forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "newImport-player-card";
-    const rating2 = (p.rating || 1.0).toFixed(1);
+    const masterP2 = newImportState.historyPlayers.find(h => h.displayName.trim().toLowerCase() === p.displayName.trim().toLowerCase());
+    const rating2 = (masterP2 && masterP2.rating !== undefined ? masterP2.rating : p.rating || 1.0).toFixed(1);
     card.innerHTML = `
       <div class="newImport-player-top">
         <img src="${p.gender === "Male" ? "male.png" : "female.png"}">
