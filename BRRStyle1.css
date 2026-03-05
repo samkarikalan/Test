@@ -403,11 +403,11 @@ display: block;
 }
 
 .setting-row {
-  padding: 12px 18px; /* ← move padding to rows instead */
+  padding: 11px 16px;
 }
 
 .setting-divider {
-  margin: 0 18px; /* ← indent divider only */
+  margin: 0;
 }
 
 #roundsSlotAnchor {

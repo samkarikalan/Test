@@ -613,7 +613,7 @@ border-bottom: 1px solid var(--border); margin-bottom: 8px;
   opacity: 0;
   overflow: hidden;
   transition: max-height 0.35s ease, opacity 0.25s ease;
-  padding: 0 16px;
+  padding: 0;
 }
 
 .round-settings-body.open {
@@ -625,7 +625,7 @@ border-bottom: 1px solid var(--border); margin-bottom: 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 11px 0;
+  padding: 11px 16px;
 }
 
 .setting-label {
@@ -640,6 +640,7 @@ border-bottom: 1px solid var(--border); margin-bottom: 8px;
 .setting-divider {
   height: 1px;
   background: var(--border2);
+  margin: 0;
 }
 
 .counter {
