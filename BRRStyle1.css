@@ -681,3 +681,92 @@ display: block;
   cursor: not-allowed;
   transform: none;
 }
+
+/* =========================
+   ADMIN RATING MODE
+========================= */
+.admin-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+}
+.admin-btn {
+  padding: 7px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.admin-btn:hover { background: var(--surface3); }
+.admin-status {
+  font-size: 0.78rem;
+  color: var(--amber);
+  font-weight: 600;
+}
+
+/* Admin password modal */
+.admin-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999;
+}
+.admin-modal {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-md);
+  padding: 24px 20px;
+  width: min(320px, 90vw);
+  display: flex; flex-direction: column; gap: 14px;
+}
+.admin-modal-title {
+  font-size: 1rem; font-weight: 700; color: var(--text);
+}
+.admin-password-input {
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border2);
+  background: var(--surface3);
+  color: var(--text);
+  font-size: 1rem;
+  outline: none;
+  width: 100%; box-sizing: border-box;
+}
+.admin-modal-actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+}
+.admin-modal-cancel {
+  padding: 8px 16px; border-radius: var(--r-sm);
+  border: 1px solid var(--border2);
+  background: transparent; color: var(--muted);
+  font-size: 0.9rem; cursor: pointer;
+}
+.admin-modal-ok {
+  padding: 8px 16px; border-radius: var(--r-sm);
+  border: none; background: var(--accent);
+  color: #fff; font-size: 0.9rem;
+  font-weight: 700; cursor: pointer;
+}
+.admin-modal-error {
+  font-size: 0.8rem; color: var(--red);
+  min-height: 16px;
+}
+
+/* Editable rating input */
+.rating-edit-input {
+  width: 52px;
+  padding: 3px 5px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--amber);
+  background: var(--surface3);
+  color: var(--amber);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
