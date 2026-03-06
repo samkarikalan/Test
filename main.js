@@ -52,6 +52,12 @@ function updateSummaryPageAccess() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Restore session players from localStorage
+  try {
+    const saved = JSON.parse(localStorage.getItem("schedulerPlayers") || "[]");
+    if (saved.length) schedulerState.allPlayers = saved;
+  } catch(e) {}
+
   consolidateMasterDB();   // merge all sources into master DB on open
   updateRoundsPageAccess();
   updateSummaryPageAccess();
