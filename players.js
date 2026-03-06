@@ -145,8 +145,8 @@ function editPlayer(i, field, val) {
   } else {
     player[field] = val.trim();
   }
-  schedulerState.activeplayers = schedulerState.allPlayers
-    .filter(p => p.active).map(p => p.name).reverse();
+  schedulerState.activeplayers.splice(0, schedulerState.activeplayers.length,
+    ...schedulerState.allPlayers.filter(p => p.active).map(p => p.name).reverse());
   updatePlayerList();
   updateFixedPairSelectors();
 }
@@ -159,8 +159,8 @@ function deletePlayer(i) {
   if (!deletedPlayer) return;
   schedulerState.allPlayers.splice(i, 1);
   removeFixedPairsForPlayer(deletedPlayer);
-  schedulerState.activeplayers = schedulerState.allPlayers
-    .filter(p => p.active).map(p => p.name).reverse();
+  schedulerState.activeplayers.splice(0, schedulerState.activeplayers.length,
+    ...schedulerState.allPlayers.filter(p => p.active).map(p => p.name).reverse());
   updatePlayerList();
   updateFixedPairSelectors();
   refreshFixedCards();
@@ -170,8 +170,8 @@ function toggleActive(index, checkbox) {
   schedulerState.allPlayers[index].active = checkbox.checked;
   const card = checkbox.closest(".player-edit-card");
   checkbox.checked ? card.classList.remove("inactive") : card.classList.add("inactive");
-  schedulerState.activeplayers = schedulerState.allPlayers
-    .filter(p => p.active).map(p => p.name).reverse();
+  schedulerState.activeplayers.splice(0, schedulerState.activeplayers.length,
+    ...schedulerState.allPlayers.filter(p => p.active).map(p => p.name).reverse());
   updateFixedPairSelectors();
 }
 
@@ -217,34 +217,28 @@ function addPlayersFromInputUI() {
   const importPlayers = newImportState.selectedPlayers;
   if (!importPlayers || importPlayers.length === 0) { alert('No players to add!'); return; }
 
-  // If there are existing players, ask whether to replace or add
+  // If existing players, ask replace or add
   if (schedulerState.allPlayers.length > 0) {
-    const replace = confirm("Replace current players with selected players?
-
-OK = Replace
-Cancel = Add to existing");
-    if (replace) schedulerState.allPlayers = [];
+    const replace = confirm("Replace current players?
+OK = Replace  /  Cancel = Add to existing");
+    if (replace) {
+      schedulerState.allPlayers.splice(0, schedulerState.allPlayers.length);
+    }
   }
 
-  const extractedNames = [];
   importPlayers.forEach(p => {
-    const name   = p.displayName.trim();
-    const gender = p.gender || "Male";
+    const name    = p.displayName.trim();
+    const gender  = p.gender || "Male";
     const nameKey = name.toLowerCase();
-    const existing = schedulerState.allPlayers.find(e => e.name.trim().toLowerCase() === nameKey);
-    if (
-      !existing &&
-      !extractedNames.some(e => e.name.trim().toLowerCase() === nameKey)
-    ) {
-      extractedNames.push({ name, gender, active: true });
-    }
+    const exists  = schedulerState.allPlayers.some(e => e.name.trim().toLowerCase() === nameKey);
+    if (!exists) schedulerState.allPlayers.push({ name, gender, active: true });
   });
-  schedulerState.allPlayers.push(...extractedNames);
-  schedulerState.activeplayers = schedulerState.allPlayers
-    .filter(p => p.active).map(p => p.name).reverse();
+
+  schedulerState.activeplayers.splice(0, schedulerState.activeplayers.length,
+    ...schedulerState.allPlayers.filter(p => p.active).map(p => p.name).reverse());
+
   hideImportModal();
   newImportState.selectedPlayers = [];
-  // Navigate to Players tab so list is visible immediately
   const playersBtn = document.querySelector('.tab-btn[onclick*="playersPage"]');
   showPage('playersPage', playersBtn);
   updatePlayerList();
@@ -345,8 +339,8 @@ function addPlayersFromText() {
   }
   if (!extractedNames.length) return;
   schedulerState.allPlayers.push(...extractedNames);
-  schedulerState.activeplayers = schedulerState.allPlayers
-    .filter(p => p.active).map(p => p.name).reverse();
+  schedulerState.activeplayers.splice(0, schedulerState.activeplayers.length,
+    ...schedulerState.allPlayers.filter(p => p.active).map(p => p.name).reverse());
   updatePlayerList();
   updateFixedPairSelectors();
   hideImportModal();
@@ -421,8 +415,8 @@ function updatePlayerList() {
   schedulerState.allPlayers.forEach((player, index) => {
     container.appendChild(createPlayerCard(player, index));
   });
-  schedulerState.activeplayers = schedulerState.allPlayers
-    .filter(p => p.active).map(p => p.name).reverse();
+  schedulerState.activeplayers.splice(0, schedulerState.activeplayers.length,
+    ...schedulerState.allPlayers.filter(p => p.active).map(p => p.name).reverse());
   updateFixedPairSelectors();
   updateCourtButtons();
   updateRoundsPageAccess();
