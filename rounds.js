@@ -622,7 +622,7 @@ function RefreshRound() {
     showRound(currentRoundIndex);
 }
 
-function report() {
+function reportFull() {
   const container = document.getElementById("reportContainer");
   container.innerHTML = "";
 
