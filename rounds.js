@@ -475,40 +475,42 @@ for (const game of games) {
 }
 
 /// 7️⃣ 🏆 Update WIN COUNT + RATINGS
-if (getPlayMode() === "competitive") {
-  for (const game of games) {
-    if (!game.winner) continue;
+// Win counts always tracked regardless of mode
+for (const game of games) {
+  if (!game.winner) continue;
+  const winners = game.winner === 'L' ? game.pair1 : game.pair2;
+  for (const p of winners) {
+    schedulerState.winCount.set(p, (schedulerState.winCount.get(p) || 0) + 1);
+  }
+}
 
-    const winners = game.winner === 'L' ? game.pair1 : game.pair2;
-    const losers  = game.winner === 'L' ? game.pair2 : game.pair1;
+// Rating updates — all modes
+for (const game of games) {
+  if (!game.winner) continue;
 
-    // Track win counts
-    for (const p of winners) {
-      schedulerState.winCount.set(p, (schedulerState.winCount.get(p) || 0) + 1);
-    }
+  const winners = game.winner === 'L' ? game.pair1 : game.pair2;
+  const losers  = game.winner === 'L' ? game.pair2 : game.pair1;
 
-    // Rating update — use getRating/setRating (single source of truth)
-    const winAvg  = winners.reduce((s, p) => s + getRating(p), 0) / winners.length;
-    const loseAvg = losers.reduce((s, p)  => s + getRating(p), 0) / losers.length;
-    const gap = loseAvg - winAvg;
+  const winAvg  = winners.reduce((s, p) => s + getRating(p), 0) / winners.length;
+  const loseAvg = losers.reduce((s, p)  => s + getRating(p), 0) / losers.length;
+  const gap = loseAvg - winAvg;
 
-    const winGain  = gap > 0.3 ? 0.4 : gap > -0.3 ? 0.2 : 0.1;
-    const loseLoss = gap < -0.3 ? 0.4 : gap < 0.3 ? 0.2 : 0.1;
+  const winGain  = gap > 0.3 ? 0.4 : gap > -0.3 ? 0.2 : 0.1;
+  const loseLoss = gap < -0.3 ? 0.4 : gap < 0.3 ? 0.2 : 0.1;
 
-    for (const p of winners) {
-      setRating(p, getRating(p) + winGain);
-    }
-    for (const p of losers) {
-      if (getRating(p) >= 2.0) {
-        setRating(p, getRating(p) - loseLoss);
-      }
+  for (const p of winners) {
+    setRating(p, getRating(p) + winGain);
+  }
+  for (const p of losers) {
+    if (getRating(p) >= 2.0) {
+      setRating(p, getRating(p) - loseLoss);
     }
   }
-
-  // Refresh all visible badges
-  syncRatings();
-  updatePlayerList();
 }
+
+// Refresh all visible badges
+syncRatings();
+updatePlayerList();
 
 // after tracking pairs & games
 checkAndResetPairCycle(schedulerState, games, roundIndex);
@@ -626,12 +628,12 @@ function report() {
     card.style.setProperty("--strip-color", stripColor);
     card.innerHTML = `
       <div class="rating-strip"></div>
-      <div class="rank" style="color:${stripColor}">#${index + 1}</div>
+      <div class="rank">#${index + 1}</div>
       <div class="name">${p.name}</div>
       <div class="stat wins">${wins}</div>
       <div class="stat played">${played}</div>
       <div class="stat rest">${rest}</div>
-      <span class="rating-badge" data-player="${p.name}" style="border-color:${stripColor}">${rating.toFixed(1)}</span>
+      <span class="rating-badge" data-player="${p.name}">${rating.toFixed(1)}</span>
       <div class="stat-label lbl-wins">W</div>
       <div class="stat-label lbl-played">P</div>
       <div class="stat-label lbl-rest">R</div>
