@@ -545,82 +545,94 @@ box-shadow: 0 2px 10px rgba(0,0,0,0.25);
 .player-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--r-xl);
-  padding: 8px 12px 8px 10px;
+  border-radius: 12px;
+  padding: 0;
   display: grid;
-  grid-template-columns: 44px 1fr 40px 40px 40px;
+  grid-template-columns: 6px 44px 1fr 40px 40px 40px;
   grid-template-rows: auto auto;
   align-items: center;
   gap: 0 8px;
   margin: 5px 0;
   box-sizing: border-box;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  transition: box-shadow 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.15s;
 }
-.player-card:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.1); }
+.player-card:hover {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+  transform: translateY(-1px);
+}
+
+/* Colored left strip — spans both rows */
+.player-card .rating-strip {
+  grid-column: 1; grid-row: 1 / 3;
+  align-self: stretch;
+  background: var(--strip-color, #9e9e9e);
+}
 
 /* Rank — spans both rows */
 .player-card .rank {
-  grid-column: 1; grid-row: 1 / 3;
-  font-weight: 800; font-size: 1.1rem;
-  color: var(--accent); text-align: center;
+  grid-column: 2; grid-row: 1 / 3;
+  font-weight: 800; font-size: 1.0rem;
+  text-align: center;
+  padding: 8px 0;
 }
 
 /* Row 1 — name + stats */
 .player-card .name {
-  grid-column: 2; grid-row: 1;
-  font-size: 0.92rem; font-weight: 600;
+  grid-column: 3; grid-row: 1;
+  font-size: 0.9rem; font-weight: 600;
   color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   min-width: 0;
+  padding-top: 7px;
 }
 .player-card .stat {
   font-size: 0.95rem; color: var(--text);
   text-align: center; font-weight: 700;
   line-height: 1.1;
+  padding-top: 7px;
 }
-.player-card .stat.wins   { grid-column: 3; grid-row: 1; }
-.player-card .stat.played { grid-column: 4; grid-row: 1; }
-.player-card .stat.rest   { grid-column: 5; grid-row: 1; }
+.player-card .stat.wins   { grid-column: 4; grid-row: 1; }
+.player-card .stat.played { grid-column: 5; grid-row: 1; }
+.player-card .stat.rest   { grid-column: 6; grid-row: 1; }
 
-/* Row 2 — rating badge (compact, auto width) + labels */
+/* Row 2 — rating badge + labels */
 .player-card .rating-badge {
-  grid-column: 2; grid-row: 2;
-  font-size: 0.7rem; padding: 1px 8px;
-  margin-top: 3px;
+  grid-column: 3; grid-row: 2;
+  font-size: 0.68rem; padding: 1px 7px;
+  margin-bottom: 7px;
   width: fit-content;
   min-width: unset;
 }
 .player-card .stat-label {
-  grid-row: 2; font-size: 0.68rem;
+  grid-row: 2; font-size: 0.65rem;
   color: var(--muted); text-align: center;
-  margin-top: 2px; font-weight: 500;
+  margin-bottom: 6px; font-weight: 500;
   line-height: 1;
 }
-.player-card .stat-label.lbl-wins   { grid-column: 3; }
-.player-card .stat-label.lbl-played { grid-column: 4; }
-.player-card .stat-label.lbl-rest   { grid-column: 5; }
+.player-card .stat-label.lbl-wins   { grid-column: 4; }
+.player-card .stat-label.lbl-played { grid-column: 5; }
+.player-card .stat-label.lbl-rest   { grid-column: 6; }
 
-/* Top 3 highlight */
-.player-card.top-1 { border-left-color: #f5a623; background: linear-gradient(to right, rgba(245,166,35,0.06), var(--surface)); }
-.player-card.top-2 { border-left-color: #9b9b9b; background: linear-gradient(to right, rgba(155,155,155,0.06), var(--surface)); }
-.player-card.top-3 { border-left-color: #cd7f32; background: linear-gradient(to right, rgba(205,127,50,0.06), var(--surface)); }
-.player-card.top-1 .rank { color: #f5a623; }
-.player-card.top-2 .rank { color: #9b9b9b; }
-.player-card.top-3 .rank { color: #cd7f32; }
+/* Top 3 subtle background tint */
+.player-card.top-1 { background: linear-gradient(to right, rgba(245,166,35,0.06), var(--surface)); }
+.player-card.top-2 { background: linear-gradient(to right, rgba(155,155,155,0.06), var(--surface)); }
+.player-card.top-3 { background: linear-gradient(to right, rgba(205,127,50,0.06), var(--surface)); }
 
 /* ── Leaderboard header ── */
 .report-header {
   display: grid;
-  grid-template-columns: 40px 1fr 44px 44px 44px;
-  align-items: center; gap: 0 6px;
-  padding: 8px 12px; margin-bottom: 6px;
+  grid-template-columns: 6px 44px 1fr 40px 40px 40px;
+  align-items: center; gap: 0 8px;
+  padding: 6px 0 6px 0; margin-bottom: 6px;
   background: var(--accent);
-  border-radius: var(--r-xl);
-  font-size: 0.75rem; font-weight: 700; color: #fff;
+  border-radius: 12px;
+  font-size: 0.72rem; font-weight: 700; color: #fff;
   box-sizing: border-box;
+  overflow: hidden;
 }
+.report-header .header-strip { background: rgba(0,0,0,0.15); align-self: stretch; }
 .report-header > div { text-align: center; }
 .report-header .header-name { text-align: left; }
 .report-header .header-rating { display: none; }

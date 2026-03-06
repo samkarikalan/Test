@@ -562,6 +562,14 @@ function RefreshRound() {
     showRound(currentRoundIndex);
 }
 
+function ratingToColor(r) {
+  if (r < 2.0) return "#9e9e9e";  // grey  — beginner
+  if (r < 3.0) return "#4a9eff";  // blue  — developing
+  if (r < 4.0) return "#2dce89";  // green — intermediate
+  if (r < 4.5) return "#f5a623";  // amber — advanced
+  return "#e63757";                // red   — elite
+}
+
 function report() {
   const container = document.getElementById("reportContainer");
   container.innerHTML = "";
@@ -572,6 +580,7 @@ function report() {
   const header = document.createElement("div");
   header.className = "report-header";
   header.innerHTML = `
+    <div class="header-strip"></div>
     <div class="header-rank">Rank</div>
     <div class="header-name">Name</div>
     <div class="header-wins">W</div>
@@ -609,16 +618,20 @@ function report() {
     const played = schedulerState.PlayedCount.get(p.name) || 0;
     const rest = schedulerState.restCount.get(p.name) || 0;
 
-    const card = document.createElement("div");
+    const rating   = (typeof getRating === 'function') ? getRating(p.name) : 1.0;
+    const stripColor = ratingToColor(rating);
     const topClass = index === 0 ? "top-1" : index === 1 ? "top-2" : index === 2 ? "top-3" : "";
+    const card = document.createElement("div");
     card.className = `player-card ${topClass}`;
+    card.style.setProperty("--strip-color", stripColor);
     card.innerHTML = `
-      <div class="rank">#${index + 1}</div>
+      <div class="rating-strip"></div>
+      <div class="rank" style="color:${stripColor}">#${index + 1}</div>
       <div class="name">${p.name}</div>
       <div class="stat wins">${wins}</div>
       <div class="stat played">${played}</div>
       <div class="stat rest">${rest}</div>
-      <span class="rating-badge" data-player="${p.name}">${(typeof getRating === 'function' ? getRating(p.name) : 1.0).toFixed(1)}</span>
+      <span class="rating-badge" data-player="${p.name}" style="border-color:${stripColor}">${rating.toFixed(1)}</span>
       <div class="stat-label lbl-wins">W</div>
       <div class="stat-label lbl-played">P</div>
       <div class="stat-label lbl-rest">R</div>
