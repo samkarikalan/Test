@@ -52,12 +52,6 @@ function updateSummaryPageAccess() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Restore session players from localStorage
-  try {
-    const saved = JSON.parse(localStorage.getItem("schedulerPlayers") || "[]");
-    if (saved.length) schedulerState.allPlayers = saved;
-  } catch(e) {}
-
   consolidateMasterDB();   // merge all sources into master DB on open
   updateRoundsPageAccess();
   updateSummaryPageAccess();
@@ -471,12 +465,44 @@ function RefreshRound() {
     showRound(currentRoundIndex);
 }
 function report() {
-  // Delegate to the full report() in rounds.js which has the correct layout
-  if (typeof reportFull === "function") { reportFull(); return; }
-
-  // Fallback — should not normally be reached
   const container = document.getElementById("reportContainer");
-  if (container) container.innerHTML = "<p>Loading...</p>";
+  container.innerHTML = ""; // Clear old cards
+
+  // ⭐ Add title header row
+  const header = document.createElement("div");
+  header.className = "report-header";
+  header.innerHTML = `
+    <div class="header-rank" data-i18n="rank">Rank</div>
+    <div class="header-name" data-i18n="name">Name</div>
+    <div class="header-played" data-i18n="played">Played</div>
+    <div class="header-rested" data-i18n="rested">Rested</div>
+  `;
+  container.appendChild(header);
+
+  // Sort & add players
+  const sortedPlayers = [...schedulerState.allPlayers].sort((a, b) => {
+    const playedA = schedulerState.PlayedCount.get(a.name) || 0;
+    const playedB = schedulerState.PlayedCount.get(b.name) || 0;
+    return playedB - playedA;
+  });
+
+  sortedPlayers.forEach((p, index) => {
+    const played = schedulerState.PlayedCount.get(p.name) || 0;
+    const rest = schedulerState.restCount.get(p.name) || 0;
+
+    const card = document.createElement("div");
+    card.className = "player-card";
+    card.innerHTML = `
+      <div class="rank">#${index + 1}</div>
+      <div class="name">${p.name.replace(/^\d+\.?\s*/, "")}</div>
+      <div class="stat played" style="border-color:${getPlayedColor(played)}">${played}</div>
+      <div class="stat rest" style="border-color:${getRestColor(rest)}">${rest}</div>
+    `;
+    container.appendChild(card);
+  });
+
+  // ⭐ Important: Apply translation to new elements
+  setLanguage(currentLang);
 }
 
 

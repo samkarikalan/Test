@@ -130,7 +130,8 @@ function buildCompetitiveOpponentHistory(allRounds, activeplayers, minRounds) {
     for (const q of activeplayers) { if (p !== q) inner.set(q, 0); }
     oppMap.set(p, inner);
   }
-  for (const round of allRounds) {
+  for (let i = minRounds; i < allRounds.length; i++) {
+    const round = allRounds[i];
     if (!round?.games) continue;
     for (const game of round.games) {
       const t1 = game.pair1;
@@ -157,22 +158,31 @@ function buildCompetitiveOpponentHistory(allRounds, activeplayers, minRounds) {
  * Score one candidate game.
  *
  * Priority (strictly ordered):
- *   1. Partner repeat → -10 per repeat (dominates everything else)
- *   2. Tier rule      → +3/2/1/0
- *   3. Opponent freshness → small +/- bonus
+ *   1. Freshness tier  — 1000 if BOTH pairs are fresh, 0 if either is repeated
+ *      This separates fresh combos from repeated ones absolutely.
+ *   2. Tier rule score — +30/20/10/0 (Rule1/Rule2/Rule3/none)
+ *      Chosen within the fresh group to maximise tier quality.
+ *   3. Opponent freshness — small +/- tiebreaker within same tier rule
+ *
+ * Result: the solver will always prefer any fresh-pair game over any
+ * repeated-pair game, AND within fresh games it picks the best tier match.
  */
 function scoreGame(pair1, pair2, tierMap, pairCount, oppMap) {
   const k1 = createSortedKey(pair1[0], pair1[1]);
   const k2 = createSortedKey(pair2[0], pair2[1]);
 
-  // Repeat penalty — 10pts per repeat, swamps tier score
-  const repeatPenalty = ((pairCount.get(k1) || 0) + (pairCount.get(k2) || 0)) * 10;
+  const pair1Repeats = pairCount.get(k1) || 0;
+  const pair2Repeats = pairCount.get(k2) || 0;
 
-  // Tier score
+  // Freshness bonus — large enough to always beat tier score differences
+  // If either pair is repeated, no freshness bonus (score stays in 0-40 range)
+  const freshnessBonus = (pair1Repeats === 0 && pair2Repeats === 0) ? 1000 : 0;
+
+  // Tier score — scaled up so Rule1 vs Rule0 matters within fresh group
   const tierRule  = getGameTierRule(pair1, pair2, tierMap);
-  const tierScore = tierRule === 1 ? 3 : tierRule === 2 ? 2 : tierRule === 3 ? 1 : 0;
+  const tierScore = tierRule === 1 ? 30 : tierRule === 2 ? 20 : tierRule === 3 ? 10 : 0;
 
-  // Opponent freshness
+  // Opponent freshness — small tiebreaker
   let oppScore = 0;
   for (const a of pair1) {
     for (const b of pair2) {
@@ -181,7 +191,10 @@ function scoreGame(pair1, pair2, tierMap, pairCount, oppMap) {
     }
   }
 
-  return tierScore + oppScore - repeatPenalty;
+  // Soft repeat penalty — only kicks in when all options are repeated
+  const repeatPenalty = (pair1Repeats + pair2Repeats) * 5;
+
+  return freshnessBonus + tierScore + oppScore - repeatPenalty;
 }
 
 

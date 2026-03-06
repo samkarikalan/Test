@@ -524,16 +524,6 @@ for (const game of games) {
   gamesMap.add(gameKey);
 }
 
-/* ── Rating → strip color ── */
-function ratingToColor(r) {
-  r = Math.max(1.0, Math.min(5.0, r));
-  if (r < 2.0) return "#9e9e9e";        // grey   — beginner
-  if (r < 3.0) return "#4a9eff";        // blue   — developing
-  if (r < 4.0) return "#2dce89";        // green  — intermediate
-  if (r < 4.5) return "#f5a623";        // amber  — advanced
-  return "#e63757";                      // red    — elite
-}
-
 /// 7️⃣ 🏆 Update WIN COUNT + RATINGS
 if (getPlayMode() === "competitive") {
   for (const game of games) {
@@ -622,7 +612,7 @@ function RefreshRound() {
     showRound(currentRoundIndex);
 }
 
-function reportFull() {
+function report() {
   const container = document.getElementById("reportContainer");
   container.innerHTML = "";
 
@@ -632,7 +622,6 @@ function reportFull() {
   const header = document.createElement("div");
   header.className = "report-header";
   header.innerHTML = `
-    <div class="header-strip"></div>
     <div class="header-rank">Rank</div>
     <div class="header-name">Name</div>
     <div class="header-wins">W</div>
@@ -671,18 +660,15 @@ function reportFull() {
     const rest = schedulerState.restCount.get(p.name) || 0;
 
     const card = document.createElement("div");
-    const rating = (typeof getRating === 'function') ? getRating(p.name) : 1.0;
-    const stripColor = ratingToColor(rating);
-    card.className = "player-card";
-    card.style.setProperty("--strip-color", stripColor);
+    const topClass = index === 0 ? "top-1" : index === 1 ? "top-2" : index === 2 ? "top-3" : "";
+    card.className = `player-card ${topClass}`;
     card.innerHTML = `
-      <div class="rating-strip"></div>
       <div class="rank">#${index + 1}</div>
       <div class="name">${p.name}</div>
       <div class="stat wins">${wins}</div>
       <div class="stat played">${played}</div>
       <div class="stat rest">${rest}</div>
-      <span class="rating-badge" data-player="${p.name}">${rating.toFixed(1)}</span>
+      <span class="rating-badge" data-player="${p.name}">${(typeof getRating === 'function' ? getRating(p.name) : 1.0).toFixed(1)}</span>
       <div class="stat-label lbl-wins">W</div>
       <div class="stat-label lbl-played">P</div>
       <div class="stat-label lbl-rest">R</div>
