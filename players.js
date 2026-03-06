@@ -219,8 +219,7 @@ function addPlayersFromInputUI() {
 
   // If existing players, ask replace or add
   if (schedulerState.allPlayers.length > 0) {
-    const replace = confirm("Replace current players?
-OK = Replace  /  Cancel = Add to existing");
+    const replace = confirm("Replace current players?\nOK = Replace  /  Cancel = Add to existing");
     if (replace) {
       schedulerState.allPlayers.splice(0, schedulerState.allPlayers.length);
     }
