@@ -21,11 +21,7 @@ function isPageVisible(pageId) {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Restore session players from localStorage
-  try {
-    const saved = JSON.parse(localStorage.getItem("schedulerPlayers") || "[]");
-    if (saved.length) schedulerState.allPlayers = saved;
-  } catch(e) {}
+  // schedulerState starts empty — user imports players fresh each session
   consolidateMasterDB();
   updateRoundsPageAccess();
   updateSummaryPageAccess();
@@ -55,12 +51,12 @@ function consolidateMasterDB() {
         masterMap.set(p.displayName.trim().toLowerCase(), p);
     });
 
-    // Collect all players from every source
+    // Collect players from favorites and session only — NOT from sets
+    // Sets are separate and should not pollute history
     const allSources = [
       ...favs,
       ...session.map(p => ({ displayName: p.name, gender: p.gender })),
     ];
-    sets.forEach(s => { if (s.players) allSources.push(...s.players); });
 
     // Add missing players — never overwrite existing
     allSources.forEach(p => {

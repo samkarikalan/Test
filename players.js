@@ -216,6 +216,16 @@ function hideImportModal() {
 function addPlayersFromInputUI() {
   const importPlayers = newImportState.selectedPlayers;
   if (!importPlayers || importPlayers.length === 0) { alert('No players to add!'); return; }
+
+  // If there are existing players, ask whether to replace or add
+  if (schedulerState.allPlayers.length > 0) {
+    const replace = confirm("Replace current players with selected players?
+
+OK = Replace
+Cancel = Add to existing");
+    if (replace) schedulerState.allPlayers = [];
+  }
+
   const extractedNames = [];
   importPlayers.forEach(p => {
     const name   = p.displayName.trim();
