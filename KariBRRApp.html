@@ -321,7 +321,9 @@
           <button class="newImport-subtab-btn"
                   id="newImportFavoritesBtn"
                   onclick="newImportShowSelectMode('favorites')">Favorites</button>
-
+          <button class="newImport-subtab-btn"
+                  id="newImportAddplayersBtn"
+                  onclick="newImportShowSelectMode('addplayers')">Add Players</button>
         </div>
 
         <input type="text"
@@ -341,7 +343,36 @@
 
         <div id="newImportSelectCards" class="newImport-cards-container"></div>
 
+        <div id="newImportAddPlayersSection" style="display:none">
+          <div class="card">
 
+            <textarea id="players-names" rows="3" placeholder="John&#10;Mike&#10;Sarah"></textarea>
+
+            <div class="addplayer-row">
+              <select id="player-gender" class="addplayer-select">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+
+            <div class="addplayer-row">
+              <button class="newImport-ok-btn addplayer-btn" onclick="addPlayer()">
+                Add Player &nbsp;<span id="addPlayerFavToggle" class="addplayer-fav-toggle-icon" onclick="event.stopPropagation(); newImportToggleAddFav()">☆</span>
+              </button>
+            </div>
+
+            <div id="newImportFavoriteSetRow" style="display:none">
+              <div class="addplayer-setname-row">
+                <input id="newImportSetName" type="text" class="addplayer-setname-input" placeholder="Set name e.g. Monday Group">
+              </div>
+              <div class="addplayer-setname-actions">
+                <button class="newImport-ok-btn addplayer-btn" onclick="newImportSaveFavoriteSet()">Save Set</button>
+                <button class="newImport-cancel-btn addplayer-btn" onclick="newImportToggleAddFav()">Cancel</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
 
       </div>
     </div>
