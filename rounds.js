@@ -668,7 +668,7 @@ function report() {
       <div class="stat wins">${wins}</div>
       <div class="stat played">${played}</div>
       <div class="stat rest">${rest}</div>
-      <span class="rating-badge" data-player="${p.name}">${getRating(p.name).toFixed(1)}</span>
+      <span class="rating-badge" data-player="${p.name}">${(typeof getRating === 'function' ? getRating(p.name) : 1.0).toFixed(1)}</span>
       <div class="stat-label lbl-wins">W</div>
       <div class="stat-label lbl-played">P</div>
       <div class="stat-label lbl-rest">R</div>
@@ -711,7 +711,7 @@ function workedreport() {
     card.innerHTML = `
       <div class="rank">#${index + 1}</div>
       <div class="name">${p.name.replace(/^\d+\.?\s*/, "")}</div>
-      <span class="rating-badge" data-player="${p.name}">${getRating(p.name).toFixed(1)}</span>
+      <span class="rating-badge" data-player="${p.name}">${(typeof getRating === 'function' ? getRating(p.name) : 1.0).toFixed(1)}</span>
       <div class="stat played" style="border-color:${getPlayedColor(played)}">${played}</div>
       <div class="stat rest" style="border-color:${getRestColor(rest)}">${rest}</div>
     `;
