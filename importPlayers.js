@@ -135,12 +135,36 @@ function newImportShowSelectMode(mode) {
 
   document.querySelectorAll(".newImport-subtab-btn")
     .forEach(btn => btn.classList.remove("active"));
+
   document.getElementById(
     "newImport" + mode.charAt(0).toUpperCase() + mode.slice(1) + "Btn"
   )?.classList.add("active");
 
   const clearHistory   = document.getElementById("newImportClearHistoryBtn");
   const clearFavorites = document.getElementById("newImportClearFavoritesBtn");
+  const listContainer  = document.getElementById("newImportSelectCards");
+  const addSection     = document.getElementById("newImportAddPlayersSection");
+  const searchInput    = document.getElementById("newImportSearch");
+
+  if (mode === "addplayers") {
+    listContainer.style.display  = "none";
+    addSection.style.display     = "block";
+    searchInput.style.display    = "none";
+    clearHistory.style.display   = "none";
+    clearFavorites.style.display = "none";
+    // Use translated placeholder
+    const ta = document.getElementById("players-names");
+    if (ta && typeof translations !== "undefined" && translations[currentLang]?.importExample) {
+      ta.placeholder = translations[currentLang].importExample;
+    }
+    return;
+  }
+  // Leaving addplayers tab — reset star toggle state
+  newImportResetFavToggle();
+
+  listContainer.style.display = "flex";
+  addSection.style.display    = "none";
+  searchInput.style.display   = "block";
 
   if (mode === "history") {
     clearHistory.style.display   = "block";
@@ -210,25 +234,20 @@ function newImportSaveFavoriteSets(sets) {
    RENDER — SELECT CARDS
 ========================= */
 function newImportRefreshSelectCards() {
+  if (newImportState.currentSelectMode === "addplayers") return;
+
   newImportSelectCards.innerHTML = "";
 
   const mode   = newImportState.currentSelectMode;
   const search = newImportSearch.value.toLowerCase();
 
-  // ═══════════════════════════════
-  // SETS SECTION (Favorites only)
-  // ═══════════════════════════════
+  // ── SETS SECTION (Favorites tab only) ──
   if (mode === "favorites") {
-    const setsSection = document.createElement("div");
-    setsSection.className = "newImport-section";
-
+    // Section header
     const setsHeader = document.createElement("div");
     setsHeader.className = "newImport-section-header";
-    setsHeader.innerHTML = `
-      <span class="newImport-section-title">★ Sets</span>
-      <button class="newImport-section-add-btn" data-action="new-set">+ New Set</button>
-    `;
-    setsSection.appendChild(setsHeader);
+    setsHeader.innerHTML = '<span class="newImport-section-title">★ Sets</span>';
+    newImportSelectCards.appendChild(setsHeader);
 
     const sets = newImportLoadFavoriteSets();
     sets.forEach(set => {
@@ -239,6 +258,7 @@ function newImportRefreshSelectCards() {
       setCard.innerHTML = `
         <div class="newImport-set-header">
           <div class="newImport-set-info">
+            <span class="newImport-set-icon">★</span>
             <span class="newImport-set-name">${set.name}</span>
             <span class="newImport-set-count">${set.players.length} players</span>
             <span class="newImport-set-chevron">▶</span>
@@ -253,87 +273,60 @@ function newImportRefreshSelectCards() {
             <div class="newImport-set-player-row">
               <img src="${p.gender === 'Male' ? 'male.png' : 'female.png'}"
                 class="newImport-set-player-img"
+                data-action="set-gender"
                 data-setname="${safeName}"
                 data-name="${p.displayName.replace(/"/g, '&quot;')}"
-                data-gender="${p.gender}">
+                data-gender="${p.gender}"
+                title="Tap to toggle gender">
               <span class="newImport-set-player-name">${p.displayName}</span>
               <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;" data-player="${p.displayName}">${getRating(p.displayName).toFixed(1)}</span>
-              <button class="newImport-set-player-remove-btn" data-setname="${safeName}" data-name="${p.displayName.replace(/"/g, '&quot;')}">×</button>
-              <button class="newImport-set-player-add-btn" data-name="${p.displayName.replace(/"/g, '&quot;')}" data-gender="${p.gender}">+</button>
+              <button class="newImport-set-player-remove-btn"
+                data-setname="${safeName}"
+                data-name="${p.displayName.replace(/"/g, '&quot;')}">×</button>
+              <button class="newImport-set-player-add-btn"
+                data-name="${p.displayName.replace(/"/g, '&quot;')}"
+                data-gender="${p.gender}">+</button>
             </div>
           `).join("")}
           <div class="newImport-set-addplayer-row">
-            <input type="text" class="newImport-set-addplayer-input" data-setname="${safeName}" placeholder="Add player name...">
+            <input type="text"
+              class="newImport-set-addplayer-input"
+              data-setname="${safeName}"
+              placeholder="Add player name...">
             <button class="newImport-set-addplayer-btn" data-setname="${safeName}">+</button>
           </div>
         </div>
       `;
-      setsSection.appendChild(setCard);
+      newImportSelectCards.appendChild(setCard);
     });
 
-    // Inline new-set form
-    const newSetForm = document.createElement("div");
-    newSetForm.id = "newImportNewSetForm";
-    newSetForm.className = "newImport-inline-form";
-    newSetForm.style.display = "none";
-    newSetForm.innerHTML = `
-      <textarea id="newImportNewSetPlayers" rows="3" placeholder="One player per line"></textarea>
-      <div class="newImport-inline-row">
-        <input id="newImportNewSetName" type="text" placeholder="Set name">
-        <select id="newImportNewSetGender"><option value="Male">Male</option><option value="Female">Female</option></select>
-      </div>
-      <div class="newImport-inline-row">
-        <button class="newImport-ok-btn" data-action="save-new-set">Save</button>
-        <button class="newImport-cancel-btn" data-action="cancel-new-set">Cancel</button>
-      </div>
-    `;
-    setsSection.appendChild(newSetForm);
-    newImportSelectCards.appendChild(setsSection);
+    // Divider before Players section
+    const divider = document.createElement("div");
+    divider.className = "newImport-section-divider";
+    newImportSelectCards.appendChild(divider);
+
+    // Players section header
+    const playersHeader = document.createElement("div");
+    playersHeader.className = "newImport-section-header";
+    playersHeader.innerHTML = '<span class="newImport-section-title">👤 Players</span>';
+    newImportSelectCards.appendChild(playersHeader);
   }
 
-  // ═══════════════════════════════
-  // PLAYERS SECTION (both tabs)
-  // ═══════════════════════════════
-  const playersSection = document.createElement("div");
-  playersSection.className = "newImport-section";
-
-  const playersHeader = document.createElement("div");
-  playersHeader.className = "newImport-section-header";
-  playersHeader.innerHTML = `
-    <span class="newImport-section-title">👤 ${mode === "favorites" ? "Players" : "History"}</span>
-    <button class="newImport-section-add-btn" data-action="new-player">+ Add Player</button>
-  `;
-  playersSection.appendChild(playersHeader);
-
-  // Inline add player form
-  const addPlayerForm = document.createElement("div");
-  addPlayerForm.id = "newImportAddPlayerForm";
-  addPlayerForm.className = "newImport-inline-form";
-  addPlayerForm.style.display = "none";
-  addPlayerForm.innerHTML = `
-    <div class="newImport-inline-row">
-      <input id="newImportQuickName" type="text" placeholder="Player name">
-      <select id="newImportQuickGender"><option value="Male">Male</option><option value="Female">Female</option></select>
-    </div>
-    <div class="newImport-inline-row">
-      <button class="newImport-ok-btn" data-action="save-new-player">Add</button>
-      <button class="newImport-cancel-btn" data-action="cancel-new-player">Cancel</button>
-    </div>
-  `;
-  playersSection.appendChild(addPlayerForm);
-
+  // ── INDIVIDUAL PLAYERS (history / favorites) ──
   const source = mode === "favorites"
     ? [...newImportState.favoritePlayers]
     : [...newImportState.historyPlayers];
 
-  source.sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" }));
+  source.sort((a, b) =>
+    a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" })
+  );
 
   source
     .filter(p => p.displayName.toLowerCase().includes(search))
     .forEach(p => {
       const nameNorm = p.displayName.trim().toLowerCase();
       const added = newImportState.selectedPlayers.some(sp => sp.displayName.trim().toLowerCase() === nameNorm);
-      const fav   = mode === "favorites"
+      const fav = mode === "favorites"
         ? true
         : newImportState.favoritePlayers.some(fp => fp.displayName.trim().toLowerCase() === nameNorm);
 
@@ -342,20 +335,25 @@ function newImportRefreshSelectCards() {
       const rating1 = getRating(p.displayName).toFixed(1);
       card.innerHTML = `
         <div class="newImport-player-top">
-          <img src="${p.gender === "Male" ? "male.png" : "female.png"}" data-action="gender" data-player="${p.displayName}">
+          <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
+               data-action="gender" data-player="${p.displayName}">
           <div class="newImport-player-name">${p.displayName}</div>
         </div>
         <div class="newImport-player-actions">
           <span class="rating-badge" data-player="${p.displayName}">${rating1}</span>
-          <button class="circle-btn favorite ${fav ? 'active-favorite' : ''}" data-action="favorite" data-player="${p.displayName}">${fav ? "★" : "☆"}</button>
+          <button class="circle-btn favorite ${fav ? 'active-favorite' : ''}"
+            data-action="favorite" data-player="${p.displayName}">
+            ${fav ? "★" : "☆"}
+          </button>
           <button class="circle-btn delete" data-action="delete" data-player="${p.displayName}">×</button>
-          <button class="circle-btn add ${added ? 'active-added' : ''}" data-action="add" data-player="${p.displayName}" ${added ? "disabled" : ""}>${added ? "✓" : "+"}</button>
+          <button class="circle-btn add ${added ? 'active-added' : ''}"
+            data-action="add" data-player="${p.displayName}" ${added ? "disabled" : ""}>
+            ${added ? "✓" : "+"}
+          </button>
         </div>
       `;
-      playersSection.appendChild(card);
+      newImportSelectCards.appendChild(card);
     });
-
-  newImportSelectCards.appendChild(playersSection);
 }
 
 /* =========================
@@ -464,67 +462,9 @@ function newImportHandleSetClick(e) {
     const displayName = e.target.dataset.name;
     const gender      = e.target.dataset.gender;
     addToListIfNotExists(newImportState.selectedPlayers, { displayName, gender });
+    // Visual feedback
     e.target.textContent = "✓";
     e.target.disabled    = true;
-    newImportRefreshSelectedCards();
-    return;
-  }
-
-  // ── Section header buttons ──
-  if (e.target.dataset.action === "new-set") {
-    const form = document.getElementById("newImportNewSetForm");
-    if (form) { form.style.display = form.style.display === "none" ? "block" : "none"; }
-    return;
-  }
-  if (e.target.dataset.action === "cancel-new-set") {
-    const form = document.getElementById("newImportNewSetForm");
-    if (form) form.style.display = "none";
-    return;
-  }
-  if (e.target.dataset.action === "save-new-set") {
-    const name    = document.getElementById("newImportNewSetName")?.value.trim();
-    const text    = document.getElementById("newImportNewSetPlayers")?.value.trim();
-    const gender  = document.getElementById("newImportNewSetGender")?.value || "Male";
-    if (!name) { alert("Please enter a set name"); return; }
-    if (!text) { alert("Please enter at least one player"); return; }
-    const players = parsePlayerLines(text, gender);
-    if (!players.length) { alert("No valid players found"); return; }
-    const sets = newImportLoadFavoriteSets();
-    const existing = sets.findIndex(s => s.name.toLowerCase() === name.toLowerCase());
-    if (existing >= 0) {
-      if (!confirm("Set \"" + sets[existing].name + "\" already exists. Overwrite?")) return;
-      sets[existing].players = players;
-    } else {
-      sets.push({ name, players });
-    }
-    newImportSaveFavoriteSets(sets);
-    newImportRefreshSelectCards();
-    return;
-  }
-  if (e.target.dataset.action === "new-player") {
-    const form = document.getElementById("newImportAddPlayerForm");
-    if (form) { form.style.display = form.style.display === "none" ? "block" : "none"; }
-    return;
-  }
-  if (e.target.dataset.action === "cancel-new-player") {
-    const form = document.getElementById("newImportAddPlayerForm");
-    if (form) form.style.display = "none";
-    return;
-  }
-  if (e.target.dataset.action === "save-new-player") {
-    const name   = document.getElementById("newImportQuickName")?.value.trim();
-    const gender = document.getElementById("newImportQuickGender")?.value || "Male";
-    if (!name || !isValidPlayerName(name)) { alert("Enter a valid player name"); return; }
-    const player = { displayName: name, gender };
-    // Add to history + favorites depending on tab
-    if (newImportState.currentSelectMode === "favorites") {
-      addToListIfNotExists(newImportState.favoritePlayers, player);
-      localStorage.setItem("newImportFavorites", JSON.stringify(newImportState.favoritePlayers));
-    }
-    addToListIfNotExists(newImportState.historyPlayers, player);
-    localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
-    addToListIfNotExists(newImportState.selectedPlayers, player);
-    newImportRefreshSelectCards();
     newImportRefreshSelectedCards();
     return;
   }
@@ -664,9 +604,64 @@ function newImportResetFavToggle() {
   newImportState.addToFavOnAdd = false;
 }
 
+function newImportToggleAddFav() {
+  const row  = document.getElementById("newImportFavoriteSetRow");
+  const icon = document.getElementById("addPlayerFavToggle");
+  if (!row || !icon) return;
 
+  const isOpen = row.style.display !== "none";
 
+  if (isOpen) {
+    // Close — turn star off
+    row.style.display            = "none";
+    icon.textContent             = "☆";
+    icon.style.color             = "rgba(255,255,255,0.5)";
+    newImportState.addToFavOnAdd = false;
+  } else {
+    // Open — turn star on
+    row.style.display            = "block";
+    icon.textContent             = "★";
+    icon.style.color             = "var(--amber)";
+    newImportState.addToFavOnAdd = true;
+    document.getElementById("newImportSetName")?.focus();
+  }
+}
 
+function newImportSaveFavoriteSet() {
+  const setNameInput = document.getElementById("newImportSetName");
+  const setName      = setNameInput.value.trim();
+  if (!setName) { setNameInput.focus(); return; }
+
+  const textarea = document.getElementById("players-names");
+  const text     = textarea?.value.trim();
+  if (!text) { alert("No players in the text area"); return; }
+
+  const defaultGender = document.getElementById("player-gender")?.value || "Male";
+  const players = parsePlayerLines(text, defaultGender);
+  if (!players.length) { alert("No valid player names found"); return; }
+
+  const sets = newImportLoadFavoriteSets();
+  const existingIdx = sets.findIndex(
+    s => s.name.trim().toLowerCase() === setName.toLowerCase()
+  );
+  if (existingIdx >= 0) {
+    // Same name exists — ask user to confirm overwrite or pick a new name
+    const overwrite = confirm(`A set named "${sets[existingIdx].name}" already exists.\nOverwrite it?`);
+    if (!overwrite) {
+      setNameInput.focus();
+      setNameInput.select();
+      return;
+    }
+    sets[existingIdx].players = players;
+  } else {
+    sets.push({ name: setName, players });
+  }
+  newImportSaveFavoriteSets(sets);
+
+  setNameInput.value = "";
+  newImportResetFavToggle();
+  newImportShowSelectMode("favorites");
+}
 
 function newImportDeleteFavoriteSet(setName) {
   if (!confirm(`Delete set "${setName}"?`)) return;
@@ -684,7 +679,50 @@ function newImportLoadSetToSelected(setName) {
   newImportRefreshSelectCards();
 }
 
+/* =========================
+   ADD PLAYER (from Add Players tab)
+========================= */
+function addPlayer() {
+  const textarea = document.getElementById("players-names");
+  if (!textarea) return;
+  const text = textarea.value.trim();
+  if (!text) return;
 
+  const defaultGender    = document.getElementById("player-gender")?.value || "Male";
+  const extractedPlayers = parsePlayerLines(text, defaultGender);
+  if (!extractedPlayers.length) return;
+
+  extractedPlayers.forEach(player => {
+    // Add to selected (unique)
+    addToListIfNotExists(newImportState.selectedPlayers, player);
+
+    // Add to history (unique, newest on top) — skip invalid names
+    if (isValidPlayerName(player.displayName)) {
+      const added = addToListIfNotExists(newImportState.historyPlayers, player);
+      if (added) {
+        newImportState.historyPlayers.pop();
+        newImportState.historyPlayers.unshift({ ...player });
+      }
+    }
+    // Also add to favorites if star toggle is ON
+    if (newImportState.addToFavOnAdd) {
+      addToListIfNotExists(newImportState.favoritePlayers, player);
+    }
+  });
+
+  newImportState.historyPlayers = newImportState.historyPlayers.slice(0, 50);
+  localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
+  if (newImportState.addToFavOnAdd) {
+    newImportSaveFavorites();
+  }
+
+  newImportRefreshSelectedCards();
+  newImportRefreshSelectCards();
+
+  textarea.value        = "";
+  textarea.style.height = "";   // let CSS min-height take over
+  textarea.focus();
+}
 
 /* =========================
    FINAL IMPORT — OK button

@@ -721,77 +721,21 @@ margin: 4px 0; color: var(--text);
   font-weight: 700;
   color: var(--text);
 }
-/* ── Import modal sections ── */
-.newImport-section {
-  margin-bottom: 12px;
-}
-
+/* ── Import modal section headers ── */
 .newImport-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: var(--accent);
-  border-radius: 10px;
-  margin-bottom: 6px;
+  border-radius: 8px;
+  margin: 10px 0 6px;
 }
-
 .newImport-section-title {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: #fff;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
 }
-
-.newImport-section-add-btn {
-  background: rgba(255,255,255,0.2);
-  border: 1px solid rgba(255,255,255,0.4);
-  color: #fff;
-  border-radius: 20px;
-  padding: 3px 10px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.newImport-section-add-btn:hover {
-  background: rgba(255,255,255,0.35);
-}
-
-.newImport-inline-form {
-  background: var(--surface-alt, #f5f5f5);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
-  margin-bottom: 8px;
-}
-.newImport-inline-form textarea,
-.newImport-inline-form input[type="text"] {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 0.85rem;
-  margin-bottom: 6px;
-  box-sizing: border-box;
-  background: var(--surface);
-  color: var(--text);
-}
-.newImport-inline-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.newImport-inline-row input { flex: 1; margin-bottom: 0; }
-.newImport-inline-row select {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 6px 8px;
-  font-size: 0.8rem;
-  background: var(--surface);
-  color: var(--text);
-}
-.newImport-inline-row .newImport-ok-btn,
-.newImport-inline-row .newImport-cancel-btn {
-  padding: 6px 14px;
-  font-size: 0.8rem;
+.newImport-section-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
 }
