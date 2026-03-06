@@ -349,59 +349,9 @@ function reorder1324(queue, roundIndex = 0) {
   const offset = roundIndex % pCount;
   return [...pairs.slice(offset), ...pairs.slice(0, offset)].flat();
 }
-function old2reorder1324(queue) {
-  const total = queue.length;
 
-  // 🔹 Case: 8 or 12 players → divide by 4
-  if (total === 8 || total === 12) {
-    const size = Math.floor(total / 4);
 
-    const g1 = queue.slice(0, size);
-    const g2 = queue.slice(size, size * 2);
-    const g3 = queue.slice(size * 2, size * 3);
-    const g4 = queue.slice(size * 3);
 
-    // 1,4,2,3
-    return [...g1, ...g4, ...g2, ...g3];
-  }
-
-  // 🔹 Case: 16 or more players → divide by 8
-  if (total >= 16) {
-    const size = Math.floor(total / 8);
-    const groups = [];
-
-    for (let i = 0; i < 8; i++) {
-      groups.push(queue.slice(i * size, (i + 1) * size));
-    }
-
-    // 1,3,5,7,2,4,6,8
-    return [
-      ...groups[0],
-      ...groups[2],
-      ...groups[4],
-      ...groups[6],
-      ...groups[1],
-      ...groups[3],
-      ...groups[5],
-      ...groups[7],
-    ];
-  }
-
-  // 🔹 Default → no change
-  return queue.slice();
-}
-
-function oldreorder1324(queue) {
-  const total = queue.length;
-  const quarter = Math.floor(total / 4);
-
-  const q1 = queue.slice(0, quarter);
-  const q2 = queue.slice(quarter, quarter * 2);
-  const q3 = queue.slice(quarter * 2, quarter * 3);
-  const q4 = queue.slice(quarter * 3);
-
-  return [...q1, ...q3, ...q2, ...q4];
-}
 
 // 🔍 check if ALL pairs exhausted
 function allPairsExhausted(queue, pairPlayedSet) {
