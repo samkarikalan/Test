@@ -238,23 +238,38 @@ function newImportRefreshSelectCards() {
 
   newImportSelectCards.innerHTML = "";
 
-  const mode   = newImportState.currentSelectMode;
-  const search = newImportSearch.value.toLowerCase();
-
-  // ── SETS SECTION (Favorites tab only) ──
-  if (mode === "favorites") {
-    // Section header
+  // ── Favorite Sets (top of favorites tab only) ──
+  if (newImportState.currentSelectMode === "favorites") {
     const setsHeader = document.createElement("div");
     setsHeader.className = "newImport-section-header";
-    setsHeader.innerHTML = '<span class="newImport-section-title">★ Sets</span>';
+    setsHeader.innerHTML = '<span>★ Sets</span><button class="newImport-section-btn" data-action="toggle-add-set">+ Add Set</button>';
     newImportSelectCards.appendChild(setsHeader);
+
+    const addSetForm = document.createElement("div");
+    addSetForm.id = "fav-add-set-form";
+    addSetForm.className = "newImport-inline-form";
+    addSetForm.style.display = "none";
+    addSetForm.innerHTML = `
+      <input id="fav-set-name" type="text" placeholder="Set name e.g. Monday Group" style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.85rem;margin-bottom:6px;background:var(--surface);color:var(--text);">
+      <textarea id="fav-set-players" rows="3" placeholder="One player per line" style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.85rem;margin-bottom:6px;background:var(--surface);color:var(--text);resize:vertical;"></textarea>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <select id="fav-set-gender" style="border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:0.8rem;background:var(--surface);color:var(--text);">
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+        </select>
+        <button class="newImport-ok-btn" data-action="save-fav-set" style="flex:1;">Save</button>
+        <button class="newImport-cancel-btn" data-action="cancel-fav-set">Cancel</button>
+      </div>
+    `;
+    newImportSelectCards.appendChild(addSetForm);
 
     const sets = newImportLoadFavoriteSets();
     sets.forEach(set => {
-      const safeName = set.name.replace(/'/g, "\'");
+      const safeName = set.name.replace(/'/g, "\\'");
       const setCard  = document.createElement("div");
       setCard.className    = "newImport-set-card";
       setCard.dataset.open = "false";
+
       setCard.innerHTML = `
         <div class="newImport-set-header">
           <div class="newImport-set-info">
@@ -297,36 +312,57 @@ function newImportRefreshSelectCards() {
           </div>
         </div>
       `;
+
       newImportSelectCards.appendChild(setCard);
     });
 
-    // Divider before Players section
     const divider = document.createElement("div");
     divider.className = "newImport-section-divider";
     newImportSelectCards.appendChild(divider);
 
-    // Players section header
     const playersHeader = document.createElement("div");
     playersHeader.className = "newImport-section-header";
-    playersHeader.innerHTML = '<span class="newImport-section-title">👤 Players</span>';
+    playersHeader.innerHTML = '<span>👤 Players</span><button class="newImport-section-btn" data-action="toggle-add-player">+ Add Player</button>';
     newImportSelectCards.appendChild(playersHeader);
+
+    const addPlayerForm = document.createElement("div");
+    addPlayerForm.id = "fav-add-player-form";
+    addPlayerForm.className = "newImport-inline-form";
+    addPlayerForm.style.display = "none";
+    addPlayerForm.innerHTML = `
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input id="fav-player-name" type="text" placeholder="Player name" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.85rem;background:var(--surface);color:var(--text);">
+        <select id="fav-player-gender" style="border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:0.8rem;background:var(--surface);color:var(--text);">
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+        </select>
+        <button class="newImport-ok-btn" data-action="save-fav-player">Add</button>
+        <button class="newImport-cancel-btn" data-action="cancel-fav-player">Cancel</button>
+      </div>
+    `;
+    newImportSelectCards.appendChild(addPlayerForm);
   }
 
-  // ── INDIVIDUAL PLAYERS (history / favorites) ──
-  const source = mode === "favorites"
-    ? [...newImportState.favoritePlayers]
-    : [...newImportState.historyPlayers];
+  // ── Individual players (history / favorites) ──
+  const source =
+    newImportState.currentSelectMode === "favorites"
+      ? [...newImportState.favoritePlayers]
+      : [...newImportState.historyPlayers];
 
   source.sort((a, b) =>
     a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" })
   );
 
+  const search = newImportSearch.value.toLowerCase();
+
   source
     .filter(p => p.displayName.toLowerCase().includes(search))
     .forEach(p => {
       const nameNorm = p.displayName.trim().toLowerCase();
+      // Case-insensitive match for both checks
       const added = newImportState.selectedPlayers.some(sp => sp.displayName.trim().toLowerCase() === nameNorm);
-      const fav = mode === "favorites"
+      // In Favorites tab the player is already a favourite by definition — always orange
+      const fav = newImportState.currentSelectMode === "favorites"
         ? true
         : newImportState.favoritePlayers.some(fp => fp.displayName.trim().toLowerCase() === nameNorm);
 
@@ -466,6 +502,72 @@ function newImportHandleSetClick(e) {
     e.target.textContent = "✓";
     e.target.disabled    = true;
     newImportRefreshSelectedCards();
+    return;
+  }
+
+  // ── Toggle Add Set form ──
+  if (e.target.dataset.action === "toggle-add-set") {
+    const form = document.getElementById("fav-add-set-form");
+    if (form) form.style.display = form.style.display === "none" ? "block" : "none";
+    return;
+  }
+
+  // ── Save new set ──
+  if (e.target.dataset.action === "save-fav-set") {
+    const name    = document.getElementById("fav-set-name")?.value.trim();
+    const text    = document.getElementById("fav-set-players")?.value.trim();
+    const gender  = document.getElementById("fav-set-gender")?.value || "Male";
+    if (!name) { alert("Enter a set name"); return; }
+    if (!text) { alert("Enter at least one player"); return; }
+    const players = parsePlayerLines(text, gender);
+    if (!players.length) { alert("No valid player names found"); return; }
+    const sets = newImportLoadFavoriteSets();
+    const idx = sets.findIndex(s => s.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) {
+      if (!confirm("Set \"" + sets[idx].name + "\" already exists. Overwrite?")) return;
+      sets[idx].players = players;
+    } else {
+      sets.push({ name, players });
+    }
+    newImportSaveFavoriteSets(sets);
+    newImportRefreshSelectCards();
+    return;
+  }
+
+  // ── Cancel Add Set ──
+  if (e.target.dataset.action === "cancel-fav-set") {
+    const form = document.getElementById("fav-add-set-form");
+    if (form) form.style.display = "none";
+    return;
+  }
+
+  // ── Toggle Add Player form ──
+  if (e.target.dataset.action === "toggle-add-player") {
+    const form = document.getElementById("fav-add-player-form");
+    if (form) form.style.display = form.style.display === "none" ? "block" : "none";
+    return;
+  }
+
+  // ── Save new favorite player ──
+  if (e.target.dataset.action === "save-fav-player") {
+    const name   = document.getElementById("fav-player-name")?.value.trim();
+    const gender = document.getElementById("fav-player-gender")?.value || "Male";
+    if (!name || !isValidPlayerName(name)) { alert("Enter a valid player name"); return; }
+    const player = { displayName: name, gender };
+    addToListIfNotExists(newImportState.favoritePlayers, player);
+    addToListIfNotExists(newImportState.historyPlayers, player);
+    localStorage.setItem("newImportFavorites", JSON.stringify(newImportState.favoritePlayers));
+    localStorage.setItem("newImportHistory",   JSON.stringify(newImportState.historyPlayers));
+    addToListIfNotExists(newImportState.selectedPlayers, player);
+    newImportRefreshSelectCards();
+    newImportRefreshSelectedCards();
+    return;
+  }
+
+  // ── Cancel Add Player ──
+  if (e.target.dataset.action === "cancel-fav-player") {
+    const form = document.getElementById("fav-add-player-form");
+    if (form) form.style.display = "none";
     return;
   }
 }
