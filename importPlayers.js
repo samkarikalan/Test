@@ -199,17 +199,10 @@ function isValidPlayerName(name) {
    STORAGE — HISTORY
 ========================= */
 function newImportLoadHistory() {
-  const data = localStorage.getItem("newImportHistory");
-  const raw  = data ? JSON.parse(data) : [];
-  // Filter junk, deduplicate, preserve rating as-is from storage
-  const cleaned = raw.filter(p => isValidPlayerName(p.displayName));
-  const deduped = newImportDeduplicate(cleaned);
-  deduped.forEach(hp => {
-    if (hp.rating === undefined || hp.rating === null) hp.rating = 1.0;
-  });
-  newImportState.historyPlayers = deduped;
-  // Sync ratings into session players now that history is loaded
-  if (typeof syncPlayersFromMaster === 'function') syncPlayersFromMaster();
+  // Master DB already consolidated by consolidateMasterDB() on app load
+  // Just load it into memory
+  const raw = JSON.parse(localStorage.getItem("newImportHistory") || "[]");
+  newImportState.historyPlayers = raw.filter(p => p && p.displayName);
 }
 
 /* =========================

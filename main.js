@@ -52,10 +52,64 @@ function updateSummaryPageAccess() {
 
 
 document.addEventListener('DOMContentLoaded', () => {
-  syncPlayersFromMaster();
+  consolidateMasterDB();   // merge all sources into master DB on open
   updateRoundsPageAccess();
   updateSummaryPageAccess();
 });
+
+window.addEventListener('beforeunload', () => {
+  consolidateMasterDB();   // merge any new players added during session on close
+});
+
+/* =========================
+   CONSOLIDATE MASTER DB
+   Merges players from ALL sources into newImportHistory.
+   Safe — never overwrites existing ratings, only adds missing players.
+   Called on app open and close.
+========================= */
+function consolidateMasterDB() {
+  try {
+    const master   = JSON.parse(localStorage.getItem("newImportHistory")      || "[]");
+    const favs     = JSON.parse(localStorage.getItem("newImportFavorites")     || "[]");
+    const sets     = JSON.parse(localStorage.getItem("newImportFavoriteSets")  || "[]");
+    const session  = JSON.parse(localStorage.getItem("schedulerPlayers")       || "[]");
+
+    // Build lookup of existing master players (preserve their ratings)
+    const masterMap = new Map();
+    master.forEach(p => {
+      if (p && p.displayName)
+        masterMap.set(p.displayName.trim().toLowerCase(), p);
+    });
+
+    // Collect all players from every source
+    const allSources = [
+      ...favs,
+      ...session.map(p => ({ displayName: p.name, gender: p.gender })),
+    ];
+    sets.forEach(s => { if (s.players) allSources.push(...s.players); });
+
+    // Add missing players — never overwrite existing
+    allSources.forEach(p => {
+      if (!p || !p.displayName) return;
+      const key = p.displayName.trim().toLowerCase();
+      if (!masterMap.has(key)) {
+        masterMap.set(key, {
+          displayName: p.displayName.trim(),
+          gender: p.gender || "Male",
+          rating: 1.0   // default for new players only
+        });
+      }
+    });
+
+    const merged = Array.from(masterMap.values());
+    localStorage.setItem("newImportHistory", JSON.stringify(merged));
+
+    // Update in-memory historyPlayers if available
+    if (newImportState) newImportState.historyPlayers = merged;
+  } catch(e) {
+    console.error("consolidateMasterDB error", e);
+  }
+}
 
 /* =========================
    RATING — single source of truth
