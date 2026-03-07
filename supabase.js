@@ -134,15 +134,11 @@ async function dbGetPlayers(forceFresh = false) {
   }
 }
 
-/// Add a new player — requires club admin password
-async function dbAddPlayer(name, gender, clubAdminPassword) {
+/// Add a new player — requires admin session
+async function dbAddPlayer(name, gender, _unused) {
   const club = getMyClub();
   if (!club.id) throw new Error("No club selected.");
-
-  // Verify admin password
-  const clubs = await sbGet("clubs", `id=eq.${club.id}&select=admin_password`);
-  if (!clubs.length) throw new Error("Club not found.");
-  if (clubs[0].admin_password !== clubAdminPassword) throw new Error("Wrong admin password.");
+  // Mode check done at login — trust session
 
   // Check duplicate
   const existing = await sbGet("players", `name=ilike.${encodeURIComponent(name.trim())}`);

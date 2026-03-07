@@ -786,11 +786,6 @@ function newImportRenderRegister() {
       <button class="register-add-btn" onclick="regAddToStaging()">Add to List</button>
       <div id="regStagingContainer" class="reg-staging-container"></div>
       <div id="registerFeedback" class="register-feedback"></div>
-      <div class="github-club-row" style="margin-top:8px">
-        <input type="password" id="regAdminPassword"
-               class="github-token-input"
-               placeholder="Club admin password">
-      </div>
       <button class="register-save-btn" id="regRegisterAllBtn"
               onclick="regRegisterAll()" style="display:none">
         ✅ Register All
@@ -914,17 +909,18 @@ async function regRegisterAll() {
   const club = (typeof getMyClub === "function") ? getMyClub() : { id: null };
   const feedback = document.getElementById("registerFeedback");
   const btn = document.getElementById("regRegisterAllBtn");
-  const adminPassword = document.getElementById("regAdminPassword")?.value.trim();
-
   if (!club.id) {
     if (feedback) { feedback.textContent = "⚠️ No club selected."; feedback.className = "register-feedback error"; }
     return;
   }
 
-  if (!adminPassword) {
-    if (feedback) { feedback.textContent = "⚠️ Enter club admin password."; feedback.className = "register-feedback error"; }
+  if (typeof isAdminMode === "function" && !isAdminMode()) {
+    if (feedback) { feedback.textContent = "⚠️ Admin mode required."; feedback.className = "register-feedback error"; }
     return;
   }
+
+  // Use a placeholder — actual auth done at club join time
+  const adminPassword = "__session_admin__";
 
   const pending = _regStagingList.filter(p => p.status === "pending" || p.status === "error" || p.status === "duplicate");
   if (!pending.length) return;

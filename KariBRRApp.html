@@ -100,63 +100,70 @@
         </div>
       </div>
 
-      <!-- Club Admin (Supabase) -->
+      <!-- Club Card with 3 tabs -->
       <div class="settings-card card-github-admin">
-        <div class="sec">🌐 Club</div>
 
-        <div class="github-admin-status-row">
+        <!-- Status row -->
+        <div class="github-admin-status-row" style="margin-bottom:10px">
           <span id="sbClubStatus">No club selected</span>
-          <button class="github-btn-clear" onclick="sbClearClub()" style="margin-left:8px">Change</button>
+          <span id="sbModeBadge" style="display:none;margin-left:8px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600"></span>
+          <button class="github-btn-clear" onclick="sbClearClub()" style="margin-left:auto">Change</button>
         </div>
 
-        <!-- Select existing club -->
-        <div class="github-club-row" style="margin-top:8px">
-          <select id="sbClubSelect" class="github-club-select">
-            <option value="">— Select club —</option>
-          </select>
-          <button class="github-btn-save" onclick="sbShowSelectPassword()">Select</button>
+        <!-- Tab buttons -->
+        <div class="newImport-subtabs">
+          <button class="newImport-subtab-btn active" id="clubTabJoinBtn"
+                  onclick="sbShowClubTab('join')">Join</button>
+          <button class="newImport-subtab-btn" id="clubTabCreateBtn"
+                  onclick="sbShowClubTab('create')">Create</button>
+          <button class="newImport-subtab-btn" id="clubTabPlayersBtn"
+                  onclick="sbShowClubTab('players')">Players</button>
         </div>
 
-        <!-- Select password prompt -->
-        <div id="sbSelectPasswordRow" style="display:none; margin-top:8px">
-          <input type="password" id="sbSelectPasswordInput"
-                 class="github-token-input" placeholder="Club password">
-          <button class="github-btn-save" onclick="sbConfirmSelectClub()">Join</button>
+        <!-- JOIN tab -->
+        <div id="clubTabJoin" style="margin-top:10px">
+          <div class="github-club-row">
+            <select id="sbClubSelect" class="github-club-select">
+              <option value="">— Select club —</option>
+            </select>
+          </div>
+          <div class="github-club-row" style="margin-top:6px">
+            <input type="password" id="sbPasswordInput"
+                   class="github-token-input" placeholder="Enter password">
+            <button class="github-btn-save" onclick="sbConfirmJoin()">Join</button>
+          </div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+            <span id="sbSyncStatus" style="font-size:0.85rem;color:#aaa"></span>
+            <button class="github-btn-save" onclick="syncGithubToLocal()" style="padding:4px 10px;font-size:0.8rem">🔄 Sync</button>
+          </div>
         </div>
 
-        <!-- Create new club -->
-        <div class="sec" style="margin-top:12px">➕ Create New Club</div>
-        <div class="github-club-row">
-          <input type="text" id="sbNewClubName"
-                 class="github-token-input" placeholder="Club name">
+        <!-- CREATE tab -->
+        <div id="clubTabCreate" style="display:none;margin-top:10px">
+          <div class="github-club-row">
+            <input type="text" id="sbNewClubName"
+                   class="github-token-input" placeholder="Club name">
+          </div>
+          <div class="github-club-row" style="margin-top:6px">
+            <input type="password" id="sbNewClubSelectPw"
+                   class="github-token-input" placeholder="User password (members)">
+          </div>
+          <div class="github-club-row" style="margin-top:6px">
+            <input type="password" id="sbNewClubAdminPw"
+                   class="github-token-input" placeholder="Admin password">
+            <button class="github-btn-save" onclick="sbCreateClub()">Create</button>
+          </div>
         </div>
-        <div class="github-club-row" style="margin-top:4px">
-          <input type="password" id="sbNewClubSelectPw"
-                 class="github-token-input" placeholder="Club password (for members)">
-        </div>
-        <div class="github-club-row" style="margin-top:4px">
-          <input type="password" id="sbNewClubAdminPw"
-                 class="github-token-input" placeholder="Admin password (to register players)">
-          <button class="github-btn-save" onclick="sbCreateClub()">Create</button>
-        </div>
-        <div id="sbClubFeedback" style="margin-top:6px;font-size:0.85rem"></div>
-      </div>
 
-      <!-- Player Management -->
-      <div class="settings-card card-players-mgmt">
-        <div class="sec">👥 Player Management</div>
-        <div id="playerMgmtLocked" class="player-mgmt-locked">
-          <p class="player-mgmt-hint">Unlock to edit player ratings, gender and manage the player database.</p>
-          <button class="admin-btn" onclick="playerMgmtUnlock()">🔐 Admin Unlock</button>
-        </div>
-        <div id="playerMgmtUnlocked" style="display:none">
-          <div class="player-mgmt-toolbar">
-            <button class="player-mgmt-add-btn" onclick="playerMgmtAddNew()">+ Add Player</button>
-            <button class="player-mgmt-pwd-btn" onclick="playerMgmtChangePwd()">🔑 Change Password</button>
-            <button class="admin-btn" onclick="playerMgmtLock()">🔓 Lock</button>
+        <!-- PLAYERS tab -->
+        <div id="clubTabPlayers" style="display:none;margin-top:10px">
+          <div class="player-mgmt-toolbar" id="playerMgmtToolbar" style="display:none">
+            <button class="player-mgmt-add-btn" onclick="playerMgmtAddNew()">+ Add</button>
           </div>
           <div id="playerMgmtList" class="player-mgmt-list"></div>
         </div>
+
+        <div id="sbClubFeedback" style="margin-top:8px;font-size:0.85rem"></div>
       </div>
 
     </div>

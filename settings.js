@@ -217,20 +217,7 @@ function adminGetPassword() {
 }
 
 // ── Unlock flow ──
-function playerMgmtUnlock() {
-  adminModalMode = "unlock";
-  document.getElementById("adminModalTitle").textContent = "🔐 Admin Access";
-  document.getElementById("adminPasswordConfirmRow").style.display = "none";
-  document.getElementById("adminModalError").textContent = "";
-  document.getElementById("adminPasswordInput").value = "";
-  document.getElementById("adminModal").style.display = "flex";
-  setTimeout(() => document.getElementById("adminPasswordInput").focus(), 100);
-}
-
-function playerMgmtLock() {
-  document.getElementById("playerMgmtLocked").style.display = "block";
-  document.getElementById("playerMgmtUnlocked").style.display = "none";
-}
+// playerMgmtUnlock/Lock no longer needed — Players tab handles this directly
 
 // ── Change password flow ──
 function playerMgmtChangePwd() {
@@ -278,12 +265,26 @@ function adminVerifyPassword() {
 }
 
 // ── Render master player list ──
-function playerMgmtRenderList() {
+async function playerMgmtRenderList() {
   const container = document.getElementById("playerMgmtList");
-  container.innerHTML = "";
+  container.innerHTML = "<p style='color:#aaa;font-size:0.85rem'>Loading...</p>";
 
-  // Master DB = newImportHistory
-  const players = newImportState.historyPlayers || [];
+  // If local cache is empty, fetch fresh from Supabase
+  let players = newImportState.historyPlayers || [];
+  if (!players.length) {
+    try {
+      const fresh = await dbGetPlayers(true);
+      players = (fresh || []).map(p => ({
+        displayName: p.name,
+        gender: p.gender || "Male",
+        rating: parseFloat(p.rating) || 1.0
+      }));
+      newImportState.historyPlayers = players;
+      localStorage.setItem("newImportHistory", JSON.stringify(players));
+    } catch(e) { /* offline */ }
+  }
+
+  container.innerHTML = "";
 
   if (players.length === 0) {
     container.innerHTML = '<p class="player-mgmt-empty">No players in database yet.</p>';
@@ -294,22 +295,38 @@ function playerMgmtRenderList() {
     a.displayName.localeCompare(b.displayName)
   );
 
+  const admin = (typeof isAdminMode === "function") && isAdminMode();
+
+  // Show toolbar only in admin mode
+  const toolbar = document.getElementById("playerMgmtToolbar");
+  if (toolbar) toolbar.style.display = admin ? "flex" : "none";
+
   sorted.forEach((p, i) => {
     const row = document.createElement("div");
     row.className = "player-mgmt-row";
-    row.innerHTML = `
-      <img src="${p.gender === 'Female' ? 'female.png' : 'male.png'}"
-           class="player-mgmt-avatar"
-           onclick="playerMgmtToggleGender('${p.displayName}')"
-           title="Tap to toggle gender">
-      <span class="player-mgmt-name">${p.displayName}</span>
-      <input type="number" class="rating-edit-input"
-        value="${getRating(p.displayName).toFixed(1)}"
-        min="1.0" max="5.0" step="0.1"
-        onchange="playerMgmtSaveRating('${p.displayName}', this.value)">
-      <button class="player-mgmt-del-btn"
-        onclick="playerMgmtDelete('${p.displayName}')">🗑</button>
-    `;
+    const safeName = p.displayName.replace(/'/g, "\'");
+    if (admin) {
+      row.innerHTML = `
+        <img src="${p.gender === 'Female' ? 'female.png' : 'male.png'}"
+             class="player-mgmt-avatar"
+             onclick="playerMgmtToggleGender('${safeName}')"
+             title="Tap to toggle gender">
+        <span class="player-mgmt-name">${p.displayName}</span>
+        <input type="number" class="rating-edit-input"
+          value="${getRating(p.displayName).toFixed(1)}"
+          min="1.0" max="5.0" step="0.1"
+          onchange="playerMgmtSaveRating('${safeName}', this.value)">
+        <button class="player-mgmt-del-btn"
+          onclick="playerMgmtDelete('${safeName}')">🗑</button>
+      `;
+    } else {
+      row.innerHTML = `
+        <img src="${p.gender === 'Female' ? 'female.png' : 'male.png'}"
+             class="player-mgmt-avatar" style="cursor:default">
+        <span class="player-mgmt-name">${p.displayName}</span>
+        <span class="rating-badge" style="font-size:0.8rem;padding:2px 7px">${getRating(p.displayName).toFixed(1)}</span>
+      `;
+    }
     container.appendChild(row);
   });
 }
@@ -324,21 +341,36 @@ function playerMgmtSaveRating(displayName, value) {
 }
 
 // ── Toggle gender ──
-function playerMgmtToggleGender(displayName) {
+async function playerMgmtToggleGender(displayName) {
   const key = displayName.trim().toLowerCase();
   const hp  = newImportState.historyPlayers.find(p => p.displayName.trim().toLowerCase() === key);
   if (!hp) return;
   hp.gender = hp.gender === "Female" ? "Male" : "Female";
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
+  // Sync gender to Supabase
+  try {
+    await sbPatch("players", `name=ilike.${encodeURIComponent(displayName.trim())}`, { gender: hp.gender });
+  } catch(e) { /* silent */ }
   syncPlayersFromMaster();
   updatePlayerList();
   playerMgmtRenderList();
 }
 
 // ── Delete from master DB ──
-function playerMgmtDelete(displayName) {
-  if (!confirm(`Remove "${displayName}" from player database?`)) return;
+async function playerMgmtDelete(displayName) {
+  if (!confirm(`Remove "${displayName}" from this club?`)) return;
   const key = displayName.trim().toLowerCase();
+
+  // Remove from Supabase club_members
+  try {
+    const players = await sbGet("players", `name=ilike.${encodeURIComponent(displayName.trim())}&select=id`);
+    if (players.length) {
+      const club = getMyClub();
+      await sbDelete("club_members", `player_id=eq.${players[0].id}&club_id=eq.${club.id}`);
+    }
+  } catch(e) { /* silent */ }
+
+  // Remove from local cache
   newImportState.historyPlayers = newImportState.historyPlayers.filter(
     p => p.displayName.trim().toLowerCase() !== key
   );
@@ -370,9 +402,20 @@ function playerMgmtAddNew() {
 // ── Club Admin (Supabase) ────────────────────────────────────
 
 function githubAdminInit() {
-  // Load clubs dropdown and show current club status
   sbLoadClubs();
   sbRenderClubStatus();
+  updateRegisterTabVisibility();
+  sbShowClubTab("join");
+}
+
+function sbShowClubTab(tab) {
+  ["join","create","players"].forEach(t => {
+    const content = document.getElementById("clubTab" + t.charAt(0).toUpperCase() + t.slice(1));
+    const btn     = document.getElementById("clubTab" + t.charAt(0).toUpperCase() + t.slice(1) + "Btn");
+    if (content) content.style.display = t === tab ? "block" : "none";
+    if (btn) btn.classList.toggle("active", t === tab);
+  });
+  if (tab === "players") playerMgmtRenderList();
 }
 
 async function sbLoadClubs() {
@@ -394,33 +437,56 @@ async function sbLoadClubs() {
 
 function sbRenderClubStatus() {
   const club = getMyClub();
-  const el = document.getElementById("sbClubStatus");
-  if (el) el.textContent = club.name ? `✅ ${club.name}` : "No club selected";
+  const mode = getClubMode();
+  const el   = document.getElementById("sbClubStatus");
+  const badge = document.getElementById("sbModeBadge");
+
+  if (el) el.textContent = club.name ? club.name : "No club selected";
+
+  if (badge) {
+    if (mode === "admin") {
+      badge.textContent = "🔑 Admin";
+      badge.style.background = "#2dce89";
+      badge.style.color = "#fff";
+      badge.style.display = "inline-block";
+    } else if (mode === "user") {
+      badge.textContent = "👤 User";
+      badge.style.background = "#5e72e4";
+      badge.style.color = "#fff";
+      badge.style.display = "inline-block";
+    } else {
+      badge.style.display = "none";
+    }
+  }
 }
 
-function sbShowSelectPassword() {
-  const select = document.getElementById("sbClubSelect");
-  if (!select || !select.value) { alert("Please select a club first."); return; }
-  const row = document.getElementById("sbSelectPasswordRow");
-  if (row) row.style.display = "flex";
-}
-
-async function sbConfirmSelectClub() {
-  const select = document.getElementById("sbClubSelect");
-  const pwInput = document.getElementById("sbSelectPasswordInput");
-  if (!select.value) return;
+async function sbConfirmJoin() {
+  const select   = document.getElementById("sbClubSelect");
+  const pwInput  = document.getElementById("sbPasswordInput");
+  if (!select || !select.value) { sbFeedback("Please select a club.", "red"); return; }
   const password = pwInput?.value.trim();
-  if (!password) { alert("Enter club password."); return; }
+  if (!password) { sbFeedback("Enter password.", "red"); return; }
 
   try {
-    const club = await dbVerifyClubAccess(select.value, password);
+    // Fetch both passwords for this club
+    const clubs = await sbGet("clubs", `id=eq.${select.value}&select=id,name,select_password,admin_password`);
+    if (!clubs.length) throw new Error("Club not found.");
+    const club = clubs[0];
+
+    let mode = null;
+    if (password === club.admin_password)  mode = "admin";
+    else if (password === club.select_password) mode = "user";
+    else throw new Error("Wrong password.");
+
+    // Save club + mode
     setMyClub(club.id, club.name);
+    localStorage.setItem("kbrr_club_mode", mode);
+
     pwInput.value = "";
-    document.getElementById("sbSelectPasswordRow").style.display = "none";
     sbRenderClubStatus();
-    sbFeedback(`✅ Joined ${club.name}`, "green");
-    // Sync players from this club
+    sbFeedback(`✅ Joined as ${mode === "admin" ? "Admin 🔑" : "User 👤"}`, "green");
     syncGithubToLocal();
+    updateRegisterTabVisibility();
   } catch (e) {
     sbFeedback("❌ " + e.message, "red");
   }
@@ -428,8 +494,18 @@ async function sbConfirmSelectClub() {
 
 function sbClearClub() {
   clearMyClub();
+  localStorage.removeItem("kbrr_club_mode");
   sbRenderClubStatus();
   sbFeedback("Club cleared.", "gray");
+  updateRegisterTabVisibility();
+}
+
+function getClubMode() {
+  return localStorage.getItem("kbrr_club_mode") || null; // "admin" | "user" | null
+}
+
+function isAdminMode() {
+  return getClubMode() === "admin";
 }
 
 async function sbCreateClub() {
@@ -465,6 +541,5 @@ function sbFeedback(msg, color) {
 function updateRegisterTabVisibility() {
   const tab = document.getElementById("newImportRegisterBtn");
   if (!tab) return;
-  const club = getMyClub();
-  tab.style.display = club.id ? "inline-block" : "none";
+  tab.style.display = isAdminMode() ? "inline-block" : "none";
 }

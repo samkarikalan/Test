@@ -287,15 +287,26 @@ function initPage() {
    Preserves local ratings. Silent fail if offline.
 ========================= */
 async function syncGithubToLocal() {
-  try {
-    const githubPlayers = await dbGetPlayers(true);
-    if (!githubPlayers || !githubPlayers.length) return;
+  const club = (typeof getMyClub === "function") ? getMyClub() : { id: null };
 
-    // GitHub is the single source of truth — replace local history completely
-    const synced = githubPlayers.map(gp => ({
+  // Show syncing indicator if element exists
+  const indicator = document.getElementById("sbSyncStatus");
+  if (indicator) { indicator.textContent = "🔄 Syncing..."; indicator.style.color = "#aaa"; }
+
+  try {
+    const players = await dbGetPlayers(true);
+
+    if (!club.id) {
+      // No club selected — clear local history
+      if (indicator) { indicator.textContent = "⚠️ No club selected"; indicator.style.color = "#e6a817"; }
+      return;
+    }
+
+    // Supabase is single source of truth — replace local history completely
+    const synced = (players || []).map(gp => ({
       displayName: gp.name.trim(),
-      gender: gp.gender || "Male",
-      rating: gp.rating || 1.0
+      gender:      gp.gender || "Male",
+      rating:      parseFloat(gp.rating) || 1.0
     }));
 
     localStorage.setItem("newImportHistory", JSON.stringify(synced));
@@ -304,7 +315,15 @@ async function syncGithubToLocal() {
       newImportRefreshSelectCards();
     }
 
+    if (indicator) {
+      const count = synced.length;
+      indicator.textContent = `✅ ${count} player${count !== 1 ? "s" : ""} synced`;
+      indicator.style.color = "#2dce89";
+      setTimeout(() => { if (indicator) indicator.textContent = ""; }, 4000);
+    }
+
   } catch (e) {
-    // Silent fail — offline or no token, keep existing local cache
+    // Silent fail — offline, keep existing local cache
+    if (indicator) { indicator.textContent = "⚠️ Offline — using cache"; indicator.style.color = "#e6a817"; }
   }
 }
