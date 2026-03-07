@@ -739,87 +739,174 @@ margin: 4px 0; color: var(--text);
    Added: step82
 ============================================================= */
 
+/* =============================================================
+   CLUB CARD — Professional redesign
+============================================================= */
+
 .card-github-admin {
-  padding: 14px;
+  padding: 18px 16px 14px;
 }
 
+/* Status bar at top */
 .github-admin-status-row {
-  margin-bottom: 10px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--accent);
-}
-
-.github-token-row {
   display: flex;
-  gap: 6px;
   align-items: center;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 14px;
+  min-height: 32px;
 }
 
-.github-token-input {
-  flex: 1;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 0.82rem;
-  background: var(--surface);
-  color: var(--text);
-  min-width: 0;
+#sbClubStatus {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.01em;
 }
 
-.github-btn-save {
-  padding: 7px 12px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
+#sbModeBadge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
+/* Change button */
 .github-btn-clear {
-  padding: 7px 12px;
+  margin-left: auto;
+  padding: 6px 16px;
   background: #e63757;
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 20px;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: opacity 0.15s;
+}
+.github-btn-clear:hover { opacity: 0.85; }
+
+/* Input fields */
+.github-token-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.88rem;
+  background: var(--surface);
+  color: var(--text);
+  min-width: 0;
+  transition: border-color 0.15s;
+}
+.github-token-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Action buttons (Join, Create) */
+.github-btn-save {
+  padding: 10px 18px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  transition: opacity 0.15s;
+  letter-spacing: 0.02em;
 }
+.github-btn-save:hover { opacity: 0.85; }
 
-.github-my-club-label {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 10px;
-  padding: 6px 10px;
-  background: var(--surface-alt, var(--surface));
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
+/* Row layout for input + button */
 .github-club-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
   margin-bottom: 8px;
 }
 
+/* Club select dropdown */
 .github-club-select {
   flex: 1;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 0.82rem;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.88rem;
   background: var(--surface);
   color: var(--text);
   min-width: 0;
+  cursor: pointer;
 }
+.github-club-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Sync button */
+#clubTabJoin .github-btn-save[onclick*="sync"],
+#clubTabJoin button[onclick*="sync"] {
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+}
+
+/* Divider label inside tabs */
+.club-tab-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 14px 0 8px;
+}
+
+/* Feedback text */
+#sbClubFeedback {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-top: 8px;
+  min-height: 18px;
+}
+
+/* Sync status text */
+#sbSyncStatus {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* Tab content spacing */
+.club-tab-content {
+  padding-top: 12px;
+}
+.club-tab-content .github-club-row {
+  margin-bottom: 10px;
+}
+.club-tab-content .github-club-row:last-of-type {
+  margin-bottom: 0;
+}
+
+/* Sync button style override */
+.sb-sync-btn {
+  padding: 7px 16px !important;
+  font-size: 0.8rem !important;
+  border-radius: 20px !important;
+  background: transparent !important;
+  color: var(--accent) !important;
+  border: 1.5px solid var(--accent) !important;
+  font-weight: 700 !important;
+}
+.sb-sync-btn:hover { opacity: 0.8; }
+
+/* Unused legacy */
+.github-token-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.github-my-club-label { display: none; }
 
 /* =============================================================
    REGISTER TAB — Browse Players modal

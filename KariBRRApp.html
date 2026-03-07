@@ -104,10 +104,10 @@
       <div class="settings-card card-github-admin">
 
         <!-- Status row -->
-        <div class="github-admin-status-row" style="margin-bottom:10px">
+        <div class="github-admin-status-row">
           <span id="sbClubStatus">No club selected</span>
-          <span id="sbModeBadge" style="display:none;margin-left:8px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600"></span>
-          <button class="github-btn-clear" onclick="sbClearClub()" style="margin-left:auto">Change</button>
+          <span id="sbModeBadge" style="display:none"></span>
+          <button class="github-btn-clear" onclick="sbClearClub()">Logout</button>
         </div>
 
         <!-- Tab buttons -->
@@ -121,34 +121,34 @@
         </div>
 
         <!-- JOIN tab -->
-        <div id="clubTabJoin" style="margin-top:10px">
+        <div id="clubTabJoin" class="club-tab-content">
           <div class="github-club-row">
             <select id="sbClubSelect" class="github-club-select">
               <option value="">— Select club —</option>
             </select>
           </div>
-          <div class="github-club-row" style="margin-top:6px">
+          <div class="github-club-row">
             <input type="password" id="sbPasswordInput"
                    class="github-token-input" placeholder="Enter password">
             <button class="github-btn-save" onclick="sbConfirmJoin()">Join</button>
           </div>
-          <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
-            <span id="sbSyncStatus" style="font-size:0.85rem;color:#aaa"></span>
-            <button class="github-btn-save" onclick="syncGithubToLocal()" style="padding:4px 10px;font-size:0.8rem">🔄 Sync</button>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+            <span id="sbSyncStatus"></span>
+            <button class="github-btn-save sb-sync-btn" onclick="syncGithubToLocal()">🔄 Sync</button>
           </div>
         </div>
 
         <!-- CREATE tab -->
-        <div id="clubTabCreate" style="display:none;margin-top:10px">
+        <div id="clubTabCreate" class="club-tab-content" style="display:none">
           <div class="github-club-row">
             <input type="text" id="sbNewClubName"
                    class="github-token-input" placeholder="Club name">
           </div>
-          <div class="github-club-row" style="margin-top:6px">
+          <div class="github-club-row">
             <input type="password" id="sbNewClubSelectPw"
-                   class="github-token-input" placeholder="User password (members)">
+                   class="github-token-input" placeholder="User password">
           </div>
-          <div class="github-club-row" style="margin-top:6px">
+          <div class="github-club-row">
             <input type="password" id="sbNewClubAdminPw"
                    class="github-token-input" placeholder="Admin password">
             <button class="github-btn-save" onclick="sbCreateClub()">Create</button>
@@ -156,14 +156,14 @@
         </div>
 
         <!-- PLAYERS tab -->
-        <div id="clubTabPlayers" style="display:none;margin-top:10px">
+        <div id="clubTabPlayers" class="club-tab-content" style="display:none">
           <div class="player-mgmt-toolbar" id="playerMgmtToolbar" style="display:none">
-            <button class="player-mgmt-add-btn" onclick="playerMgmtAddNew()">+ Add</button>
+            <button class="player-mgmt-add-btn" onclick="playerMgmtAddNew()">+ Add Player</button>
           </div>
           <div id="playerMgmtList" class="player-mgmt-list"></div>
         </div>
 
-        <div id="sbClubFeedback" style="margin-top:8px;font-size:0.85rem"></div>
+        <div id="sbClubFeedback"></div>
       </div>
 
     </div>
