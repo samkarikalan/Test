@@ -1160,3 +1160,10 @@ margin: 4px 0; color: var(--text);
   left: 6px;
   opacity: 0.8;
 }
+
+/* Next button — End Session mode */
+#nextBtn.next-btn-end-mode {
+  background: #e63757;
+  border-color: #e63757;
+  transition: background 0.25s, border-color 0.25s;
+}

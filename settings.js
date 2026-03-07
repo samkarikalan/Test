@@ -196,8 +196,9 @@ function resetRounds() {
   sessionFinished = false;
   document.getElementById("nextBtn").disabled = false;
   document.getElementById("roundShufle").disabled = false;
-  const endBtn = document.getElementById("endBtn");
-  if (endBtn) endBtn.disabled = false;
+  // Reset next button back to play mode
+  if (typeof setNextBtnEndMode === "function") setNextBtnEndMode(false);
+  _swipeListenerAdded = false; // allow re-init after reset
 
   // Optional: also disable End to prevent double-click
   //document.getElementById("endBtn").disabled = false;

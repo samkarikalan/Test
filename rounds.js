@@ -729,10 +729,25 @@ function checkAndResetPairCycle(schedulerState, games, roundIndex) {
   return true; // cycle reset happened
 }
 
-/// ── Swipe Left on Next button = End Session ──────────────────
+/// ── Swipe Right on Next button toggles End Session mode ────────
 let _swipeTouchStartX = 0;
 let _swipeTouchStartY = 0;
 let _swipeListenerAdded = false;
+let _nextBtnEndMode = false;
+
+function setNextBtnEndMode(endMode) {
+  _nextBtnEndMode = endMode;
+  const btn = document.getElementById("nextBtn");
+  if (!btn) return;
+  if (endMode) {
+    btn.innerHTML = `<span>🏁 End</span>`;
+    btn.classList.add("next-btn-end-mode");
+  } else {
+    btn.innerHTML = `<span id="btnText" data-i18n="nround"></span><span class="icon"> ▶</span>`;
+    btn.classList.remove("next-btn-end-mode");
+    setLanguage(currentLang); // restore translated text
+  }
+}
 
 function initNextBtnSwipe() {
   if (_swipeListenerAdded) return;
@@ -748,14 +763,33 @@ function initNextBtnSwipe() {
     const dx = e.changedTouches[0].clientX - _swipeTouchStartX;
     const dy = e.changedTouches[0].clientY - _swipeTouchStartY;
 
-    // Swipe left: min 60px horizontal, max 40px vertical drift
-    if (dx < -60 && Math.abs(dy) < 40) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (sessionFinished) return;
-      showConfirm("confirmEndRounds", endRounds);
+    // Must be mostly horizontal, min 50px
+    if (Math.abs(dx) < 50 || Math.abs(dy) > 40) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (sessionFinished) return;
+
+    // Swipe right → toggle to End mode
+    // Swipe left → toggle back to Play mode
+    if (dx > 50 && !_nextBtnEndMode) {
+      setNextBtnEndMode(true);
+    } else if (dx < -50 && _nextBtnEndMode) {
+      setNextBtnEndMode(false);
     }
   }, { passive: false });
+
+  // Override tap behaviour — if in end mode, confirm end instead of next round
+  btn.addEventListener("click", function(e) {
+    if (_nextBtnEndMode) {
+      e.stopImmediatePropagation();
+      showConfirm("confirmEndRounds", function() {
+        setNextBtnEndMode(false);
+        endRounds();
+      });
+    }
+  }, true); // capture phase so it fires before toggleRound
 
   _swipeListenerAdded = true;
 }
