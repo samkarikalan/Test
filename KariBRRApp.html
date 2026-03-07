@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="Export.css">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="github.js" defer></script>
+  <script src="supabase.js" defer></script>
   <script src="main.js" defer></script>
   <script src="engjap.js" defer></script>
   <script src="competitive_algorithm.js" defer></script>
@@ -100,45 +100,46 @@
         </div>
       </div>
 
-      <!-- GitHub Admin -->
+      <!-- Club Admin (Supabase) -->
       <div class="settings-card card-github-admin">
-        <div class="sec">🌐 Club Admin (GitHub)</div>
+        <div class="sec">🌐 Club</div>
 
         <div class="github-admin-status-row">
-          <span id="githubAdminStatus">🔒 Not connected</span>
+          <span id="sbClubStatus">No club selected</span>
+          <button class="github-btn-clear" onclick="sbClearClub()" style="margin-left:8px">Change</button>
         </div>
 
-        <!-- Token input -->
-        <div class="github-token-row">
-          <input type="password" id="githubTokenInput"
-                 class="github-token-input"
-                 placeholder="Paste GitHub token here">
-          <button class="github-btn-save" onclick="githubAdminSaveToken()">Save</button>
-          <button class="github-btn-clear" onclick="githubAdminClearToken()">Clear</button>
+        <!-- Select existing club -->
+        <div class="github-club-row" style="margin-top:8px">
+          <select id="sbClubSelect" class="github-club-select">
+            <option value="">— Select club —</option>
+          </select>
+          <button class="github-btn-save" onclick="sbShowSelectPassword()">Select</button>
         </div>
 
-        <!-- Club section — shown only when token saved -->
-        <div id="githubClubSection" style="display:none">
-          <div class="github-my-club-label" id="githubMyClubLabel">No club selected</div>
-
-          <!-- Select existing club -->
-          <div class="github-club-row">
-            <select id="githubClubSelect" class="github-club-select">
-              <option value="">— Select existing club —</option>
-            </select>
-            <button class="github-btn-save" onclick="githubAdminSelectClub()">Select</button>
-          </div>
-
-          <!-- Create new club -->
-          <div class="github-club-row">
-            <input type="text" id="githubNewClubInput"
-                   class="github-token-input"
-                   placeholder="New club name">
-            <button id="githubCreateClubBtn"
-                    class="github-btn-save"
-                    onclick="githubAdminCreateClub()">Create</button>
-          </div>
+        <!-- Select password prompt -->
+        <div id="sbSelectPasswordRow" style="display:none; margin-top:8px">
+          <input type="password" id="sbSelectPasswordInput"
+                 class="github-token-input" placeholder="Club password">
+          <button class="github-btn-save" onclick="sbConfirmSelectClub()">Join</button>
         </div>
+
+        <!-- Create new club -->
+        <div class="sec" style="margin-top:12px">➕ Create New Club</div>
+        <div class="github-club-row">
+          <input type="text" id="sbNewClubName"
+                 class="github-token-input" placeholder="Club name">
+        </div>
+        <div class="github-club-row" style="margin-top:4px">
+          <input type="password" id="sbNewClubSelectPw"
+                 class="github-token-input" placeholder="Club password (for members)">
+        </div>
+        <div class="github-club-row" style="margin-top:4px">
+          <input type="password" id="sbNewClubAdminPw"
+                 class="github-token-input" placeholder="Admin password (to register players)">
+          <button class="github-btn-save" onclick="sbCreateClub()">Create</button>
+        </div>
+        <div id="sbClubFeedback" style="margin-top:6px;font-size:0.85rem"></div>
       </div>
 
       <!-- Player Management -->

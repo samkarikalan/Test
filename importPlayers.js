@@ -786,6 +786,11 @@ function newImportRenderRegister() {
       <button class="register-add-btn" onclick="regAddToStaging()">Add to List</button>
       <div id="regStagingContainer" class="reg-staging-container"></div>
       <div id="registerFeedback" class="register-feedback"></div>
+      <div class="github-club-row" style="margin-top:8px">
+        <input type="password" id="regAdminPassword"
+               class="github-token-input"
+               placeholder="Club admin password">
+      </div>
       <button class="register-save-btn" id="regRegisterAllBtn"
               onclick="regRegisterAll()" style="display:none">
         ✅ Register All
@@ -909,9 +914,15 @@ async function regRegisterAll() {
   const club = (typeof getMyClub === "function") ? getMyClub() : { id: null };
   const feedback = document.getElementById("registerFeedback");
   const btn = document.getElementById("regRegisterAllBtn");
+  const adminPassword = document.getElementById("regAdminPassword")?.value.trim();
 
   if (!club.id) {
     if (feedback) { feedback.textContent = "⚠️ No club selected."; feedback.className = "register-feedback error"; }
+    return;
+  }
+
+  if (!adminPassword) {
+    if (feedback) { feedback.textContent = "⚠️ Enter club admin password."; feedback.className = "register-feedback error"; }
     return;
   }
 
@@ -929,7 +940,7 @@ async function regRegisterAll() {
     if (p.status === "success") continue;
 
     try {
-      const newPlayer = await dbAddPlayer(p.name, p.gender, club.id);
+      const newPlayer = await dbAddPlayer(p.name, p.gender, adminPassword);
       if (p.rating > 0) {
         await dbOverrideRating(newPlayer.id, p.rating);
       }

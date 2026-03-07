@@ -367,77 +367,20 @@ function playerMgmtAddNew() {
 
 // ── Token UI ──────────────────────────────────────────────────
 
+// ── Club Admin (Supabase) ────────────────────────────────────
+
 function githubAdminInit() {
-  const token = getGithubToken();
-  if (token) {
-    githubAdminShowUnlocked();
-    githubAdminLoadClub();
-  } else {
-    githubAdminShowLocked();
-  }
+  // Load clubs dropdown and show current club status
+  sbLoadClubs();
+  sbRenderClubStatus();
 }
 
-function githubAdminShowLocked() {
-  const el = document.getElementById("githubAdminStatus");
-  if (el) el.textContent = "🔒 Not connected";
-  const section = document.getElementById("githubClubSection");
-  if (section) section.style.display = "none";
-  updateRegisterTabVisibility();
-}
-
-function githubAdminShowUnlocked() {
-  const el = document.getElementById("githubAdminStatus");
-  if (el) el.textContent = "✅ Admin connected";
-  const section = document.getElementById("githubClubSection");
-  if (section) section.style.display = "block";
-  updateRegisterTabVisibility();
-}
-
-function githubAdminSaveToken() {
-  const input = document.getElementById("githubTokenInput");
-  if (!input) return;
-  const val = input.value.trim();
-  if (!val || val.length < 10) {
-    alert("Please enter a valid token."); return;
-  }
-  setGithubToken(val);
-  input.value = "";
-  githubAdminShowUnlocked();
-  githubAdminLoadClub();
-}
-
-function githubAdminClearToken() {
-  if (!confirm("Disconnect admin token? You will lose write access.")) return;
-  clearGithubToken();
-  githubAdminShowLocked();
-  // Clear saved club too
-  localStorage.removeItem("kbrr_my_club_id");
-  localStorage.removeItem("kbrr_my_club_name");
-  githubAdminRenderClubStatus();
-}
-
-// ── Club section ──────────────────────────────────────────────
-
-function getMyClub() {
-  return {
-    id:   localStorage.getItem("kbrr_my_club_id")   || null,
-    name: localStorage.getItem("kbrr_my_club_name") || null
-  };
-}
-
-function setMyClub(id, name) {
-  localStorage.setItem("kbrr_my_club_id",   id);
-  localStorage.setItem("kbrr_my_club_name", name);
-}
-
-async function githubAdminLoadClub() {
-  githubAdminRenderClubStatus();
-  // Pre-load clubs into dropdown
+async function sbLoadClubs() {
   try {
     const clubs = await dbGetClubs();
-    const select = document.getElementById("githubClubSelect");
+    const select = document.getElementById("sbClubSelect");
     if (!select) return;
-    select.innerHTML = '<option value="">— Select existing club —</option>';
+    select.innerHTML = '<option value="">— Select club —</option>';
     clubs.forEach(c => {
       const opt = document.createElement("option");
       opt.value = c.id;
@@ -449,49 +392,79 @@ async function githubAdminLoadClub() {
   }
 }
 
-function githubAdminRenderClubStatus() {
+function sbRenderClubStatus() {
   const club = getMyClub();
-  const el = document.getElementById("githubMyClubLabel");
-  if (!el) return;
-  el.textContent = club.name ? `My Club: ${club.name}` : "No club selected";
+  const el = document.getElementById("sbClubStatus");
+  if (el) el.textContent = club.name ? `✅ ${club.name}` : "No club selected";
 }
 
-function githubAdminSelectClub() {
-  const select = document.getElementById("githubClubSelect");
-  if (!select || !select.value) return;
-  const name = select.options[select.selectedIndex].textContent;
-  setMyClub(select.value, name);
-  githubAdminRenderClubStatus();
+function sbShowSelectPassword() {
+  const select = document.getElementById("sbClubSelect");
+  if (!select || !select.value) { alert("Please select a club first."); return; }
+  const row = document.getElementById("sbSelectPasswordRow");
+  if (row) row.style.display = "flex";
 }
 
-async function githubAdminCreateClub() {
-  const input = document.getElementById("githubNewClubInput");
-  if (!input) return;
-  const name = input.value.trim();
-  if (!name) { alert("Enter a club name."); return; }
-
-  const btn = document.getElementById("githubCreateClubBtn");
-  if (btn) btn.disabled = true;
+async function sbConfirmSelectClub() {
+  const select = document.getElementById("sbClubSelect");
+  const pwInput = document.getElementById("sbSelectPasswordInput");
+  if (!select.value) return;
+  const password = pwInput?.value.trim();
+  if (!password) { alert("Enter club password."); return; }
 
   try {
-    const newClub = await dbAddClub(name);
-    setMyClub(newClub.id, newClub.name);
-    githubAdminRenderClubStatus();
-    input.value = "";
-    // Reload club list
-    await githubAdminLoadClub();
-    alert(`Club "${name}" created successfully!`);
+    const club = await dbVerifyClubAccess(select.value, password);
+    setMyClub(club.id, club.name);
+    pwInput.value = "";
+    document.getElementById("sbSelectPasswordRow").style.display = "none";
+    sbRenderClubStatus();
+    sbFeedback(`✅ Joined ${club.name}`, "green");
+    // Sync players from this club
+    syncGithubToLocal();
   } catch (e) {
-    alert("Error: " + e.message);
-  } finally {
-    if (btn) btn.disabled = false;
+    sbFeedback("❌ " + e.message, "red");
   }
 }
 
-// ── Register tab visibility ───────────────────────────────────
+function sbClearClub() {
+  clearMyClub();
+  sbRenderClubStatus();
+  sbFeedback("Club cleared.", "gray");
+}
+
+async function sbCreateClub() {
+  const name    = document.getElementById("sbNewClubName")?.value.trim();
+  const selPw   = document.getElementById("sbNewClubSelectPw")?.value.trim();
+  const adminPw = document.getElementById("sbNewClubAdminPw")?.value.trim();
+
+  if (!name)    { sbFeedback("Enter club name.", "red"); return; }
+  if (!selPw)   { sbFeedback("Enter club password.", "red"); return; }
+  if (!adminPw) { sbFeedback("Enter admin password.", "red"); return; }
+
+  try {
+    const club = await dbAddClub(name, selPw, adminPw);
+    setMyClub(club.id, club.name);
+    document.getElementById("sbNewClubName").value    = "";
+    document.getElementById("sbNewClubSelectPw").value  = "";
+    document.getElementById("sbNewClubAdminPw").value = "";
+    sbRenderClubStatus();
+    await sbLoadClubs();
+    sbFeedback(`✅ Club "${name}" created!`, "green");
+  } catch (e) {
+    sbFeedback("❌ " + e.message, "red");
+  }
+}
+
+function sbFeedback(msg, color) {
+  const el = document.getElementById("sbClubFeedback");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = color === "green" ? "#2dce89" : color === "red" ? "#e63757" : "#888";
+}
 
 function updateRegisterTabVisibility() {
   const tab = document.getElementById("newImportRegisterBtn");
   if (!tab) return;
-  tab.style.display = hasGithubToken() ? "inline-block" : "none";
+  const club = getMyClub();
+  tab.style.display = club.id ? "inline-block" : "none";
 }
