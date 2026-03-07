@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="apple-touch-icon" href="cs.PNG">
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CLUB Scheduler</title>
+  <link rel="stylesheet" href="BRRStyle1.css">
+  <link rel="stylesheet" href="BRRStyle2.css">
+  <link rel="stylesheet" href="Export.css">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="github.js" defer></script>
+  <script src="main.js" defer></script>
+  <script src="engjap.js" defer></script>
+  <script src="competitive_algorithm.js" defer></script>
+  <script src="games.js" defer></script>
+  <script src="rounds.js" defer></script>
+  <script src="players.js" defer></script>
+  <script src="importPlayers.js" defer></script>
+  <script src="settings.js" defer></script>
+  <script src="summary.js" defer></script>
+  <script src="help.js" defer></script>
+</head>
+<body>
+
+  <!-- ============================= -->
+  <!--           TOP BAR             -->
+  <!-- ============================= -->
+  <div class="top-bar">
+    <span class="app-logo-premium">CLUB Scheduler</span>
+    <div class="lang-wrapper">
+      <button class="lang-btn" onclick="toggleLangMenu()" aria-label="Language">
+        <span id="currentFlag">🇺🇸</span>
+      </button>
+      <div class="lang-menu" id="langMenu">
+        <div data-lang="en" data-flag="🇺🇸">🇺🇸 English</div>
+        <div data-lang="jp" data-flag="🇯🇵">🇯🇵 日本語</div>
+        <div data-lang="kr" data-flag="🇰🇷">🇰🇷 한국어</div>
+        <div data-lang="zh" data-flag="🇨🇳">🇨🇳 中文</div>
+        <div data-lang="vi" data-flag="🇻🇳">🇻🇳 Tiếng Việt</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= -->
+  <!--       TOP TAB NAVIGATION      -->
+  <!-- ============================= -->
+  <div class="top-tabs">
+    <div class="tabs-container">
+      <button class="tab-btn" onclick="showPage('settingsPage', this)">
+        <span class="tab-icon">⚙️</span>
+        <span class="tab-label">Settings</span>
+      </button>
+      <button class="tab-btn active" onclick="showPage('playersPage', this)">
+        <span class="tab-icon">👥</span>
+        <span class="tab-label" data-i18n="players">Players</span>
+      </button>
+      <button class="tab-btn" onclick="showPage('roundsPage', this)">
+        <span class="tab-icon">🏸</span>
+        <span class="tab-label" data-i18n="rounds">Rounds</span>
+      </button>
+      <button class="tab-btn" onclick="showPage('summaryPage', this)">
+        <span class="tab-icon">📊</span>
+        <span class="tab-label" data-i18n="summary">Summary</span>
+      </button>
+      <button class="tab-btn" onclick="showPage('helpPage', this)">
+        <span class="tab-icon">❓</span>
+        <span class="tab-label" data-i18n="help">Help</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================= -->
+  <!--         SETTINGS PAGE         -->
+  <!-- ============================= -->
+  <div id="settingsPage" class="page" style="display:none;">
+    <div class="settings-wrap">
+      <div class="settings-card card-font">
+        <div class="sec" data-i18n="fontSize"></div>
+        <div class="row">
+          <div class="btn active" id="font_small" onclick="setFontSize('small')" data-i18n="small"></div>
+          <div class="btn" id="font_medium" onclick="setFontSize('medium')" data-i18n="medium"></div>
+          <div class="btn" id="font_large" onclick="setFontSize('large')" data-i18n="large"></div>
+        </div>
+      </div>
+      <div class="settings-card card-theme">
+        <div class="sec" data-i18n="theme"></div>
+        <div class="row">
+          <div class="btn active" id="theme_light" onclick="setTheme('light')" data-i18n="light"></div>
+          <div class="btn" id="theme_dark" onclick="setTheme('dark')" data-i18n="dark"></div>
+        </div>
+      </div>
+      <div class="settings-card card-reset">
+        <div class="sec" data-i18n="reset"></div>
+        <div class="row">
+          <div class="btn danger" onclick="showConfirm('confirmResetAll', ResetAll)" data-i18n="resetAll"></div>
+          <div class="btn warn" onclick="showConfirm('confirmResetGames', resetRounds)" data-i18n="resetExcept"></div>
+        </div>
+      </div>
+
+      <!-- GitHub Admin -->
+      <div class="settings-card card-github-admin">
+        <div class="sec">🌐 Club Admin (GitHub)</div>
+
+        <div class="github-admin-status-row">
+          <span id="githubAdminStatus">🔒 Not connected</span>
+        </div>
+
+        <!-- Token input -->
+        <div class="github-token-row">
+          <input type="password" id="githubTokenInput"
+                 class="github-token-input"
+                 placeholder="Paste GitHub token here">
+          <button class="github-btn-save" onclick="githubAdminSaveToken()">Save</button>
+          <button class="github-btn-clear" onclick="githubAdminClearToken()">Clear</button>
+        </div>
+
+        <!-- Club section — shown only when token saved -->
+        <div id="githubClubSection" style="display:none">
+          <div class="github-my-club-label" id="githubMyClubLabel">No club selected</div>
+
+          <!-- Select existing club -->
+          <div class="github-club-row">
+            <select id="githubClubSelect" class="github-club-select">
+              <option value="">— Select existing club —</option>
+            </select>
+            <button class="github-btn-save" onclick="githubAdminSelectClub()">Select</button>
+          </div>
+
+          <!-- Create new club -->
+          <div class="github-club-row">
+            <input type="text" id="githubNewClubInput"
+                   class="github-token-input"
+                   placeholder="New club name">
+            <button id="githubCreateClubBtn"
+                    class="github-btn-save"
+                    onclick="githubAdminCreateClub()">Create</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Player Management -->
+      <div class="settings-card card-players-mgmt">
+        <div class="sec">👥 Player Management</div>
+        <div id="playerMgmtLocked" class="player-mgmt-locked">
+          <p class="player-mgmt-hint">Unlock to edit player ratings, gender and manage the player database.</p>
+          <button class="admin-btn" onclick="playerMgmtUnlock()">🔐 Admin Unlock</button>
+        </div>
+        <div id="playerMgmtUnlocked" style="display:none">
+          <div class="player-mgmt-toolbar">
+            <button class="player-mgmt-add-btn" onclick="playerMgmtAddNew()">+ Add Player</button>
+            <button class="player-mgmt-pwd-btn" onclick="playerMgmtChangePwd()">🔑 Change Password</button>
+            <button class="admin-btn" onclick="playerMgmtLock()">🔓 Lock</button>
+          </div>
+          <div id="playerMgmtList" class="player-mgmt-list"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Admin Password Modal -->
+  <div id="adminModal" class="admin-modal-overlay" style="display:none">
+    <div class="admin-modal">
+      <div class="admin-modal-title" id="adminModalTitle">🔐 Admin Access</div>
+      <input type="password" id="adminPasswordInput" class="admin-password-input"
+        placeholder="Enter password" onkeydown="if(event.key==='Enter') adminVerifyPassword()">
+      <div id="adminPasswordConfirmRow" style="display:none">
+        <input type="password" id="adminPasswordConfirm" class="admin-password-input"
+          placeholder="Confirm new password" style="margin-top:8px">
+      </div>
+      <div class="admin-modal-actions">
+        <button class="admin-modal-cancel" onclick="adminCloseModal()">Cancel</button>
+        <button class="admin-modal-ok" onclick="adminVerifyPassword()">OK</button>
+      </div>
+      <div class="admin-modal-error" id="adminModalError"></div>
+    </div>
+  </div>
+
+  <!-- ============================= -->
+  <!--       CONFIRM OVERLAY         -->
+  <!-- ============================= -->
+  <div id="confirmOverlay" class="confirm-overlay hidden">
+    <div class="confirm-box">
+      <div class="confirm-title" id="confirmTitle"></div>
+      <div class="confirm-actions">
+        <button class="btn cancel" id="confirmCancel"></button>
+        <button class="btn danger" id="confirmYes"></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= -->
+  <!--  SHARED PLAYER SLOT           -->
+  <!--  Lives at body level.         -->
+  <!--  JS moves it between tabs.    -->
+  <!--  Starts inside playersPage.   -->
+  <!-- ============================= -->
+ <div id="playersPage" class="page">
+
+  <div class="card browse-card" onclick="newImportShowModal()">
+    <div class="browse-left">
+      <span class="browse-title" data-i18n="importPlayers"></span>
+      <span class="browse-sub" data-i18n="browsePlayersSub"></span>
+    </div>
+    <div class="browse-arrow">›</div>
+  </div>
+
+
+
+  <!-- sharedPlayerSlot moves here when players tab active -->
+  <div id="playersSlotAnchor"></div>
+
+</div>
+
+<!-- SHARED PLAYER SLOT — starts inside playersSlotAnchor via JS on load -->
+<div id="sharedPlayerSlot" style="display:none">
+  <div class="card" id="playerListCard">
+    <div id="playerList" class="player-list"></div>
+  </div>
+  <div class="card" id="fixedPairsCard">
+    <span class="browse-title" data-i18n="fixedPairs"></span>
+    <select id="fixed-pair-1"></select>
+    <select id="fixed-pair-2"></select>
+    <button onclick="modifyFixedPair()" data-i18n="add"></button>
+    <div id="fixed-pair-list" class="fixed-pairs-list"></div>
+  </div>
+</div>
+
+
+  <!-- ============================= -->
+  <!--          ROUNDS PAGE          -->
+  <!-- ============================= -->
+  <div id="roundsPage" class="page" style="display:none;">
+
+    <div class="title-card">
+      <div id="roundTitle">R</div>
+      <img id="lockToggleBtn" class="lock-icon" src="lock.png" alt="Lock" />
+    </div>
+
+    <div id="game-results"></div>
+
+    <div class="action-card">
+      <button class="action mid small" id="roundShufle" onclick="RefreshRound()" aria-label="Mix round">
+        🎲
+      </button>
+      <button id="nextBtn" class="action right primary" onclick="toggleRound()">
+        <span id="btnText" data-i18n="nround"></span>
+        <span class="icon"> ▶</span>
+      </button>
+    </div>
+
+    <!-- Round Settings Panel -->
+    <div class="round-settings-panel">
+      <button class="round-settings-toggle" onclick="toggleRoundSettings()">
+  <span class="round-settings-label">⚙️ <span data-i18n="roundSettings">Round Settings</span></span>
+  <span class="round-settings-chevron" id="roundSettingsChevron">▾</span>
+</button>
+
+
+      <!-- Single roundSettingsBody — contains all settings + player slot -->
+      <div class="round-settings-body" id="roundSettingsBody">
+
+        <!-- Courts Row -->
+        <div class="setting-row">
+          <label class="setting-label" data-i18n="courts">Courts</label>
+          <div class="counter">
+            <button class="circle-btn" id="courtMinus">−</button>
+            <span id="num-courts">1</span>
+            <button class="circle-btn" id="courtPlus">+</button>
+          </div>
+        </div>
+
+        <div class="setting-divider"></div>
+
+        <!-- Mode Toggle Row -->
+        <div class="setting-row">
+          <label class="setting-label">
+            <span id="modeLabel"></span>
+            <span data-i18n="competitive">Competitive</span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="modeToggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-divider"></div>
+
+        <!-- Min Rounds Row -->
+        <div class="setting-row" id="minRoundsRow">
+          <label class="setting-label" data-i18n="minRounds">Warm-Up Rounds</label>
+          <div class="counter">
+            <button class="circle-btn" id="minRoundsMinus">−</button>
+            <span id="minRoundsDisplay">6</span>
+            <button class="circle-btn" id="minRoundsPlus">+</button>
+          </div>
+        </div>
+
+        <div class="setting-divider"></div>
+
+        <!-- sharedPlayerSlot moves here when rounds tab active -->
+        <div id="roundsSlotAnchor"></div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============================= -->
+  <!--         SUMMARY PAGE          -->
+  <!-- ============================= -->
+  <div id="summaryPage" class="page" style="display:none;">
+    <div class="exp_btn" onclick="exportBRR2HTML()" data-i18n="exporthtml">📄</div>
+    <div id="reportContainer"></div>
+    <div id="export"></div>
+  </div>
+
+  <!-- ============================= -->
+  <!--           HELP PAGE           -->
+  <!-- ============================= -->
+  <div id="helpPage" class="page" style="display:none;">
+    <div class="help-buttons">
+      <button class="help-btn active" onclick="loadHelp('players')" data-i18n="players"></button>
+      <button class="help-btn" onclick="loadHelp('rounds')" data-i18n="rounds"></button>
+      <button class="help-btn" onclick="loadHelp('summary')" data-i18n="summary"></button>
+    </div>
+    <div id="helpContainer"></div>
+  </div>
+
+  <!-- ============================= -->
+  <!--         IMPORT MODAL          -->
+  <!-- ============================= -->
+  <div id="newImportModal"
+       class="newImport-modal"
+       style="display:none;"
+       onclick="if(event.target===this)newImportHideModal()">
+    <div class="newImport-container">
+
+      <div class="newImport-selected-section">
+        <div class="newImport-selected-header">
+          <strong>Selected (<span id="newImportSelectedCount">0</span>)</strong>
+        </div>
+        <div id="newImportSelectedCards"
+             class="newImport-cards-container newImport-selected-container">
+        </div>
+        <div class="newImport-selected-actions">
+          <button class="newImport-clear-btn" onclick="newImportClearSelected()">Clear</button>
+        </div>
+        <div class="newImport-footer">
+          <button class="newImport-ok-btn" onclick="addPlayersFromInputUI()">OK</button>
+          <button class="newImport-cancel-btn" onclick="newImportHideModal()">Cancel</button>
+        </div>
+      </div>
+
+      <div class="newImport-select-section">
+        <div class="newImport-subtabs">
+          <button class="newImport-subtab-btn active"
+                  id="newImportHistoryBtn"
+                  onclick="newImportShowSelectMode('history')">History</button>
+          <button class="newImport-subtab-btn"
+                  id="newImportFavoritesBtn"
+                  onclick="newImportShowSelectMode('favorites')">Favorites</button>
+          <button class="newImport-subtab-btn"
+                  id="newImportAddplayersBtn"
+                  onclick="newImportShowSelectMode('addplayers')">Add Players</button>
+          <button class="newImport-subtab-btn"
+                  id="newImportRegisterBtn"
+                  onclick="newImportShowSelectMode('register')"
+                  style="display:none">📋 Register</button>
+        </div>
+
+        <input type="text"
+               id="newImportSearch"
+               class="newImport-search"
+               placeholder="Search players">
+
+        <div class="newImport-list-actions">
+          <button id="newImportClearHistoryBtn"
+                  class="newImport-clear-btn"
+                  onclick="newImportClearHistory()">Clear History</button>
+          <button id="newImportClearFavoritesBtn"
+                  class="newImport-clear-btn"
+                  onclick="newImportClearFavorites()"
+                  style="display:none">Clear Favorites</button>
+        </div>
+
+        <div id="newImportSelectCards" class="newImport-cards-container"></div>
+
+        <div id="newImportAddPlayersSection" style="display:none">
+          <div class="card">
+
+            <textarea id="players-names" rows="3" placeholder="John&#10;Mike&#10;Sarah"></textarea>
+
+            <div class="addplayer-row">
+              <select id="player-gender" class="addplayer-select">
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+
+            <div class="addplayer-row">
+              <button class="newImport-ok-btn addplayer-btn" onclick="addPlayer()">
+                Add Player &nbsp;<span id="addPlayerFavToggle" class="addplayer-fav-toggle-icon" onclick="event.stopPropagation(); newImportToggleAddFav()">☆</span>
+              </button>
+            </div>
+
+            <div id="newImportFavoriteSetRow" style="display:none">
+              <div class="addplayer-setname-row">
+                <input id="newImportSetName" type="text" class="addplayer-setname-input" placeholder="Set name e.g. Monday Group">
+              </div>
+              <div class="addplayer-setname-actions">
+                <button class="newImport-ok-btn addplayer-btn" onclick="newImportSaveFavoriteSet()">Save Set</button>
+                <button class="newImport-cancel-btn addplayer-btn" onclick="newImportToggleAddFav()">Cancel</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
