@@ -1512,9 +1512,9 @@ function renderGames(data, roundIndex) {
       }
     }
 
-    const vs = document.createElement('div');
-    vs.className = 'vs vs-divider';
-    vs.innerText = 'VS';
+    const vs = document.createElement('span');
+    vs.className = 'vs';
+    vs.innerText = '  ';
 
     teamsDiv.append(teamLeft, vs, teamRight);
     courtDiv.append(courtName, teamsDiv);
@@ -1661,9 +1661,9 @@ function goodrenderGames(data, roundIndex) {
     const teamLeft = makeTeamDiv('L');
     const teamRight = makeTeamDiv('R');
 
-    const vs = document.createElement('div');
-    vs.className = 'vs vs-divider';
-    vs.innerText = 'VS';
+    const vs = document.createElement('span');
+    vs.className = 'vs';
+    vs.innerText = '  ';
 
     teamsDiv.append(teamLeft, vs, teamRight);
     courtDiv.append(courtName, teamsDiv);

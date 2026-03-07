@@ -121,29 +121,15 @@ function setTheme(mode) {
   applyTheme(mode);
 }
 
-/* ── Court Layout ── */
-function setCourtLayout(layout) {
-  localStorage.setItem("courtLayout", layout);
-  document.body.classList.toggle("layout-trail", layout === "trail");
-  document.getElementById("layout_default")?.classList.toggle("active", layout === "default");
-  document.getElementById("layout_trail")?.classList.toggle("active", layout === "trail");
-}
-
-function initCourtLayout() {
-  const saved = localStorage.getItem("courtLayout") || "default";
-  setCourtLayout(saved);
-}
-
 /* ===== Init ===== */
 initTheme();
 
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  initTheme();       // restore theme
-  initFontSize();    // restore font size
-  initLanguage();    // restore language
-  initCourtLayout(); // restore court layout
+  initTheme();     // restore theme
+  initFontSize();  // restore font size
+  initLanguage();  // restore language
 });
 
 
@@ -472,6 +458,10 @@ function sbRenderClubStatus() {
       badge.style.display = "none";
     }
   }
+
+  // Show delete button only in admin mode
+  const deleteBtn = document.getElementById("sbDeleteClubBtn");
+  if (deleteBtn) deleteBtn.style.display = (mode === "admin") ? "inline-block" : "none";
 }
 
 async function sbConfirmJoin() {
@@ -512,6 +502,24 @@ function sbClearClub() {
   sbRenderClubStatus();
   sbFeedback("Club cleared.", "gray");
   updateRegisterTabVisibility();
+}
+
+async function sbDeleteClub() {
+  const club = getMyClub();
+  if (!club.id) { sbFeedback("No club selected.", "red"); return; }
+  if (!isAdminMode()) { sbFeedback("Admin mode required to delete a club.", "red"); return; }
+
+  const confirmed = confirm(`Delete club "${club.name}"?\nThis will remove all members and cannot be undone.`);
+  if (!confirmed) return;
+
+  try {
+    await dbDeleteClub(club.id);
+    sbClearClub();
+    await sbLoadClubs(); // refresh dropdown so deleted club disappears
+    sbFeedback(`Club "${club.name}" deleted.`, "red");
+  } catch (e) {
+    sbFeedback("Delete failed: " + (e.message || e), "red");
+  }
 }
 
 function getClubMode() {

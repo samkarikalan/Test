@@ -285,3 +285,10 @@ async function dbIsOnline() {
     return false;
   }
 }
+
+async function dbDeleteClub(clubId) {
+  // Delete all club_members first
+  await sbDelete("club_members", `club_id=eq.${clubId}`);
+  // Then delete the club
+  await sbDelete("clubs", `id=eq.${clubId}`);
+}

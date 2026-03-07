@@ -290,12 +290,13 @@ function newImportRefreshSelectCards() {
                 data-gender="${p.gender}">+</button>
             </div>
           `).join("")}
-          <div class="newImport-set-addplayer-row">
+          <div class="newImport-set-addplayer-row" style="position:relative">
             <input type="text"
               class="newImport-set-addplayer-input"
               data-setname="${safeName}"
-              placeholder="Add player name...">
-            <button class="newImport-set-addplayer-btn" data-setname="${safeName}">+</button>
+              autocomplete="off"
+              placeholder="Search to add player...">
+            <div class="newImport-set-addplayer-dropdown" data-setname="${safeName}" style="display:none"></div>
           </div>
         </div>
       `;
@@ -362,6 +363,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const container = document.getElementById("newImportSelectCards");
   container?.addEventListener("click",   newImportHandleSetClick);
   container?.addEventListener("keydown", newImportHandleSetClick);
+  container?.addEventListener("input",   newImportHandleSetClick);
 });
 
 function newImportHandleSetClick(e) {
@@ -411,33 +413,79 @@ function newImportHandleSetClick(e) {
   }
 
   // ── + Add new player to set from inline input ──
-  if (e.target.matches(".newImport-set-addplayer-btn")) {
-    const setName = e.target.dataset.setname;
-    const input   = e.target.closest(".newImport-set-addplayer-row")
-                      ?.querySelector(".newImport-set-addplayer-input");
-    if (!input) return;
-    const name = input.value.trim();
-    if (!name) { input.focus(); return; }
+  // ── Search dropdown for add-to-set input ──
+  if (e.target.matches(".newImport-set-addplayer-input") && e.type === "input") {
+    const input   = e.target;
+    const setName = input.dataset.setname;
+    const query   = input.value.trim().toLowerCase();
+    const dropdown = input.closest(".newImport-set-addplayer-row")
+                        ?.querySelector(".newImport-set-addplayer-dropdown");
+    if (!dropdown) return;
+
+    if (!query) { dropdown.style.display = "none"; dropdown.innerHTML = ""; return; }
+
+    const sets = newImportLoadFavoriteSets();
+    const set  = sets.find(s => s.name === setName);
+    const registered = newImportState.historyPlayers || [];
+    const alreadyIn  = new Set((set?.players || []).map(p => p.displayName.trim().toLowerCase()));
+
+    const matches = registered.filter(p =>
+      p.displayName.toLowerCase().includes(query) &&
+      !alreadyIn.has(p.displayName.trim().toLowerCase())
+    ).slice(0, 8);
+
+    if (!matches.length) {
+      dropdown.innerHTML = "<div class='set-add-dropdown-empty'>No registered players found</div>";
+      dropdown.style.display = "block";
+      return;
+    }
+
+    dropdown.innerHTML = matches.map(p => `
+      <div class="set-add-dropdown-item"
+           data-setname="${setName.replace(/"/g, '&quot;')}"
+           data-name="${p.displayName.replace(/"/g, '&quot;')}"
+           data-gender="${p.gender || 'Male'}">
+        <img src="${p.gender === 'Female' ? 'female.png' : 'male.png'}" class="gender-icon" style="width:16px;height:16px">
+        ${p.displayName}
+      </div>
+    `).join("");
+    dropdown.style.display = "block";
+    return;
+  }
+
+  // ── Select from dropdown ──
+  if (e.target.closest(".set-add-dropdown-item")) {
+    const item    = e.target.closest(".set-add-dropdown-item");
+    const setName = item.dataset.setname;
+    const name    = item.dataset.name;
+    const gender  = item.dataset.gender;
+
     const sets = newImportLoadFavoriteSets();
     const set  = sets.find(s => s.name === setName);
     if (!set) return;
-    // Check duplicate within set
-    if (set.players.some(p => p.displayName.trim().toLowerCase() === name.toLowerCase())) {
-      input.value = "";
-      input.placeholder = "Already in set!";
-      setTimeout(() => { input.placeholder = "Add player name..."; }, 2000);
-      return;
+
+    if (!set.players.some(p => p.displayName.trim().toLowerCase() === name.trim().toLowerCase())) {
+      set.players.push({ displayName: name, gender: gender || "Male" });
+      newImportSaveFavoriteSets(sets);
     }
-    set.players.push({ displayName: name, gender: "Male" });
-    newImportSaveFavoriteSets(sets);
+
+    // Clear input + close dropdown
+    const row = item.closest(".newImport-set-addplayer-row");
+    if (row) {
+      const inp = row.querySelector(".newImport-set-addplayer-input");
+      const dd  = row.querySelector(".newImport-set-addplayer-dropdown");
+      if (inp) inp.value = "";
+      if (dd)  { dd.style.display = "none"; dd.innerHTML = ""; }
+    }
     newImportRefreshSelectCards();
     return;
   }
 
-  // ── Enter key on add-player-to-set input ──
-  if (e.target.matches(".newImport-set-addplayer-input") && e.type === "keydown" && e.key === "Enter") {
-    e.target.nextElementSibling?.click();
-    return;
+  // ── Click outside closes dropdown ──
+  if (!e.target.closest(".newImport-set-addplayer-row")) {
+    document.querySelectorAll(".newImport-set-addplayer-dropdown").forEach(dd => {
+      dd.style.display = "none"; dd.innerHTML = "";
+    });
   }
 
   // ── × Remove single player from set ──
@@ -702,26 +750,31 @@ function addPlayer() {
   const extractedPlayers = parsePlayerLines(text, defaultGender);
   if (!extractedPlayers.length) return;
 
-  extractedPlayers.forEach(player => {
-    // Add to selected (unique)
-    addToListIfNotExists(newImportState.selectedPlayers, player);
+  // Filter to registered players only
+  const registered    = newImportState.historyPlayers || [];
+  const registeredMap = new Map(registered.map(p => [p.displayName.trim().toLowerCase(), p]));
 
-    // Add to history (unique, newest on top) — skip invalid names
-    if (isValidPlayerName(player.displayName)) {
-      const added = addToListIfNotExists(newImportState.historyPlayers, player);
-      if (added) {
-        newImportState.historyPlayers.pop();
-        newImportState.historyPlayers.unshift({ ...player });
-      }
+  const skipped = [];
+
+  extractedPlayers.forEach(player => {
+    const key = player.displayName.trim().toLowerCase();
+    const reg = registeredMap.get(key);
+
+    if (!reg) {
+      // Not registered — skip
+      skipped.push(player.displayName);
+      return;
     }
+
+    // Add registered version to selected
+    addToListIfNotExists(newImportState.selectedPlayers, reg);
+
     // Also add to favorites if star toggle is ON
     if (newImportState.addToFavOnAdd) {
-      addToListIfNotExists(newImportState.favoritePlayers, player);
+      addToListIfNotExists(newImportState.favoritePlayers, reg);
     }
   });
 
-  newImportState.historyPlayers = newImportState.historyPlayers.slice(0, 50);
-  localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
   if (newImportState.addToFavOnAdd) {
     newImportSaveFavorites();
   }
@@ -730,8 +783,77 @@ function addPlayer() {
   newImportRefreshSelectCards();
 
   textarea.value        = "";
-  textarea.style.height = "";   // let CSS min-height take over
+  textarea.style.height = "";
   textarea.focus();
+
+  // Show feedback for skipped players with option to register
+  if (skipped.length) {
+    const feedback = document.getElementById("addPlayerFeedback");
+    if (feedback) {
+      // Store skipped list globally to avoid HTML quote escaping issues
+      window._lastSkippedPlayers = skipped;
+
+      feedback.innerHTML = `
+        <span>⚠️ Not registered: <strong>${skipped.join(", ")}</strong></span>
+        <button class="add-player-register-btn" onclick="addPlayerSendToRegister(window._lastSkippedPlayers)">
+          Register them →
+        </button>
+      `;
+      feedback.style.display = "flex";
+      feedback.style.alignItems = "center";
+      feedback.style.gap = "8px";
+      feedback.style.flexWrap = "wrap";
+    }
+  }
+}
+
+/* =========================
+   SEND SKIPPED TO REGISTER TAB
+========================= */
+function addPlayerSendToRegister(names) {
+  // Hide feedback
+  const feedback = document.getElementById("addPlayerFeedback");
+  if (feedback) feedback.style.display = "none";
+
+  // Check if admin mode
+  if (typeof isAdminMode === "function" && !isAdminMode()) {
+    alert("Admin mode required to register players. Please join your club as admin in Settings.");
+    return;
+  }
+
+  // Force-show Register tab button before switching (it may be hidden)
+  const regBtn = document.getElementById("newImportRegisterBtn");
+  if (regBtn) regBtn.style.display = "inline-block";
+
+  // Switch to Register tab keeping staging list intact
+  const regBtn2 = document.getElementById("newImportRegisterBtn");
+  if (regBtn2) regBtn2.style.display = "inline-block";
+  document.querySelectorAll(".newImport-subtab-btn").forEach(b => b.classList.remove("active"));
+  if (regBtn2) regBtn2.classList.add("active");
+  newImportState.currentSelectMode = "register";
+  ["newImportSelectCards","newImportAddPlayersSection","newImportSearch",
+   "newImportClearHistoryBtn","newImportClearFavoritesBtn"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+
+  // Render register tab UI keeping existing staging
+  newImportRenderRegister(true);
+
+  // Pre-fill staging list with skipped names
+  names.forEach(name => {
+    if (!_regStagingList.find(s => s.name.toLowerCase() === name.toLowerCase())) {
+      _regStagingList.push({
+        id:     Date.now() + Math.random(),
+        name:   name.trim(),
+        gender: "Male",
+        rating: 0,
+        status: "pending"
+      });
+    }
+  });
+
+  regRenderStaging();
 }
 
 /* =========================
@@ -750,12 +872,12 @@ function newImportAddPlayers() {
 // ── Staging list for bulk registration ───────────────────────
 let _regStagingList = []; // [{ id, name, gender, rating }]
 
-function newImportRenderRegister() {
+function newImportRenderRegister(keepStaging = false) {
   const listContainer = document.getElementById("newImportSelectCards");
   const club = (typeof getMyClub === "function") ? getMyClub() : { name: null };
 
   listContainer.style.display = "block";
-  _regStagingList = [];
+  if (!keepStaging) _regStagingList = [];
 
   listContainer.innerHTML = `
     <div class="register-form">
@@ -961,5 +1083,13 @@ async function regRegisterAll() {
   if (feedback) {
     feedback.textContent = parts.join("  ");
     feedback.className = failCount ? "register-feedback error" : "register-feedback success";
+  }
+
+  // Silently add successfully registered players to selected list
+  if (successCount) {
+    _regStagingList
+      .filter(p => p.status === "success")
+      .forEach(p => addToListIfNotExists(newImportState.selectedPlayers, { displayName: p.name, gender: p.gender, rating: p.rating || 1.0 }));
+    newImportRefreshSelectedCards();
   }
 }
