@@ -213,7 +213,7 @@ function endRounds() {
   // Disable round controls
   document.getElementById("nextBtn").disabled = true;
   document.getElementById("roundShufle").disabled = true;
-  document.getElementById("endBtn").disabled = true;
+  document.getElementById("finishBtn").disabled = true;
 
   // Sync ratings to GitHub silently in background
   githubSyncSessionRatings();
@@ -729,67 +729,37 @@ function checkAndResetPairCycle(schedulerState, games, roundIndex) {
   return true; // cycle reset happened
 }
 
-/// ── Swipe Right on Next button toggles End Session mode ────────
-let _swipeTouchStartX = 0;
-let _swipeTouchStartY = 0;
-let _swipeListenerAdded = false;
-let _nextBtnEndMode = false;
 
-function setNextBtnEndMode(endMode) {
-  _nextBtnEndMode = endMode;
-  const btn = document.getElementById("nextBtn");
-  if (!btn) return;
-  if (endMode) {
-    btn.innerHTML = `<span>🏁 End</span>`;
-    btn.classList.add("next-btn-end-mode");
-  } else {
-    btn.innerHTML = `<span id="btnText" data-i18n="nround"></span><span class="icon"> ▶</span>`;
-    btn.classList.remove("next-btn-end-mode");
-    setLanguage(currentLang); // restore translated text
+
+schedulerState.activeplayers = new Proxy([], {
+  get(target, prop) {
+    const value = target[prop];
+
+    if (typeof value === 'function') {
+      return function (...args) {
+        const result = value.apply(target, args);
+        updateRoundsPageAccess();
+        return result;
+      };
+    }
+
+    return value;
   }
-}
+});
 
-function initNextBtnSwipe() {
-  if (_swipeListenerAdded) return;
-  const btn = document.getElementById("nextBtn");
-  if (!btn) return;
 
-  btn.addEventListener("touchstart", function(e) {
-    _swipeTouchStartX = e.touches[0].clientX;
-    _swipeTouchStartY = e.touches[0].clientY;
-  }, { passive: true });
 
-  btn.addEventListener("touchend", function(e) {
-    const dx = e.changedTouches[0].clientX - _swipeTouchStartX;
-    const dy = e.changedTouches[0].clientY - _swipeTouchStartY;
+allRounds = new Proxy(allRounds, {
+  set(target, prop, value) {
+    target[prop] = value;
+    updateSummaryPageAccess();
+    return true;
+  },
+  deleteProperty(target, prop) {
+    delete target[prop];
+    updateSummaryPageAccess();
+    return true;
+  }
+});
 
-    // Must be mostly horizontal, min 50px
-    if (Math.abs(dx) < 50 || Math.abs(dy) > 40) return;
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (sessionFinished) return;
-
-    // Swipe right → toggle to End mode
-    // Swipe left → toggle back to Play mode
-    if (dx > 50 && !_nextBtnEndMode) {
-      setNextBtnEndMode(true);
-    } else if (dx < -50 && _nextBtnEndMode) {
-      setNextBtnEndMode(false);
-    }
-  }, { passive: false });
-
-  // Override tap behaviour — if in end mode, confirm end instead of next round
-  btn.addEventListener("click", function(e) {
-    if (_nextBtnEndMode) {
-      e.stopImmediatePropagation();
-      showConfirm("confirmEndRounds", function() {
-        setNextBtnEndMode(false);
-        endRounds();
-      });
-    }
-  }, true); // capture phase so it fires before toggleRound
-
-  _swipeListenerAdded = true;
-}

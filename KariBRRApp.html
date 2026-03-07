@@ -246,9 +246,12 @@
       <button class="action mid small" id="roundShufle" onclick="RefreshRound()" aria-label="Mix round">
         🎲
       </button>
-      <button id="nextBtn" class="action right primary" onclick="toggleRound()">
+      <button id="nextBtn" class="action-next-btn" onclick="toggleRound()">
         <span id="btnText" data-i18n="nround"></span>
         <span class="icon"> ▶</span>
+      </button>
+      <button id="finishBtn" class="action-finish-btn" onclick="showConfirm('confirmEndRounds', endRounds)">
+        🏁
       </button>
     </div>
 

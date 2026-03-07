@@ -1167,3 +1167,32 @@ margin: 4px 0; color: var(--text);
   border-color: #e63757;
   transition: background 0.25s, border-color 0.25s;
 }
+
+/* ── Next + Finish two-button layout ── */
+.action-next-btn {
+  flex: 1;
+  padding: 14px 10px;
+  background: #2dce89;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.action-next-btn:disabled { opacity: 0.4; }
+
+.action-finish-btn {
+  padding: 14px 18px;
+  background: #e63757;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+.action-finish-btn:disabled { opacity: 0.4; }

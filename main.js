@@ -204,8 +204,7 @@ function showPage(pageID, el) {
         goToRounds();
       }
     }
-    // Init swipe listener now that button is visible
-    if (typeof initNextBtnSwipe === "function") initNextBtnSwipe();
+
   }
 
   if (pageID === "summaryPage") {
