@@ -152,13 +152,23 @@ function newImportShowSelectMode(mode) {
     searchInput.style.display    = "none";
     clearHistory.style.display   = "none";
     clearFavorites.style.display = "none";
-    // Use translated placeholder
     const ta = document.getElementById("players-names");
     if (ta && typeof translations !== "undefined" && translations[currentLang]?.importExample) {
       ta.placeholder = translations[currentLang].importExample;
     }
     return;
   }
+
+  if (mode === "register") {
+    listContainer.style.display  = "none";
+    addSection.style.display     = "none";
+    searchInput.style.display    = "none";
+    clearHistory.style.display   = "none";
+    clearFavorites.style.display = "none";
+    newImportRenderRegister();
+    return;
+  }
+
   // Leaving addplayers tab — reset star toggle state
   newImportResetFavToggle();
 
@@ -717,4 +727,219 @@ function addPlayer() {
 function newImportAddPlayers() {
   if (!newImportState.selectedPlayers.length) { alert("No players selected"); return; }
   addPlayersFromInputUI();
+}
+
+/* =============================================================
+   REGISTER TAB — GitHub DB player registration
+   Added: step82
+============================================================= */
+
+// ── Staging list for bulk registration ───────────────────────
+let _regStagingList = []; // [{ id, name, gender, rating }]
+
+function newImportRenderRegister() {
+  const listContainer = document.getElementById("newImportSelectCards");
+  const club = (typeof getMyClub === "function") ? getMyClub() : { name: null };
+
+  listContainer.style.display = "block";
+  _regStagingList = [];
+
+  listContainer.innerHTML = `
+    <div class="register-form">
+      <div class="register-club-label">
+        ${club.name
+          ? `🏸 Registering for: <strong>${club.name}</strong>`
+          : `⚠️ No club selected. Go to Settings → Club Admin first.`}
+      </div>
+      ${club.name ? `
+      <div class="register-field">
+        <label class="register-label">Paste names (one per line)</label>
+        <textarea id="regNamesArea"
+                  class="register-textarea"
+                  rows="4"
+                  placeholder="Raja&#10;Kari, Female&#10;Venkat"></textarea>
+      </div>
+      <div class="register-gender-row" style="margin-bottom:10px">
+        <span class="register-label" style="margin:0 8px 0 0">Default gender:</span>
+        <button id="regDefaultMale"   class="register-gender-img-btn active"
+                onclick="regSetDefaultGender('Male')">
+          <img src="male.png" class="reg-gender-img"><span>Male</span>
+        </button>
+        <button id="regDefaultFemale" class="register-gender-img-btn"
+                onclick="regSetDefaultGender('Female')">
+          <img src="female.png" class="reg-gender-img"><span>Female</span>
+        </button>
+      </div>
+      <button class="register-add-btn" onclick="regAddToStaging()">Add to List</button>
+      <div id="regStagingContainer" class="reg-staging-container"></div>
+      <div id="registerFeedback" class="register-feedback"></div>
+      <button class="register-save-btn" id="regRegisterAllBtn"
+              onclick="regRegisterAll()" style="display:none">
+        ✅ Register All
+      </button>
+      ` : ""}
+    </div>
+  `;
+  window._regDefaultGender = "Male";
+}
+
+function regSetDefaultGender(gender) {
+  window._regDefaultGender = gender;
+  document.getElementById("regDefaultMale")  ?.classList.toggle("active", gender === "Male");
+  document.getElementById("regDefaultFemale")?.classList.toggle("active", gender === "Female");
+}
+
+function regAddToStaging() {
+  const area = document.getElementById("regNamesArea");
+  if (!area || !area.value.trim()) return;
+
+  const parsed = parsePlayerLines(area.value, window._regDefaultGender || "Male");
+  if (!parsed.length) return;
+
+  parsed.forEach(p => {
+    // Avoid staging duplicates by name
+    if (!_regStagingList.find(s => s.name.toLowerCase() === p.displayName.toLowerCase())) {
+      _regStagingList.push({
+        id:     Date.now() + Math.random(),
+        name:   p.displayName,
+        gender: p.gender,
+        rating: 0,
+        status: "pending" // pending | success | duplicate | error
+      });
+    }
+  });
+
+  area.value = "";
+  regRenderStaging();
+}
+
+function regRenderStaging() {
+  const container = document.getElementById("regStagingContainer");
+  const registerBtn = document.getElementById("regRegisterAllBtn");
+  const feedback = document.getElementById("registerFeedback");
+  if (!container) return;
+
+  if (_regStagingList.length === 0) {
+    container.innerHTML = "";
+    if (registerBtn) registerBtn.style.display = "none";
+    return;
+  }
+
+  if (registerBtn) registerBtn.style.display = "block";
+  if (feedback) feedback.textContent = "";
+
+  // Use newImport-cards-container layout same as favorites tab
+  container.className = "newImport-cards-container reg-staging-container";
+  container.innerHTML = _regStagingList.map((p, i) => {
+    const done      = p.status === "success";
+    const statusBadge =
+      p.status === "success"   ? `<span class="reg-status-badge reg-ok">✅</span>` :
+      p.status === "duplicate" ? `<span class="reg-status-badge reg-dup">⚠️ Duplicate</span>` :
+      p.status === "error"     ? `<span class="reg-status-badge reg-err">❌ Error</span>` : "";
+
+    const cardClass = done ? "newImport-player-card reg-card-done" : "newImport-player-card";
+    const genderImg = p.gender === "Female" ? "female.png" : "male.png";
+
+    return `
+      <div class="${cardClass}" id="regCard-${i}">
+        <div class="newImport-player-top">
+          <img src="${genderImg}"
+               ${!done ? `onclick="regToggleGender(${i})" title="Tap to toggle gender" style="cursor:pointer"` : ""}
+               >
+          <div class="newImport-player-name">
+            ${done
+              ? `<span>${p.name}</span>`
+              : `<input class="reg-name-inline" type="text"
+                        value="${p.name}"
+                        onchange="regUpdateName(${i}, this.value)">`
+            }
+          </div>
+        </div>
+        <div class="newImport-player-actions">
+          <input class="reg-rating-badge-input" type="number"
+                 value="${p.rating}" min="0" max="5" step="0.1"
+                 title="Starting rating"
+                 onchange="regUpdateRating(${i}, this.value)"
+                 ${done ? "disabled" : ""}>
+          ${statusBadge}
+          ${!done
+            ? `<button class="circle-btn delete" onclick="regDeleteStaging(${i})" title="Remove">×</button>`
+            : ""}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function regToggleGender(i) {
+  if (!_regStagingList[i]) return;
+  _regStagingList[i].gender = _regStagingList[i].gender === "Male" ? "Female" : "Male";
+  regRenderStaging();
+}
+
+function regUpdateName(i, val) {
+  if (!_regStagingList[i]) return;
+  _regStagingList[i].name = val.trim();
+}
+
+function regUpdateRating(i, val) {
+  if (!_regStagingList[i]) return;
+  const r = parseFloat(val);
+  _regStagingList[i].rating = isNaN(r) ? 0 : Math.min(5, Math.max(0, r));
+}
+
+function regDeleteStaging(i) {
+  _regStagingList.splice(i, 1);
+  regRenderStaging();
+}
+
+async function regRegisterAll() {
+  const club = (typeof getMyClub === "function") ? getMyClub() : { id: null };
+  const feedback = document.getElementById("registerFeedback");
+  const btn = document.getElementById("regRegisterAllBtn");
+
+  if (!club.id) {
+    if (feedback) { feedback.textContent = "⚠️ No club selected."; feedback.className = "register-feedback error"; }
+    return;
+  }
+
+  const pending = _regStagingList.filter(p => p.status === "pending" || p.status === "error" || p.status === "duplicate");
+  if (!pending.length) return;
+
+  btn.disabled = true;
+  if (feedback) { feedback.textContent = "Registering..."; feedback.className = "register-feedback"; }
+
+  let successCount = 0;
+  let failCount    = 0;
+
+  for (let i = 0; i < _regStagingList.length; i++) {
+    const p = _regStagingList[i];
+    if (p.status === "success") continue;
+
+    try {
+      const newPlayer = await dbAddPlayer(p.name, p.gender, club.id);
+      if (p.rating > 0) {
+        await dbOverrideRating(newPlayer.id, p.rating);
+      }
+      _regStagingList[i].status = "success";
+      successCount++;
+    } catch (e) {
+      const msg = e.message || "";
+      _regStagingList[i].status = msg.includes("already exists") ? "duplicate" : "error";
+      failCount++;
+    }
+
+    // Re-render after each to show live progress
+    regRenderStaging();
+  }
+
+  btn.disabled = false;
+
+  // Summary feedback
+  const parts = [];
+  if (successCount) parts.push(`✅ ${successCount} registered`);
+  if (failCount)    parts.push(`⚠️ ${failCount} skipped`);
+  if (feedback) {
+    feedback.textContent = parts.join("  ");
+    feedback.className = failCount ? "register-feedback error" : "register-feedback success";
+  }
 }

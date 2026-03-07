@@ -734,3 +734,429 @@ margin: 4px 0; color: var(--text);
   font-weight: 700;
   color: var(--text);
 }
+/* =============================================================
+   GITHUB ADMIN — Settings section
+   Added: step82
+============================================================= */
+
+.card-github-admin {
+  padding: 14px;
+}
+
+.github-admin-status-row {
+  margin-bottom: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.github-token-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.github-token-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  background: var(--surface);
+  color: var(--text);
+  min-width: 0;
+}
+
+.github-btn-save {
+  padding: 7px 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.github-btn-clear {
+  padding: 7px 12px;
+  background: #e63757;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.github-my-club-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: var(--surface-alt, var(--surface));
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.github-club-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.github-club-select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  background: var(--surface);
+  color: var(--text);
+  min-width: 0;
+}
+
+/* =============================================================
+   REGISTER TAB — Browse Players modal
+   Added: step82
+============================================================= */
+
+.register-form {
+  padding: 12px 4px;
+  width: 100%;
+}
+
+.register-club-label {
+  font-size: 0.82rem;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  background: var(--surface-alt, var(--surface));
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.register-field {
+  margin-bottom: 14px;
+}
+
+.register-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+
+.register-hint {
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.register-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.register-rating-input {
+  width: 100px;
+}
+
+.register-gender-row {
+  display: flex;
+  gap: 8px;
+}
+
+.register-gender-btn {
+  flex: 1;
+  padding: 8px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.register-gender-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.register-save-btn {
+  width: 100%;
+  padding: 11px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: opacity 0.15s;
+}
+
+.register-save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.register-feedback {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  min-height: 20px;
+  text-align: center;
+}
+
+.register-feedback.success { color: #2dce89; }
+.register-feedback.error   { color: #e63757; }
+
+/* =============================================================
+   REGISTER STAGING CARDS
+   Added: step83
+============================================================= */
+
+.register-textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.86rem;
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.register-add-btn {
+  width: 100%;
+  padding: 9px;
+  background: var(--surface);
+  color: var(--accent);
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: background 0.15s;
+}
+
+.register-add-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.reg-staging-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.reg-staging-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-sizing: border-box;
+}
+
+.reg-staging-card.reg-card-success   { border-color: #2dce89; background: rgba(45,206,137,0.06); }
+.reg-staging-card.reg-card-duplicate { border-color: #f5a623; background: rgba(245,166,35,0.06); }
+.reg-staging-card.reg-card-error     { border-color: #e63757; background: rgba(230,55,87,0.06); }
+
+.reg-gender-toggle {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+
+.reg-name-input {
+  flex: 1;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 2px 4px;
+  min-width: 0;
+}
+
+.reg-name-input:disabled {
+  color: var(--muted);
+  border-bottom-color: transparent;
+}
+
+.reg-rating-input {
+  width: 52px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 3px 5px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.reg-rating-input:disabled {
+  opacity: 0.5;
+}
+
+.reg-status-icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.reg-delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0 2px;
+  flex-shrink: 0;
+  color: #e63757;
+}
+
+/* =============================================================
+   REGISTER STAGING — player card overrides
+   Added: step84
+============================================================= */
+
+/* Inline name edit inside card */
+.reg-name-inline {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 1px 2px;
+  width: 100%;
+  min-width: 0;
+  outline: none;
+}
+
+/* Rating input replacing rating-badge */
+.reg-rating-badge-input {
+  width: 46px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+
+.reg-rating-badge-input:disabled {
+  opacity: 0.6;
+  border-color: transparent;
+}
+
+/* Status badges inside card actions */
+.reg-status-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.reg-status-badge.reg-ok  { color: #2dce89; }
+.reg-status-badge.reg-dup { color: #f5a623; }
+.reg-status-badge.reg-err { color: #e63757; }
+
+/* Completed card — subtle green tint */
+.newImport-player-card.reg-card-done {
+  border-color: #2dce89;
+  background: rgba(45,206,137,0.05);
+  opacity: 0.85;
+}
+
+/* Register — gender image buttons */
+.register-gender-img-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.register-gender-img-btn.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.reg-gender-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+/* End Session button */
+.end-btn {
+  background: #e63757;
+  color: #fff;
+  border-color: #e63757;
+}
+.end-btn:disabled {
+  opacity: 0.4;
+}
+
+/* Next button — swipe left hint */
+#nextBtn {
+  position: relative;
+  overflow: hidden;
+}
+#nextBtn::before {
+  content: "🏁";
+  position: absolute;
+  left: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1rem;
+  opacity: 0.4;
+  pointer-events: none;
+  transition: left 0.2s;
+}
+#nextBtn:active::before {
+  left: 6px;
+  opacity: 0.8;
+}

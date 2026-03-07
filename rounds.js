@@ -207,25 +207,19 @@ function nextRound() {
   }
   updateSummaryPageAccess()
 }
-function endRounds() {  
-	sessionFinished = true;
-	updSchedule(allRounds.length - 1, schedulerState); // pass schedulerState
-    const newRound = AischedulerNextRound(schedulerState); // do NOT wrap in []
-    allRounds.push(newRound);
-    currentRoundIndex = allRounds.length - 2;
-    showRound(currentRoundIndex);
-	
-	// pass schedulerState              
-	// Disable Next & Refresh
+function endRounds() {
+  sessionFinished = true;
+
+  // Disable round controls
   document.getElementById("nextBtn").disabled = true;
   document.getElementById("roundShufle").disabled = true;
-
-  // Optional: also disable End to prevent double-click
   document.getElementById("endBtn").disabled = true;
-	updateSummaryPageAccess();
-	showPage('summaryPage');
 
-	
+  // Sync ratings to GitHub silently in background
+  githubSyncSessionRatings();
+
+  updateSummaryPageAccess();
+  showPage('summaryPage');
 }
 function prevRound() {
   if (currentRoundIndex > 0) {
@@ -733,4 +727,35 @@ function checkAndResetPairCycle(schedulerState, games, roundIndex) {
   }
 
   return true; // cycle reset happened
+}
+
+/// ── Swipe Left on Next button = End Session ──────────────────
+let _swipeTouchStartX = 0;
+let _swipeTouchStartY = 0;
+let _swipeListenerAdded = false;
+
+function initNextBtnSwipe() {
+  if (_swipeListenerAdded) return;
+  const btn = document.getElementById("nextBtn");
+  if (!btn) return;
+
+  btn.addEventListener("touchstart", function(e) {
+    _swipeTouchStartX = e.touches[0].clientX;
+    _swipeTouchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  btn.addEventListener("touchend", function(e) {
+    const dx = e.changedTouches[0].clientX - _swipeTouchStartX;
+    const dy = e.changedTouches[0].clientY - _swipeTouchStartY;
+
+    // Swipe left: min 60px horizontal, max 40px vertical drift
+    if (dx < -60 && Math.abs(dy) < 40) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (sessionFinished) return;
+      showConfirm("confirmEndRounds", endRounds);
+    }
+  }, { passive: false });
+
+  _swipeListenerAdded = true;
 }

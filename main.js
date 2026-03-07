@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
   consolidateMasterDB();
   updateRoundsPageAccess();
   updateSummaryPageAccess();
+  // Init GitHub admin state (token + club)
+  if (typeof githubAdminInit === "function") githubAdminInit();
 });
 
 window.addEventListener('beforeunload', () => {
@@ -202,6 +204,8 @@ function showPage(pageID, el) {
         goToRounds();
       }
     }
+    // Init swipe listener now that button is visible
+    if (typeof initNextBtnSwipe === "function") initNextBtnSwipe();
   }
 
   if (pageID === "summaryPage") {

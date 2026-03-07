@@ -196,6 +196,8 @@ function resetRounds() {
   sessionFinished = false;
   document.getElementById("nextBtn").disabled = false;
   document.getElementById("roundShufle").disabled = false;
+  const endBtn = document.getElementById("endBtn");
+  if (endBtn) endBtn.disabled = false;
 
   // Optional: also disable End to prevent double-click
   //document.getElementById("endBtn").disabled = false;
@@ -358,4 +360,140 @@ function playerMgmtAddNew() {
   newImportState.historyPlayers.unshift({ displayName: trimmed, gender: "Male", rating: 1.0 });
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
   playerMgmtRenderList();
+}
+
+/* =============================================================
+   GITHUB ADMIN — Token + Club Management
+   Added: step82
+============================================================= */
+
+// ── Token UI ──────────────────────────────────────────────────
+
+function githubAdminInit() {
+  const token = getGithubToken();
+  if (token) {
+    githubAdminShowUnlocked();
+    githubAdminLoadClub();
+  } else {
+    githubAdminShowLocked();
+  }
+}
+
+function githubAdminShowLocked() {
+  const el = document.getElementById("githubAdminStatus");
+  if (el) el.textContent = "🔒 Not connected";
+  const section = document.getElementById("githubClubSection");
+  if (section) section.style.display = "none";
+  updateRegisterTabVisibility();
+}
+
+function githubAdminShowUnlocked() {
+  const el = document.getElementById("githubAdminStatus");
+  if (el) el.textContent = "✅ Admin connected";
+  const section = document.getElementById("githubClubSection");
+  if (section) section.style.display = "block";
+  updateRegisterTabVisibility();
+}
+
+function githubAdminSaveToken() {
+  const input = document.getElementById("githubTokenInput");
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val || val.length < 10) {
+    alert("Please enter a valid token."); return;
+  }
+  setGithubToken(val);
+  input.value = "";
+  githubAdminShowUnlocked();
+  githubAdminLoadClub();
+}
+
+function githubAdminClearToken() {
+  if (!confirm("Disconnect admin token? You will lose write access.")) return;
+  clearGithubToken();
+  githubAdminShowLocked();
+  // Clear saved club too
+  localStorage.removeItem("kbrr_my_club_id");
+  localStorage.removeItem("kbrr_my_club_name");
+  githubAdminRenderClubStatus();
+}
+
+// ── Club section ──────────────────────────────────────────────
+
+function getMyClub() {
+  return {
+    id:   localStorage.getItem("kbrr_my_club_id")   || null,
+    name: localStorage.getItem("kbrr_my_club_name") || null
+  };
+}
+
+function setMyClub(id, name) {
+  localStorage.setItem("kbrr_my_club_id",   id);
+  localStorage.setItem("kbrr_my_club_name", name);
+}
+
+async function githubAdminLoadClub() {
+  githubAdminRenderClubStatus();
+  // Pre-load clubs into dropdown
+  try {
+    const clubs = await dbGetClubs();
+    const select = document.getElementById("githubClubSelect");
+    if (!select) return;
+    select.innerHTML = '<option value="">— Select existing club —</option>';
+    clubs.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      select.appendChild(opt);
+    });
+  } catch (e) {
+    console.warn("Could not load clubs:", e.message);
+  }
+}
+
+function githubAdminRenderClubStatus() {
+  const club = getMyClub();
+  const el = document.getElementById("githubMyClubLabel");
+  if (!el) return;
+  el.textContent = club.name ? `My Club: ${club.name}` : "No club selected";
+}
+
+function githubAdminSelectClub() {
+  const select = document.getElementById("githubClubSelect");
+  if (!select || !select.value) return;
+  const name = select.options[select.selectedIndex].textContent;
+  setMyClub(select.value, name);
+  githubAdminRenderClubStatus();
+}
+
+async function githubAdminCreateClub() {
+  const input = document.getElementById("githubNewClubInput");
+  if (!input) return;
+  const name = input.value.trim();
+  if (!name) { alert("Enter a club name."); return; }
+
+  const btn = document.getElementById("githubCreateClubBtn");
+  if (btn) btn.disabled = true;
+
+  try {
+    const newClub = await dbAddClub(name);
+    setMyClub(newClub.id, newClub.name);
+    githubAdminRenderClubStatus();
+    input.value = "";
+    // Reload club list
+    await githubAdminLoadClub();
+    alert(`Club "${name}" created successfully!`);
+  } catch (e) {
+    alert("Error: " + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ── Register tab visibility ───────────────────────────────────
+
+function updateRegisterTabVisibility() {
+  const tab = document.getElementById("newImportRegisterBtn");
+  if (!tab) return;
+  tab.style.display = hasGithubToken() ? "inline-block" : "none";
 }
