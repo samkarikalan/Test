@@ -100,6 +100,38 @@ body:not(.locked) .lock-icon { filter: grayscale(0.6); opacity: 0.55; }
   cursor: pointer;
 }
 
+/* ── TRAIL LAYOUT — players side by side, VS between teams ── */
+body.layout-trail .teams {
+  flex-direction: column;
+  gap: 0;
+}
+body.layout-trail .team[data-team-side="L"],
+body.layout-trail .team[data-team-side="R"] {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0.6rem 0.8rem;
+}
+body.layout-trail .teams::before { display: none; }
+body.layout-trail .vs-divider {
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--muted);
+  padding: 3px 0;
+}
+body.layout-trail .Lplayer-btn,
+body.layout-trail .Rplayer-btn {
+  width: auto;
+  border-radius: 20px;
+  padding: 5px 14px;
+  white-space: nowrap;
+}
+body.layout-trail .swap-icon { display: none; }
+
 /* Dark mode overrides */
 body.app-dark .team[data-team-side="L"] {
   background-color: rgba(45,206,137,0.12);

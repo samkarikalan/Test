@@ -121,15 +121,29 @@ function setTheme(mode) {
   applyTheme(mode);
 }
 
+/* ── Court Layout ── */
+function setCourtLayout(layout) {
+  localStorage.setItem("courtLayout", layout);
+  document.body.classList.toggle("layout-trail", layout === "trail");
+  document.getElementById("layout_default")?.classList.toggle("active", layout === "default");
+  document.getElementById("layout_trail")?.classList.toggle("active", layout === "trail");
+}
+
+function initCourtLayout() {
+  const saved = localStorage.getItem("courtLayout") || "default";
+  setCourtLayout(saved);
+}
+
 /* ===== Init ===== */
 initTheme();
 
 
 
 document.addEventListener("DOMContentLoaded", () => {
-  initTheme();     // restore theme
-  initFontSize();  // restore font size
-  initLanguage();  // restore language
+  initTheme();       // restore theme
+  initFontSize();    // restore font size
+  initLanguage();    // restore language
+  initCourtLayout(); // restore court layout
 });
 
 
