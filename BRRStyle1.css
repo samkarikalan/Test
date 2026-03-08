@@ -870,3 +870,59 @@ display: block;
   color: var(--muted); transition: color 0.2s; flex-shrink: 0;
 }
 .player-mgmt-del-btn:hover { color: var(--red); }
+
+/* === ADD PLAYERS BROWSE TAB === */
+.addplayers-subtabs { margin-bottom: 8px; }
+
+.addplayers-browse-list {
+  margin-top: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.browse-player-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border, #eee);
+}
+
+.browse-player-gender {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.browse-player-name {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.browse-player-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.browse-player-btn-add {
+  background: #2dce89;
+  color: #fff;
+}
+
+.browse-player-btn-add:hover { background: #24b577; }
+
+.browse-player-btn-remove {
+  background: #f5365c;
+  color: #fff;
+}
+
+.browse-player-btn-remove:hover { background: #d42b50; }

@@ -1093,3 +1093,115 @@ async function regRegisterAll() {
     newImportRefreshSelectedCards();
   }
 }
+
+/* =============================================================
+   ADD PLAYERS — BROWSE TAB
+============================================================= */
+
+let _browseAllPlayers = []; // cached list for current scope
+
+function addPlayersShowTab(tab) {
+  const typeBtn    = document.getElementById("addPlayersTypeBtn");
+  const browseBtn  = document.getElementById("addPlayersBrowseBtn");
+  const typePanel  = document.getElementById("addPlayersTypePanel");
+  const browsePanel = document.getElementById("addPlayersBrowsePanel");
+  if (!typePanel || !browsePanel) return;
+
+  if (tab === "browse") {
+    typeBtn?.classList.remove("active");
+    browseBtn?.classList.add("active");
+    typePanel.style.display   = "none";
+    browsePanel.style.display = "block";
+    addPlayersBrowseLoad();
+  } else {
+    browseBtn?.classList.remove("active");
+    typeBtn?.classList.add("active");
+    browsePanel.style.display = "none";
+    typePanel.style.display   = "block";
+  }
+}
+
+async function addPlayersBrowseLoad() {
+  const scope     = document.getElementById("addPlayersBrowseScope")?.value || "club";
+  const listEl    = document.getElementById("addPlayersBrowseList");
+  if (!listEl) return;
+
+  listEl.innerHTML = "<div style='padding:10px;color:var(--muted)'>Loading...</div>";
+
+  try {
+    let players = [];
+    if (scope === "club") {
+      // Use already-synced history players (club members)
+      players = newImportState.historyPlayers || [];
+    } else {
+      // Fetch all players from Supabase
+      players = await dbGetPlayers();
+    }
+    _browseAllPlayers = players;
+    addPlayersBrowseRender(_browseAllPlayers);
+  } catch (e) {
+    listEl.innerHTML = "<div style='padding:10px;color:red'>Failed to load players.</div>";
+  }
+}
+
+function addPlayersBrowseFilter() {
+  const q = (document.getElementById("addPlayersBrowseSearch")?.value || "").toLowerCase();
+  const filtered = _browseAllPlayers.filter(p =>
+    (p.displayName || p.name || "").toLowerCase().includes(q)
+  );
+  addPlayersBrowseRender(filtered);
+}
+
+function addPlayersBrowseRender(players) {
+  const listEl = document.getElementById("addPlayersBrowseList");
+  if (!listEl) return;
+
+  if (!players.length) {
+    listEl.innerHTML = "<div style='padding:10px;color:var(--muted)'>No players found.</div>";
+    return;
+  }
+
+  const selectedNames = new Set(
+    (newImportState.selectedPlayers || []).map(p => (p.displayName || p.name || "").toLowerCase())
+  );
+
+  listEl.innerHTML = players.map(p => {
+    const name      = p.displayName || p.name || "";
+    const gender    = p.gender || "Male";
+    const genderImg = gender === "Female" ? "female.png" : "male.png";
+    const isSelected = selectedNames.has(name.toLowerCase());
+    const btnClass  = isSelected ? "browse-player-btn browse-player-btn-remove" : "browse-player-btn browse-player-btn-add";
+    const btnLabel  = isSelected ? "−" : "+";
+    const nameSafe  = name.replace(/'/g, "\\'");
+    return `
+      <div class="browse-player-row" id="browseRow-${name.replace(/\s+/g,'_')}">
+        <img src="${genderImg}" class="browse-player-gender">
+        <span class="browse-player-name">${name}</span>
+        <button class="${btnClass}" onclick="addPlayersBrowseToggle('${nameSafe}')">${btnLabel}</button>
+      </div>`;
+  }).join("");
+}
+
+function addPlayersBrowseToggle(name) {
+  const player = _browseAllPlayers.find(p =>
+    (p.displayName || p.name || "").toLowerCase() === name.toLowerCase()
+  );
+  if (!player) return;
+
+  const displayName = player.displayName || player.name || "";
+  const idx = newImportState.selectedPlayers.findIndex(
+    p => (p.displayName || p.name || "").toLowerCase() === displayName.toLowerCase()
+  );
+
+  if (idx >= 0) {
+    // Remove from selected
+    newImportState.selectedPlayers.splice(idx, 1);
+  } else {
+    // Add to selected
+    addToListIfNotExists(newImportState.selectedPlayers, player);
+  }
+
+  newImportRefreshSelectedCards();
+  // Re-render browse list to update +/- buttons
+  addPlayersBrowseFilter();
+}
