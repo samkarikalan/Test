@@ -78,27 +78,48 @@
   <!-- ============================= -->
   <div id="settingsPage" class="page" style="display:none;">
     <div class="settings-wrap">
-      <div class="settings-card card-font">
-        <div class="sec" data-i18n="fontSize"></div>
-        <div class="row">
-          <div class="btn active" id="font_small" onclick="setFontSize('small')" data-i18n="small"></div>
-          <div class="btn" id="font_medium" onclick="setFontSize('medium')" data-i18n="medium"></div>
-          <div class="btn" id="font_large" onclick="setFontSize('large')" data-i18n="large"></div>
+
+      <!-- Compact settings card with 3 tabs -->
+      <div class="settings-card" style="padding:0;overflow:hidden">
+
+        <!-- Tab buttons -->
+        <div class="newImport-subtabs" style="border-bottom:1px solid var(--border);margin:0;padding:4px 4px 0">
+          <button class="newImport-subtab-btn active" id="settingsTabFontBtn"
+                  onclick="settingsShowTab('font')">Font</button>
+          <button class="newImport-subtab-btn" id="settingsTabThemeBtn"
+                  onclick="settingsShowTab('theme')">Theme</button>
+          <button class="newImport-subtab-btn" id="settingsTabResetBtn"
+                  onclick="settingsShowTab('reset')">Reset</button>
         </div>
-      </div>
-      <div class="settings-card card-theme">
-        <div class="sec" data-i18n="theme"></div>
-        <div class="row">
-          <div class="btn active" id="theme_light" onclick="setTheme('light')" data-i18n="light"></div>
-          <div class="btn" id="theme_dark" onclick="setTheme('dark')" data-i18n="dark"></div>
+
+        <!-- FONT tab -->
+        <div id="settingsTabFont" class="settings-tab-content">
+          <div class="row">
+            <div class="btn active" id="font_small" onclick="setFontSize('small')"
+                 style="font-size:0.75rem" data-i18n="small"></div>
+            <div class="btn" id="font_medium" onclick="setFontSize('medium')"
+                 style="font-size:1rem" data-i18n="medium"></div>
+            <div class="btn" id="font_large" onclick="setFontSize('large')"
+                 style="font-size:1.25rem" data-i18n="large"></div>
+          </div>
         </div>
-      </div>
-      <div class="settings-card card-reset">
-        <div class="sec" data-i18n="reset"></div>
-        <div class="row">
-          <div class="btn danger" onclick="showConfirm('confirmResetAll', ResetAll)" data-i18n="resetAll"></div>
-          <div class="btn warn" onclick="showConfirm('confirmResetGames', resetRounds)" data-i18n="resetExcept"></div>
+
+        <!-- THEME tab -->
+        <div id="settingsTabTheme" class="settings-tab-content" style="display:none">
+          <div class="row">
+            <div class="btn active" id="theme_light" onclick="setTheme('light')" data-i18n="light"></div>
+            <div class="btn" id="theme_dark" onclick="setTheme('dark')" data-i18n="dark"></div>
+          </div>
         </div>
+
+        <!-- RESET tab -->
+        <div id="settingsTabReset" class="settings-tab-content" style="display:none">
+          <div class="row">
+            <div class="btn danger" onclick="showConfirm('confirmResetAll', ResetAll)" data-i18n="resetAll"></div>
+            <div class="btn warn" onclick="showConfirm('confirmResetGames', resetRounds)" data-i18n="resetExcept"></div>
+          </div>
+        </div>
+
       </div>
 
       <!-- Club Card with 3 tabs -->

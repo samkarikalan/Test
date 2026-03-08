@@ -1276,3 +1276,6 @@ margin: 4px 0; color: var(--text);
   padding-bottom: 4px; border-bottom: 1px solid var(--border);
 }
 .manage-section-danger { color: #e63757; border-color: #e63757; }
+
+/* === SETTINGS TABS === */
+.settings-tab-content { padding: 12px; }

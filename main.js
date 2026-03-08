@@ -388,3 +388,12 @@ async function endSession() {
   localStorage.removeItem("currentRoundIndex");
   location.reload();
 }
+
+/* === SETTINGS TAB SWITCHER === */
+function settingsShowTab(tab) {
+  ["font","theme","reset"].forEach(t => {
+    document.getElementById("settingsTab" + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? "" : "none";
+    const btn = document.getElementById("settingsTab" + t.charAt(0).toUpperCase() + t.slice(1) + "Btn");
+    if (btn) btn.classList.toggle("active", t === tab);
+  });
+}
