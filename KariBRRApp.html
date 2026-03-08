@@ -116,7 +116,7 @@
           <button class="newImport-subtab-btn active" id="clubTabJoinBtn"
                   onclick="sbShowClubTab('join')">Join</button>
           <button class="newImport-subtab-btn" id="clubTabCreateBtn"
-                  onclick="sbShowClubTab('create')">Create</button>
+                  onclick="sbShowClubTab('create')">Manage</button>
           <button class="newImport-subtab-btn" id="clubTabPlayersBtn"
                   onclick="sbShowClubTab('players')">Players</button>
         </div>
@@ -136,13 +136,15 @@
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
             <span id="sbSyncStatus"></span>
             <button class="github-btn-save sb-sync-btn" onclick="syncGithubToLocal()">🔄 Sync</button>
-            <button class="github-btn-clear sb-delete-club-btn" id="sbDeleteClubBtn"
-                    onclick="sbDeleteClub()" style="display:none">🗑️ Delete Club</button>
+
           </div>
         </div>
 
         <!-- CREATE tab -->
         <div id="clubTabCreate" class="club-tab-content" style="display:none">
+
+          <!-- CREATE section -->
+          <div class="manage-section-title">Create New Club</div>
           <div class="github-club-row">
             <input type="text" id="sbNewClubName"
                    class="github-token-input" placeholder="Club name">
@@ -155,6 +157,19 @@
             <input type="password" id="sbNewClubAdminPw"
                    class="github-token-input" placeholder="Admin password">
             <button class="github-btn-save" onclick="sbCreateClub()">Create</button>
+          </div>
+
+          <!-- DELETE section -->
+          <div class="manage-section-title manage-section-danger" style="margin-top:16px">Delete Club</div>
+          <div class="github-club-row">
+            <select id="sbDeleteClubSelect" class="github-club-select">
+              <option value="">— Select club to delete —</option>
+            </select>
+          </div>
+          <div class="github-club-row">
+            <input type="password" id="sbDeleteAdminPw"
+                   class="github-token-input" placeholder="Admin password">
+            <button class="github-btn-clear" onclick="sbDeleteClub()">Delete</button>
           </div>
         </div>
 

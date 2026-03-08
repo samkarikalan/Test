@@ -1268,3 +1268,11 @@ margin: 4px 0; color: var(--text);
 }
 .player-mgmt-name-link { cursor: pointer; }
 .player-mgmt-name-link:hover { color: var(--accent); text-decoration: underline; }
+
+/* === MANAGE TAB SECTION TITLES === */
+.manage-section-title {
+  font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 6px;
+  padding-bottom: 4px; border-bottom: 1px solid var(--border);
+}
+.manage-section-danger { color: #e63757; border-color: #e63757; }

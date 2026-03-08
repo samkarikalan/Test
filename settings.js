@@ -416,6 +416,7 @@ function sbShowClubTab(tab) {
     if (btn) btn.classList.toggle("active", t === tab);
   });
   if (tab === "players") playerMgmtRenderList();
+  if (tab === "create") sbPopulateDeleteDropdown();
 }
 
 async function sbLoadClubs() {
@@ -459,9 +460,7 @@ function sbRenderClubStatus() {
     }
   }
 
-  // Show delete button only in admin mode
-  const deleteBtn = document.getElementById("sbDeleteClubBtn");
-  if (deleteBtn) deleteBtn.style.display = (mode === "admin") ? "inline-block" : "none";
+
 }
 
 async function sbConfirmJoin() {
@@ -505,21 +504,54 @@ function sbClearClub() {
 }
 
 async function sbDeleteClub() {
-  const club = getMyClub();
-  if (!club.id) { sbFeedback("No club selected.", "red"); return; }
-  if (!isAdminMode()) { sbFeedback("Admin mode required to delete a club.", "red"); return; }
+  const select  = document.getElementById("sbDeleteClubSelect");
+  const pwInput = document.getElementById("sbDeleteAdminPw");
+  const clubId  = select?.value;
+  const pw      = pwInput?.value.trim();
 
-  const confirmed = confirm(`Delete club "${club.name}"?\nThis will remove all members and cannot be undone.`);
+  if (!clubId)  { sbFeedback("Select a club to delete.", "red"); return; }
+  if (!pw)      { sbFeedback("Enter admin password.", "red"); return; }
+
+  // Verify admin password against selected club
+  const clubName = select.options[select.selectedIndex]?.text || "";
+  try {
+    const mode = await dbVerifyClubAccess(clubId, pw);
+    if (mode !== "admin") { sbFeedback("Wrong admin password.", "red"); return; }
+  } catch (e) {
+    sbFeedback("Verification failed.", "red"); return;
+  }
+
+  const confirmed = confirm(`Delete club "${clubName}"?\nThis will remove all members and cannot be undone.`);
   if (!confirmed) return;
 
   try {
-    await dbDeleteClub(club.id);
-    sbClearClub();
-    await sbLoadClubs(); // refresh dropdown so deleted club disappears
-    sbFeedback(`Club "${club.name}" deleted.`, "red");
+    await dbDeleteClub(clubId);
+    // If deleted club was active, clear session
+    const myClub = getMyClub();
+    if (myClub.id === clubId) sbClearClub();
+    if (select)  select.value  = "";
+    if (pwInput) pwInput.value = "";
+    await sbLoadClubs();
+    await sbPopulateDeleteDropdown();
+    sbFeedback(`Club "${clubName}" deleted.`, "red");
   } catch (e) {
     sbFeedback("Delete failed: " + (e.message || e), "red");
   }
+}
+
+async function sbPopulateDeleteDropdown() {
+  const select = document.getElementById("sbDeleteClubSelect");
+  if (!select) return;
+  try {
+    const clubs = await dbGetClubs();
+    select.innerHTML = '<option value="">— Select club to delete —</option>';
+    clubs.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      select.appendChild(opt);
+    });
+  } catch (e) { /* silent */ }
 }
 
 function getClubMode() {
