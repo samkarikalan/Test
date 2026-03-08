@@ -515,8 +515,9 @@ async function sbDeleteClub() {
   // Verify admin password against selected club
   const clubName = select.options[select.selectedIndex]?.text || "";
   try {
-    const mode = await dbVerifyClubAccess(clubId, pw);
-    if (mode !== "admin") { sbFeedback("Wrong admin password.", "red"); return; }
+    const clubs = await sbGet("clubs", `id=eq.${clubId}&select=id,name,admin_password`);
+    if (!clubs || !clubs.length) { sbFeedback("Club not found.", "red"); return; }
+    if (clubs[0].admin_password !== pw) { sbFeedback("Wrong admin password.", "red"); return; }
   } catch (e) {
     sbFeedback("Verification failed.", "red"); return;
   }
