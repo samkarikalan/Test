@@ -1279,3 +1279,9 @@ margin: 4px 0; color: var(--text);
 
 /* === SETTINGS TABS === */
 .settings-tab-content { padding: 12px; }
+
+/* === FIXED PAIR AVATAR === */
+.fixed-pair-avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  vertical-align: middle; margin-right: 2px;
+}

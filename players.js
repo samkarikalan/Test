@@ -65,15 +65,21 @@ function updateFixedPairSelectors() {
   });
 }
 
+function getGenderImg(playerName) {
+  const player = schedulerState.allPlayers.find(p => p.name === playerName);
+  const src = (player && player.gender === "Female") ? "female.png" : "male.png";
+  return `<img src="${src}" class="fixed-pair-avatar">`;
+}
+
 function addFixedCard(p1, p2, key) {
   const list = document.getElementById('fixed-pair-list');
   const card = document.createElement("div");
   card.className = "fixed-card";
   card.setAttribute("data-key", key);
-  const icon1 = getGenderIconByName(p1);
-  const icon2 = getGenderIconByName(p2);
+  const img1 = getGenderImg(p1);
+  const img2 = getGenderImg(p2);
   card.innerHTML = `
-    <div class="fixed-name">${icon1} ${p1} & ${icon2} ${p2}</div>
+    <div class="fixed-name">${img1} ${p1} &amp; ${img2} ${p2}</div>
     <div class="fixed-delete">
       <button class="pec-btn delete" onclick="modifyFixedPair('${p1}', '${p2}')">🗑</button>
     </div>
