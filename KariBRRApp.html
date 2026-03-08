@@ -269,9 +269,24 @@
   </div>
   <div class="card" id="fixedPairsCard">
     <span class="browse-title" data-i18n="fixedPairs"></span>
-    <select id="fixed-pair-1"></select>
-    <select id="fixed-pair-2"></select>
-    <button onclick="modifyFixedPair()" data-i18n="add"></button>
+
+    <!-- Custom icon pickers -->
+    <div class="fp-picker-row">
+      <div class="fp-picker-field" id="fpField1" onclick="fpTogglePicker(1)">
+        <div class="fp-avatar-placeholder" id="fpAvatar1"></div>
+        <span class="fp-label" id="fpLabel1">Player 1</span>
+        <span class="fp-chevron">▼</span>
+      </div>
+      <div class="fp-picker-field" id="fpField2" onclick="fpTogglePicker(2)">
+        <div class="fp-avatar-placeholder" id="fpAvatar2"></div>
+        <span class="fp-label" id="fpLabel2">Player 2</span>
+        <span class="fp-chevron">▼</span>
+      </div>
+    </div>
+    <div id="fpDropdown1" class="fp-dropdown" style="display:none"></div>
+    <div id="fpDropdown2" class="fp-dropdown" style="display:none"></div>
+
+    <button id="fpAddBtn" class="schedule-btn disabled-btn" onclick="modifyFixedPair()" data-i18n="add" disabled></button>
     <div id="fixed-pair-list" class="fixed-pairs-list"></div>
   </div>
 </div>

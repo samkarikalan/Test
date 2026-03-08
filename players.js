@@ -46,23 +46,116 @@ function refreshFixedCards() {
   schedulerState.fixedPairs.forEach(([p1, p2], index) => addFixedCard(p1, p2, index));
 }
 
-function updateFixedPairSelectors() {
-  const sel1 = document.getElementById('fixed-pair-1');
-  const sel2 = document.getElementById('fixed-pair-2');
+// ── Custom picker state ──
+const fpSelected = { 1: null, 2: null };
+let fpOpenPicker = null;
+
+function fpGetImgSrc(playerName) {
+  const player = schedulerState.allPlayers.find(p => p.name === playerName);
+  return (player && player.gender === "Female") ? "female.png" : "male.png";
+}
+
+function fpGetRating(playerName) {
+  const player = schedulerState.allPlayers.find(p => p.name === playerName);
+  return player ? parseFloat(player.rating || 1).toFixed(1) : "";
+}
+
+function fpTogglePicker(n) {
+  const other = n === 1 ? 2 : 1;
+  if (fpOpenPicker === n) { fpClosePicker(n); return; }
+  fpClosePicker(other);
+  fpOpenPicker = n;
+  document.getElementById("fpField" + n).classList.add("fp-open");
+  fpRenderDropdown(n);
+  document.getElementById("fpDropdown" + n).style.display = "block";
+}
+
+function fpClosePicker(n) {
+  const field = document.getElementById("fpField" + n);
+  if (field) field.classList.remove("fp-open");
+  const dd = document.getElementById("fpDropdown" + n);
+  if (dd) dd.style.display = "none";
+  if (fpOpenPicker === n) fpOpenPicker = null;
+}
+
+function fpRenderDropdown(n) {
+  const other = n === 1 ? 2 : 1;
+  const otherSel = fpSelected[other];
   const pairedPlayers = new Set(schedulerState.fixedPairs.flat());
-  sel1.innerHTML = '<option value="" data-i18n="selectPlayer1"></option>';
-  sel2.innerHTML = '<option value="" data-i18n="selectPlayer2"></option>';
-  schedulerState.activeplayers.slice().reverse().forEach(p => {
-    if (!pairedPlayers.has(p)) {
-      const option1 = document.createElement('option');
-      const option2 = document.createElement('option');
-      const icon = getGenderIconByName(p);
-      option1.value = option2.value = p;
-      option1.textContent = option2.textContent = `${icon} ${p}`;
-      sel1.appendChild(option1);
-      sel2.appendChild(option2);
-    }
+  const available = schedulerState.activeplayers.filter(p =>
+    p !== otherSel && !pairedPlayers.has(p)
+  );
+  const dd = document.getElementById("fpDropdown" + n);
+  dd.innerHTML = "";
+  const wrap = document.createElement("div");
+  wrap.className = "fp-dropdown-inner";
+  if (!available.length) {
+    wrap.innerHTML = '<div class="fp-option-empty">No players available</div>';
+  }
+  available.forEach(name => {
+    const row = document.createElement("div");
+    row.className = "fp-option" + (fpSelected[n] === name ? " fp-highlighted" : "");
+    row.innerHTML = `
+      <img src="${fpGetImgSrc(name)}" class="fp-option-avatar">
+      <span class="fp-option-name">${name}</span>
+      <span class="fp-option-rating">★ ${fpGetRating(name)}</span>
+    `;
+    row.onclick = (e) => { e.stopPropagation(); fpSelectPlayer(n, name); };
+    wrap.appendChild(row);
   });
+  dd.appendChild(wrap);
+}
+
+function fpSelectPlayer(n, name) {
+  fpSelected[n] = name;
+  const src   = fpGetImgSrc(name);
+  const field = document.getElementById("fpField" + n);
+
+  // Swap placeholder for real avatar
+  const oldAv = document.getElementById("fpAvatar" + n);
+  const img   = document.createElement("img");
+  img.src = src; img.className = "fp-avatar-img"; img.id = "fpAvatar" + n;
+  oldAv.replaceWith(img);
+
+  const label = document.getElementById("fpLabel" + n);
+  label.textContent = name;
+  label.classList.add("fp-label-chosen");
+  field.classList.add("fp-selected");
+  fpClosePicker(n);
+
+  // Enable Add button if both selected
+  const addBtn = document.getElementById("fpAddBtn");
+  if (addBtn) {
+    const ready = fpSelected[1] && fpSelected[2];
+    addBtn.disabled = !ready;
+    addBtn.classList.toggle("disabled-btn", !ready);
+  }
+}
+
+function fpResetPickers() {
+  [1, 2].forEach(n => {
+    fpSelected[n] = null;
+    fpClosePicker(n);
+    const field = document.getElementById("fpField" + n);
+    if (field) field.classList.remove("fp-selected", "fp-open");
+    const oldAv = document.getElementById("fpAvatar" + n);
+    if (oldAv) {
+      const ph = document.createElement("div");
+      ph.className = "fp-avatar-placeholder"; ph.id = "fpAvatar" + n;
+      oldAv.replaceWith(ph);
+    }
+    const label = document.getElementById("fpLabel" + n);
+    if (label) { label.textContent = "Player " + n; label.classList.remove("fp-label-chosen"); }
+    const dd = document.getElementById("fpDropdown" + n);
+    if (dd) dd.style.display = "none";
+  });
+  const addBtn = document.getElementById("fpAddBtn");
+  if (addBtn) { addBtn.disabled = true; addBtn.classList.add("disabled-btn"); }
+}
+
+function updateFixedPairSelectors() {
+  // Re-render dropdowns if open, otherwise just reset pickers
+  fpResetPickers();
 }
 
 function getGenderImg(playerName) {
@@ -89,8 +182,8 @@ function addFixedCard(p1, p2, key) {
 
 function modifyFixedPair(p1 = null, p2 = null) {
   if (!p1 || !p2) {
-    p1 = document.getElementById('fixed-pair-1').value;
-    p2 = document.getElementById('fixed-pair-2').value;
+    p1 = fpSelected[1];
+    p2 = fpSelected[2];
   }
   if (!p1 || !p2) { alert("Please select both players."); return; }
   if (p1 === p2)  { alert("You cannot pair the same player with themselves."); return; }
@@ -101,12 +194,12 @@ function modifyFixedPair(p1 = null, p2 = null) {
   if (index !== -1) {
     schedulerState.fixedPairs.splice(index, 1);
     removeFixedCard(pairKey);
-    updateFixedPairSelectors();
+    fpResetPickers();
     return;
   }
   schedulerState.fixedPairs.push([p1, p2]);
   addFixedCard(p1, p2, pairKey);
-  updateFixedPairSelectors();
+  fpResetPickers();
 }
 
 function removeFixedCard(key) {

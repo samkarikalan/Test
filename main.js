@@ -397,3 +397,12 @@ function settingsShowTab(tab) {
     if (btn) btn.classList.toggle("active", t === tab);
   });
 }
+
+// Close fixed pair picker on outside click
+document.addEventListener("click", function(e) {
+  if (typeof fpOpenPicker !== "undefined" && fpOpenPicker !== null) {
+    if (!e.target.closest(".fp-picker-field") && !e.target.closest(".fp-dropdown")) {
+      fpClosePicker(fpOpenPicker);
+    }
+  }
+});
