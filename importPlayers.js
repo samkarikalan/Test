@@ -1165,19 +1165,26 @@ function addPlayersBrowseRender(players) {
     (newImportState.selectedPlayers || []).map(p => (p.displayName || p.name || "").toLowerCase())
   );
 
+  listEl.className = "newImport-cards-container";
   listEl.innerHTML = players.map(p => {
-    const name      = p.displayName || p.name || "";
-    const gender    = p.gender || "Male";
-    const genderImg = gender === "Female" ? "female.png" : "male.png";
+    const name       = p.displayName || p.name || "";
+    const gender     = p.gender || "Male";
+    const genderImg  = gender === "Female" ? "female.png" : "male.png";
     const isSelected = selectedNames.has(name.toLowerCase());
-    const btnClass  = isSelected ? "browse-player-btn browse-player-btn-remove" : "browse-player-btn browse-player-btn-add";
-    const btnLabel  = isSelected ? "−" : "+";
-    const nameSafe  = name.replace(/'/g, "\\'");
+    const btnClass   = isSelected ? "circle-btn add active-added" : "circle-btn add";
+    const btnLabel   = isSelected ? "−" : "+";
+    const rating     = (p.rating || 0).toFixed(1);
+    const nameSafe   = name.replace(/'/g, "\\'");
     return `
-      <div class="browse-player-row" id="browseRow-${name.replace(/\s+/g,'_')}">
-        <img src="${genderImg}" class="browse-player-gender">
-        <span class="browse-player-name">${name}</span>
-        <button class="${btnClass}" onclick="addPlayersBrowseToggle('${nameSafe}')">${btnLabel}</button>
+      <div class="newImport-player-card">
+        <div class="newImport-player-top">
+          <img src="${genderImg}">
+          <div class="newImport-player-name">${name}</div>
+        </div>
+        <div class="newImport-player-actions">
+          <span class="rating-badge">${rating}</span>
+          <button class="${btnClass}" onclick="addPlayersBrowseToggle('${nameSafe}')">${btnLabel}</button>
+        </div>
       </div>`;
   }).join("");
 }
