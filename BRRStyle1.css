@@ -86,7 +86,7 @@ color: var(--text); white-space: nowrap; pointer-events: none;
 }
 .menu-btn { font-size: 1.3rem; cursor: pointer; user-select: none; color: var(--text-dim); padding: 4px; border-radius: 8px; }
 
-.lang-wrapper { margin-left: auto; position: relative; }
+.lang-wrapper { margin-right: auto; position: relative; }
 .lang-btn {
 width: 36px; height: 36px; border-radius: 50%;
 border: none; background: var(--surface2);
@@ -102,6 +102,15 @@ display: none; overflow: hidden; z-index: 1000; min-width: 130px;
 .lang-menu.show { display: block; }
 .lang-menu div { padding: 10px 14px; cursor: pointer; font-size: 0.9rem; color: var(--text-dim); }
 .lang-menu div:hover { background: var(--surface3); color: var(--text); }
+
+.power-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: none; background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; cursor: pointer; color: var(--text-dim);
+  transition: all 0.2s;
+}
+.power-btn:hover { background: var(--red); color: #fff; }
 
 /* ── Tabs ── */
 
@@ -199,6 +208,18 @@ transition: all 0.2s; box-shadow: 0 4px 14px var(--accent-glow);
 }
 .card button:hover { transform: translateY(-1px); }
 .card button:active { transform: scale(0.98); }
+
+/* circle-btn inside .card should not inherit .card button styles */
+.card .circle-btn {
+  display: flex; margin: 0; padding: 0; width: 32px; height: 32px;
+  border-radius: 50%; font-size: 1rem; font-weight: bold;
+  background: var(--surface3); color: var(--text-dim);
+  border: 1px solid var(--border2); box-shadow: none;
+}
+.card .circle-btn.active-favorite { background: var(--amber); color: #fff; border-color: transparent; }
+.card .circle-btn.active-added    { background: var(--amber); color: #fff; border-color: transparent; }
+.card .circle-btn.delete          { background: var(--red);   color: #fff; border-color: transparent; }
+.card .circle-btn:hover { transform: scale(1.08); }
 
 /* ── Browse Card ── */
 .browse-card { display: flex; justify-content: space-between; align-items: center; padding: 16px; cursor: pointer; transition: background 0.2s; border-radius: var(--r-lg); }
@@ -318,7 +339,7 @@ height: 44px; min-height: 44px; box-sizing: border-box;
 .newImport-player-top img { width: 26px; height: 26px; cursor: pointer; border-radius: 50%; }
 .newImport-player-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); font-weight: 500; }
 .newImport-player-actions { display: flex; align-items: center; gap: 6px; }
-.circle-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface3); color: var(--text-dim); cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.circle-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface3); color: var(--text-dim); cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; line-height: 1; padding: 0; }
 .circle-btn:hover { transform: scale(1.08); }
 .circle-btn.active-favorite { background: var(--amber); color: #fff; border-color: transparent; }
 .circle-btn.active-added    { background: var(--amber); color: #fff; border-color: transparent; }

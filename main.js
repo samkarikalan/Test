@@ -327,3 +327,64 @@ async function syncGithubToLocal() {
     if (indicator) { indicator.textContent = "⚠️ Offline — using cache"; indicator.style.color = "#e6a817"; }
   }
 }
+
+/* =============================================================
+   POWER BUTTON — End Session
+============================================================= */
+async function endSession() {
+  // Check if any games were played this session
+  const gamesPlayed = (typeof allRounds !== "undefined") &&
+    allRounds.some(round => round.some(game => game.winner));
+
+  const msg = gamesPlayed
+    ? "End session?\n\nGame results will be saved before resetting."
+    : "End session?\n\nNo games played — nothing will be saved.";
+
+  if (!confirm(msg)) return;
+
+  // Save session summary if games were played
+  if (gamesPlayed && typeof schedulerState !== "undefined") {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+
+      // Collect total wins/losses per player across all rounds
+      const totalWins   = new Map();
+      const totalLosses = new Map();
+
+      for (const round of allRounds) {
+        for (const game of round) {
+          if (!game.winner) continue;
+          const winners = game.winner === "L" ? game.pair1 : game.pair2;
+          const losers  = game.winner === "L" ? game.pair2 : game.pair1;
+          winners.forEach(p => totalWins.set(p,   (totalWins.get(p)   || 0) + 1));
+          losers.forEach(p  => totalLosses.set(p, (totalLosses.get(p) || 0) + 1));
+        }
+      }
+
+      // Update sessions JSON for each player
+      const players = schedulerState.allPlayers || [];
+      for (const p of players) {
+        const wins   = totalWins.get(p.name)   || 0;
+        const losses = totalLosses.get(p.name) || 0;
+        if (wins === 0 && losses === 0) continue;
+
+        try {
+          const rows = await sbGet("players", `name=ilike.${encodeURIComponent(p.name)}&select=id,sessions`);
+          if (!rows || !rows.length) continue;
+
+          const existing = rows[0].sessions || [];
+          const newEntry = { date: today, wins, losses, rating: getRating(p.name) };
+          const updated  = [newEntry, ...existing].slice(0, 3); // keep last 3
+
+          await sbPatch("players", `name=ilike.${encodeURIComponent(p.name)}`, { sessions: updated });
+        } catch (e) { /* silent */ }
+      }
+    } catch (e) { /* silent */ }
+  }
+
+  // Reset app
+  localStorage.removeItem("schedulerState");
+  localStorage.removeItem("allRounds");
+  localStorage.removeItem("currentRoundIndex");
+  location.reload();
+}

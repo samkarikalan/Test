@@ -206,8 +206,7 @@ function nextRound() {
     showRound(currentRoundIndex);
   }
   updateSummaryPageAccess();
-  // Sync ratings to GitHub silently after every round
-  if (typeof githubSyncAfterRound === "function") githubSyncAfterRound();
+  // Sync ratings to GitHub silently after every round (called from updSchedule with wins/losses)
 }
 function endRounds() {  
 	sessionFinished = true;
@@ -487,6 +486,10 @@ for (const game of games) {
 }
 
 // Rating updates — all modes
+// Also track wins/losses per player this round
+const roundWins   = new Map();
+const roundLosses = new Map();
+
 for (const game of games) {
   if (!game.winner) continue;
 
@@ -502,17 +505,22 @@ for (const game of games) {
 
   for (const p of winners) {
     setRating(p, getRating(p) + winGain);
+    roundWins.set(p, (roundWins.get(p) || 0) + 1);
   }
   for (const p of losers) {
     if (getRating(p) >= 2.0) {
       setRating(p, getRating(p) - loseLoss);
     }
+    roundLosses.set(p, (roundLosses.get(p) || 0) + 1);
   }
 }
 
 // Refresh all visible badges
 syncRatings();
 updatePlayerList();
+
+// Sync ratings + wins/losses to Supabase
+if (typeof githubSyncAfterRound === "function") githubSyncAfterRound(roundWins, roundLosses);
 
 // after tracking pairs & games
 checkAndResetPairCycle(schedulerState, games, roundIndex);

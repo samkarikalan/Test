@@ -177,10 +177,23 @@ async function dbAddPlayer(name, gender, _unused) {
 async function dbSyncRatings(updatedRatings) {
   for (const update of updatedRatings) {
     try {
+      // Build patch payload — always update rating
+      const patch = { rating: Math.round(update.rating * 10) / 10 };
+
+      // Increment wins/losses using Supabase RPC if player had games this round
+      if (update.wins > 0 || update.losses > 0) {
+        // Fetch current wins/losses first then increment
+        const rows = await sbGet("players", `name=ilike.${encodeURIComponent(update.name)}&select=id,wins,losses`);
+        if (rows && rows.length) {
+          patch.wins   = (rows[0].wins   || 0) + (update.wins   || 0);
+          patch.losses = (rows[0].losses || 0) + (update.losses || 0);
+        }
+      }
+
       await sbPatch(
         "players",
         `name=ilike.${encodeURIComponent(update.name)}`,
-        { rating: Math.round(update.rating * 10) / 10 }
+        patch
       );
     } catch (e) {
       // Silent fail per player
@@ -259,11 +272,13 @@ async function dbVerifyClubAccess(clubId, selectPassword) {
 /// SYNC AFTER ROUND
 /// ============================================================
 
-async function githubSyncAfterRound() {
+async function githubSyncAfterRound(roundWins, roundLosses) {
   try {
     const updatedRatings = schedulerState.allPlayers.map(p => ({
       name:   p.name,
-      rating: getRating(p.name)
+      rating: getRating(p.name),
+      wins:   (roundWins   && roundWins.get(p.name))   || 0,
+      losses: (roundLosses && roundLosses.get(p.name)) || 0
     }));
     await dbSyncRatings(updatedRatings);
   } catch (e) {

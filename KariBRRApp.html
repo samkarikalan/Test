@@ -29,7 +29,6 @@
   <!--           TOP BAR             -->
   <!-- ============================= -->
   <div class="top-bar">
-    <span class="app-logo-premium">CLUB Scheduler</span>
     <div class="lang-wrapper">
       <button class="lang-btn" onclick="toggleLangMenu()" aria-label="Language">
         <span id="currentFlag">🇺🇸</span>
@@ -42,6 +41,8 @@
         <div data-lang="vi" data-flag="🇻🇳">🇻🇳 Tiếng Việt</div>
       </div>
     </div>
+    <span class="app-logo-premium">CLUB Scheduler</span>
+    <button class="power-btn" onclick="endSession()" aria-label="End Session" title="End Session">⏻</button>
   </div>
 
   <!-- ============================= -->
@@ -458,6 +459,15 @@
       </div>
     </div>
   </div>
+
+
+<!-- Player Stats Modal -->
+<div id="playerStatsModal" class="stats-modal-overlay" style="display:none" onclick="if(event.target===this)closePlayerStats()">
+  <div class="stats-modal">
+    <button class="stats-close-btn" onclick="closePlayerStats()">✕</button>
+    <div id="playerStatsContent"></div>
+  </div>
+</div>
 
 </body>
 </html>

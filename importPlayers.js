@@ -108,6 +108,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   newImportSelectCards.addEventListener("click", newImportHandleCardClick);
   newImportSearch.addEventListener("input", newImportRefreshSelectCards);
+
+  // Selected cards click handler
+  newImportSelectedCards.addEventListener("click", newImportHandleSelectedCardClick);
+
+  // Browse list click handler (delegated on parent since list is re-rendered)
+  document.addEventListener("click", function(e) {
+    const browseAction = e.target.dataset.browseAction;
+    if (!browseAction) return;
+    const browsePlayer = e.target.dataset.browsePlayer;
+    if (!browsePlayer) return;
+    newImportHandleBrowseCardClick(browseAction, browsePlayer);
+  });
 });
 
 /* =========================
@@ -345,8 +357,8 @@ function newImportRefreshSelectCards() {
           </button>
           <button class="circle-btn delete" data-action="delete" data-player="${p.displayName}">×</button>
           <button class="circle-btn add ${added ? 'active-added' : ''}"
-            data-action="add" data-player="${p.displayName}" ${added ? "disabled" : ""}>
-            ${added ? "✓" : "+"}
+            data-action="add" data-player="${p.displayName}">
+            ${added ? "−" : "+"}
           </button>
         </div>
       `;
@@ -534,9 +546,14 @@ function newImportHandleCardClick(e) {
   const player = source.find(p => p.displayName.trim().toLowerCase() === playerNameNorm);
   if (!player) return;
 
-  // ADD TO SELECTED
+  // ADD / REMOVE SELECTED (toggle)
   if (action === "add") {
-    addToListIfNotExists(newImportState.selectedPlayers, player);
+    const si = newImportState.selectedPlayers.findIndex(p => p.displayName.trim().toLowerCase() === playerNameNorm);
+    if (si >= 0) {
+      newImportState.selectedPlayers.splice(si, 1);
+    } else {
+      addToListIfNotExists(newImportState.selectedPlayers, player);
+    }
     newImportRefreshSelectedCards();
     newImportRefreshSelectCards();
     return;
@@ -581,6 +598,71 @@ function newImportHandleCardClick(e) {
   }
 }
 
+function newImportHandleSelectedCardClick(e) {
+  const action = e.target.dataset.action;
+  if (!action) return;
+
+  const playerName = e.target.dataset.player;
+
+  // TOGGLE FAVORITE from selected list
+  if (action === "favorite" && playerName) {
+    const player = newImportState.selectedPlayers.find(p => p.displayName.trim().toLowerCase() === playerName.trim().toLowerCase());
+    if (!player) return;
+    const i = newImportState.favoritePlayers.findIndex(p => p.displayName.trim().toLowerCase() === playerName.trim().toLowerCase());
+    if (i >= 0) newImportState.favoritePlayers.splice(i, 1);
+    else addToListIfNotExists(newImportState.favoritePlayers, player);
+    newImportSaveFavorites();
+    newImportRefreshSelectedCards();
+    newImportRefreshSelectCards();
+    return;
+  }
+
+  // DELETE from selected (×) or REMOVE from selected (−)
+  if ((action === "delete-selected" || action === "remove-selected")) {
+    const idx = parseInt(e.target.dataset.index);
+    if (!isNaN(idx)) {
+      newImportState.selectedPlayers.splice(idx, 1);
+      newImportRefreshSelectedCards();
+      newImportRefreshSelectCards();
+    }
+    return;
+  }
+}
+
+function newImportHandleBrowseCardClick(action, playerName) {
+  const player = _browseAllPlayers.find(p =>
+    (p.displayName || p.name || "").toLowerCase() === playerName.toLowerCase()
+  );
+  if (!player) return;
+  const displayName = player.displayName || player.name || "";
+
+  if (action === "add") {
+    const si = newImportState.selectedPlayers.findIndex(p => (p.displayName || "").toLowerCase() === displayName.toLowerCase());
+    if (si >= 0) newImportState.selectedPlayers.splice(si, 1);
+    else addToListIfNotExists(newImportState.selectedPlayers, player);
+    newImportRefreshSelectedCards();
+    addPlayersBrowseFilter();
+    return;
+  }
+
+  if (action === "favorite") {
+    const i = newImportState.favoritePlayers.findIndex(p => p.displayName.trim().toLowerCase() === displayName.toLowerCase());
+    if (i >= 0) newImportState.favoritePlayers.splice(i, 1);
+    else addToListIfNotExists(newImportState.favoritePlayers, player);
+    newImportSaveFavorites();
+    addPlayersBrowseFilter();
+    return;
+  }
+
+  if (action === "delete") {
+    // Remove from browse list cache and re-render
+    const bi = _browseAllPlayers.findIndex(p => (p.displayName || p.name || "").toLowerCase() === displayName.toLowerCase());
+    if (bi >= 0) _browseAllPlayers.splice(bi, 1);
+    addPlayersBrowseFilter();
+    return;
+  }
+}
+
 /* =========================
    SELECTED LIST
 ========================= */
@@ -592,14 +674,21 @@ function newImportRefreshSelectedCards() {
     const card = document.createElement("div");
     card.className = "newImport-player-card";
     const rating2 = getRating(p.displayName).toFixed(1);
+    const fav2 = newImportState.favoritePlayers.some(fp => fp.displayName.trim().toLowerCase() === p.displayName.trim().toLowerCase());
     card.innerHTML = `
       <div class="newImport-player-top">
-        <img src="${p.gender === "Male" ? "male.png" : "female.png"}">
+        <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
+             data-action="gender" data-player="${p.displayName}">
         <div class="newImport-player-name">${p.displayName}</div>
       </div>
       <div class="newImport-player-actions">
         <span class="rating-badge" data-player="${p.displayName}">${rating2}</span>
-        <button onclick="newImportRemoveSelected(${i})">×</button>
+        <button class="circle-btn favorite ${fav2 ? 'active-favorite' : ''}"
+          data-action="favorite" data-player="${p.displayName}">
+          ${fav2 ? "★" : "☆"}
+        </button>
+        <button class="circle-btn delete" data-action="delete-selected" data-index="${i}">×</button>
+        <button class="circle-btn add active-added" data-action="remove-selected" data-index="${i}">−</button>
       </div>
     `;
     newImportSelectedCards.appendChild(card);
@@ -1171,19 +1260,26 @@ function addPlayersBrowseRender(players) {
     const gender     = p.gender || "Male";
     const genderImg  = gender === "Female" ? "female.png" : "male.png";
     const isSelected = selectedNames.has(name.toLowerCase());
-    const btnClass   = isSelected ? "circle-btn add active-added" : "circle-btn add";
-    const btnLabel   = isSelected ? "−" : "+";
+    const fav        = (newImportState.favoritePlayers || []).some(fp => fp.displayName.trim().toLowerCase() === name.toLowerCase());
     const rating     = (p.rating || 0).toFixed(1);
     const nameSafe   = name.replace(/'/g, "\\'");
     return `
       <div class="newImport-player-card">
         <div class="newImport-player-top">
-          <img src="${genderImg}">
+          <img src="${genderImg}" data-browse-action="gender" data-browse-player="${nameSafe}">
           <div class="newImport-player-name">${name}</div>
         </div>
         <div class="newImport-player-actions">
           <span class="rating-badge">${rating}</span>
-          <button class="${btnClass}" onclick="addPlayersBrowseToggle('${nameSafe}')">${btnLabel}</button>
+          <button class="circle-btn favorite ${fav ? 'active-favorite' : ''}"
+            data-browse-action="favorite" data-browse-player="${nameSafe}">
+            ${fav ? "★" : "☆"}
+          </button>
+          <button class="circle-btn delete" data-browse-action="delete" data-browse-player="${nameSafe}">×</button>
+          <button class="circle-btn add ${isSelected ? 'active-added' : ''}"
+            data-browse-action="add" data-browse-player="${nameSafe}">
+            ${isSelected ? "−" : "+"}
+          </button>
         </div>
       </div>`;
   }).join("");

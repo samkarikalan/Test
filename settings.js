@@ -311,7 +311,7 @@ async function playerMgmtRenderList() {
              class="player-mgmt-avatar"
              onclick="playerMgmtToggleGender('${safeName}')"
              title="Tap to toggle gender">
-        <span class="player-mgmt-name">${p.displayName}</span>
+        <span class="player-mgmt-name player-mgmt-name-link" onclick="showPlayerStats('${safeName}')">${p.displayName}</span>
         <input type="number" class="rating-edit-input"
           value="${getRating(p.displayName).toFixed(1)}"
           min="1.0" max="5.0" step="0.1"
@@ -323,7 +323,7 @@ async function playerMgmtRenderList() {
       row.innerHTML = `
         <img src="${p.gender === 'Female' ? 'female.png' : 'male.png'}"
              class="player-mgmt-avatar" style="cursor:default">
-        <span class="player-mgmt-name">${p.displayName}</span>
+        <span class="player-mgmt-name player-mgmt-name-link" onclick="showPlayerStats('${safeName}')">${p.displayName}</span>
         <span class="rating-badge" style="font-size:0.8rem;padding:2px 7px">${getRating(p.displayName).toFixed(1)}</span>
       `;
     }
@@ -564,4 +564,86 @@ function updateRegisterTabVisibility() {
   const tab = document.getElementById("newImportRegisterBtn");
   if (!tab) return;
   tab.style.display = isAdminMode() ? "inline-block" : "none";
+}
+
+/* =============================================================
+   PLAYER STATS MODAL
+============================================================= */
+async function showPlayerStats(name) {
+  const modal    = document.getElementById("playerStatsModal");
+  const content  = document.getElementById("playerStatsContent");
+  if (!modal || !content) return;
+
+  content.innerHTML = "<div class='stats-loading'>Loading...</div>";
+  modal.style.display = "flex";
+
+  try {
+    const rows = await sbGet(
+      "players",
+      `name=ilike.${encodeURIComponent(name)}&select=name,gender,rating,wins,losses,sessions`
+    );
+    if (!rows || !rows.length) {
+      content.innerHTML = "<div class='stats-loading'>Player not found.</div>";
+      return;
+    }
+    const p        = rows[0];
+    const gender   = p.gender || "Male";
+    const rating   = parseFloat(p.rating || 1.0).toFixed(1);
+    const wins     = p.wins   || 0;
+    const losses   = p.losses || 0;
+    const sessions = Array.isArray(p.sessions) ? p.sessions : [];
+    const genderImg = gender === "Female" ? "female.png" : "male.png";
+    const total    = wins + losses;
+    const winPct   = total > 0 ? Math.round((wins / total) * 100) : 0;
+
+    const sessionRows = sessions.length
+      ? sessions.map(s => `
+          <tr>
+            <td>${s.date || "—"}</td>
+            <td>${s.wins || 0}</td>
+            <td>${s.losses || 0}</td>
+            <td>${parseFloat(s.rating || 0).toFixed(1)}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="4" style="text-align:center;color:var(--muted)">No sessions yet</td></tr>`;
+
+    content.innerHTML = `
+      <div class="stats-header">
+        <img src="${genderImg}" class="stats-avatar">
+        <div class="stats-name">${p.name}</div>
+        <div class="stats-gender">${gender}</div>
+      </div>
+      <div class="stats-row">
+        <div class="stats-box">
+          <div class="stats-box-value">${rating}</div>
+          <div class="stats-box-label">Rating</div>
+        </div>
+        <div class="stats-box">
+          <div class="stats-box-value">${wins}</div>
+          <div class="stats-box-label">Wins</div>
+        </div>
+        <div class="stats-box">
+          <div class="stats-box-value">${losses}</div>
+          <div class="stats-box-label">Losses</div>
+        </div>
+        <div class="stats-box">
+          <div class="stats-box-value">${winPct}%</div>
+          <div class="stats-box-label">Win %</div>
+        </div>
+      </div>
+      <div class="stats-section-title">Recent Sessions</div>
+      <table class="stats-table">
+        <thead>
+          <tr><th>Date</th><th>W</th><th>L</th><th>Rating</th></tr>
+        </thead>
+        <tbody>${sessionRows}</tbody>
+      </table>
+    `;
+  } catch (e) {
+    content.innerHTML = "<div class='stats-loading'>Failed to load stats.</div>";
+  }
+}
+
+function closePlayerStats() {
+  const modal = document.getElementById("playerStatsModal");
+  if (modal) modal.style.display = "none";
 }
