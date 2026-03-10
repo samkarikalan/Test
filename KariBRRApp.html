@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="BRRStyle2.css">
   <link rel="stylesheet" href="Export.css">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="BRRStyle3.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="supabase.js" defer></script>
   <script src="main.js" defer></script>
@@ -22,6 +23,7 @@
   <script src="settings.js" defer></script>
   <script src="summary.js" defer></script>
   <script src="help.js" defer></script>
+  <script src="profile.js" defer></script>
 </head>
 <body>
 
@@ -42,7 +44,10 @@
       </div>
     </div>
     <span class="app-logo-premium">CLUB Scheduler</span>
-    <button class="power-btn" onclick="endSession()" aria-label="End Session" title="End Session">⏻</button>
+    <button class="profile-btn" id="profileBtn" onclick="openProfileDrawer()" aria-label="Profile" title="My Profile">
+      <img id="profileBtnAvatar" src="male.png" class="profile-btn-avatar" style="display:none;">
+      <span id="profileBtnIcon" class="profile-btn-icon">👤</span>
+    </button>
   </div>
 
   <!-- ============================= -->
@@ -157,7 +162,16 @@
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
             <span id="sbSyncStatus"></span>
             <button class="github-btn-save sb-sync-btn" onclick="syncGithubToLocal()">🔄 Sync</button>
+          </div>
 
+          <!-- Rating mode — shown after login for trusted clubs only -->
+          <div id="sbRatingModeWrap" style="display:none">
+            <div class="sb-rating-divider"></div>
+            <div class="sb-rating-label">Rating Mode</div>
+            <div class="sb-rating-btns">
+              <button id="sbRatingGlobal" class="sb-rating-btn" onclick="sbSetRatingMode('global')">🌐 Global</button>
+              <button id="sbRatingLocal"  class="sb-rating-btn active" onclick="sbSetRatingMode('local')">🏠 Club</button>
+            </div>
           </div>
         </div>
 
@@ -305,21 +319,16 @@
     <div id="game-results"></div>
 
     <div class="action-card">
-      <button class="action mid small" id="roundShufle" onclick="RefreshRound()" aria-label="Mix round">
-        🎲
-      </button>
+      <button class="action mid small" id="roundShufle" onclick="RefreshRound()" aria-label="Mix round">🎲</button>
       <button id="nextBtn" class="action right primary" onclick="toggleRound()">
         <span id="btnText" data-i18n="nround"></span>
         <span class="icon"> ▶</span>
       </button>
+      <button class="action mid small" onclick="toggleRoundSettings()" aria-label="Settings">⚙️</button>
     </div>
 
     <!-- Round Settings Panel -->
     <div class="round-settings-panel">
-      <button class="round-settings-toggle" onclick="toggleRoundSettings()">
-  <span class="round-settings-label">⚙️ <span data-i18n="roundSettings">Round Settings</span></span>
-  <span class="round-settings-chevron" id="roundSettingsChevron">▾</span>
-</button>
 
 
       <!-- Single roundSettingsBody — contains all settings + player slot -->
@@ -518,6 +527,87 @@
     <button class="stats-close-btn" onclick="closePlayerStats()">✕</button>
     <div id="playerStatsContent"></div>
   </div>
+</div>
+
+<!-- ============================= -->
+<!--       PROFILE DRAWER          -->
+<!-- ============================= -->
+<div id="profileOverlay" class="profile-overlay hidden" onclick="closeProfileDrawer()"></div>
+<div id="profileDrawer" class="profile-drawer">
+
+  <!-- Player Picker (shown when no player selected) -->
+  <div id="profilePicker" class="profile-picker">
+    <div class="profile-drawer-header">
+      <span class="profile-drawer-title">Who are you?</span>
+      <button class="profile-drawer-close" onclick="closeProfileDrawer()">✕</button>
+    </div>
+    <p class="profile-picker-hint">Select your name to personalise your profile</p>
+    <div class="profile-picker-search-wrap">
+      <input type="text" id="profileSearch" class="profile-picker-search"
+        placeholder="🔍 Search player..."
+        oninput="filterPickerList(this.value)">
+    </div>
+    <div id="profilePickerList" class="profile-picker-list"></div>
+  </div>
+
+  <!-- Profile Card (shown when player selected) -->
+  <div id="profileCard" class="profile-card-view" style="display:none;">
+    <div class="profile-drawer-header">
+      <span class="profile-drawer-title">My Profile</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="profile-switch-btn" onclick="switchProfilePlayer()">Switch</button>
+        <button class="profile-drawer-close" onclick="closeProfileDrawer()">✕</button>
+      </div>
+    </div>
+    </div>
+
+    <!-- Avatar + Name + Ratings -->
+    <div class="profile-identity">
+      <img id="pcAvatar" src="male.png" class="profile-avatar">
+      <div class="profile-identity-info">
+        <div class="profile-name-row">
+          <div id="pcName" class="profile-name"></div>
+          <div class="profile-ratings-inline">
+            <div class="inline-rating">
+              <span class="inline-rating-label">Global Rating</span>
+              <span id="pcRating" class="inline-rating-value global"></span>
+            </div>
+            <div class="inline-rating">
+              <span class="inline-rating-label">Club Rating</span>
+              <span id="pcClubRating" class="inline-rating-value club">—</span>
+            </div>
+          </div>
+        </div>
+        <div id="pcTier" class="profile-tier"></div>
+      </div>
+    </div>
+
+    <!-- Stats row -->
+    <div class="profile-stats-row">
+      <div class="profile-stat-box">
+        <div id="pcWins" class="profile-stat-value wins">—</div>
+        <div class="profile-stat-label">All-time Wins</div>
+      </div>
+      <div class="profile-stat-divider"></div>
+      <div class="profile-stat-box">
+        <div id="pcLosses" class="profile-stat-value losses">—</div>
+        <div class="profile-stat-label">All-time Losses</div>
+      </div>
+    </div>
+
+    <!-- Recent Sessions -->
+    <div class="profile-sessions-title">Recent Sessions</div>
+    <div id="pcSessions" class="profile-sessions-list">
+      <div class="profile-sessions-loading">Loading...</div>
+    </div>
+
+    <!-- End Session button -->
+    <button class="profile-end-btn" id="profileEndBtn" onclick="profileEndSession()">
+      <img src="power.png" style="width:16px;height:16px;opacity:0.9;vertical-align:middle;margin-right:6px;">
+      <span id="profileEndBtnText">End Session</span>
+    </button>
+  </div>
+
 </div>
 
 </body>

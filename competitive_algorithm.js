@@ -324,8 +324,15 @@ function CompetitiveRound(state) {
       isRandom:  false
     }));
   } else {
-    // Fallback to random scoped to playing players
-    const tempState = { ...state, activeplayers: playing, courts };
+    // Fallback: use full RandomRound with pair-history awareness
+    // Pass complete schedulerState so repeat-avoidance logic works,
+    // but scope activeplayers to only the playing subset this round
+    const tempState = {
+      ...schedulerState,
+      activeplayers: playing,
+      numCourts:     courts,
+      courts:        courts,
+    };
     const rr = RandomRound(tempState);
     finalGames = (rr.games || []).map((g, c) => ({
       court:     c + 1,
@@ -348,28 +355,7 @@ function CompetitiveRound(state) {
 //  SECTION 10 — PARENT FUNCTION
 // ============================================================
 
-function AischedulerNextRound(schedulerState) {
 
-  const playmode   = getPlayMode();
-  const page2      = document.getElementById('roundsPage');
-  const warmupDone = isWarmupComplete(schedulerState);
-
-  let result;
-
-  if (playmode === 'random' || !warmupDone) {
-    result = RandomRound(schedulerState);
-    page2.classList.remove('competitive-mode');
-    page2.classList.add('random-mode');
-    schedulerState._lastMode = 'random';
-  } else {
-    result = CompetitiveRound(schedulerState);
-    page2.classList.remove('random-mode');
-    page2.classList.add('competitive-mode');
-    schedulerState._lastMode = 'competitive';
-  }
-
-  return result;
-}
 
 
 // ============================================================

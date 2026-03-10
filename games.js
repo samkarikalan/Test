@@ -18,6 +18,11 @@ const roundStates = {
   },
   active: {
     key: "endrounds",
+    icon: "▶",
+    class: ""
+  },
+  done: {
+    key: "endSession",
     icon: "⏹",
     class: "end"
   }
@@ -106,7 +111,13 @@ function toggleRound() {
   const textEl = document.getElementById("btnText");
   const icon = btn.querySelector(".icon");
   const playmode = getPlayMode();
-  
+
+  // End Session state — trigger power button
+  if (currentState === "done") {
+    document.getElementById("powerBtn")?.click();
+    return;
+  }
+
   if (currentState === "idle") {
     // ---- ENTER ACTIVE (BUSY) MODE ----
     if (interactionLocked ==false) {
@@ -154,9 +165,12 @@ function toggleRound() {
       updatePointsAfterRound(schedulerState);
     }
 
-    currentState = "idle";
     nextRound();
     document.getElementById("roundsPage").classList.remove("active-mode");
+
+    // Check if enough rounds played — switch to End Session state
+    const minR = schedulerState.minRounds || 6;
+    currentState = allRounds.length > minR ? "done" : "idle";
     
     // Re-enable everything previously disabled
     document.querySelectorAll(".disabled").forEach(el => {
@@ -181,6 +195,7 @@ function toggleRound() {
   textEl.dataset.i18n = state.key;
   icon.textContent = state.icon;
   btn.classList.toggle("end", state.class === "end");
+  btn.classList.toggle("round-active", currentState === "active");
   setLanguage(currentLang);
 }
 
@@ -1365,7 +1380,7 @@ function renderGames(data, roundIndex) {
   data.games.forEach((game, gameIndex) => {
 
     const courtDiv = document.createElement('div');
-    courtDiv.className = 'courtcard';
+    courtDiv.className = `courtcard court-${gameIndex + 1}`;
 
     const courtName = document.createElement('div');
     courtName.classList.add('courtname');
@@ -1400,6 +1415,7 @@ function renderGames(data, roundIndex) {
         teamDiv.appendChild(
           makePlayerButton(p, teamSide, gameIndex, i, data, roundIndex)
         );
+
       });
 
       const winCup = document.createElement('img');
@@ -1512,11 +1528,11 @@ function renderGames(data, roundIndex) {
       }
     }
 
-    const vs = document.createElement('span');
-    vs.className = 'vs';
-    vs.innerText = '  ';
+    const vsDivider = document.createElement('div');
+    vsDivider.className = 'vs-divider';
+    vsDivider.innerHTML = '<div class="vs-line"></div><span>VS</span><div class="vs-line"></div>';
 
-    teamsDiv.append(teamLeft, vs, teamRight);
+    teamsDiv.append(teamLeft, vsDivider, teamRight);
     courtDiv.append(courtName, teamsDiv);
     wrapper.appendChild(courtDiv);
   });
@@ -1529,7 +1545,7 @@ function goodrenderGames(data, roundIndex) {
 
   data.games.forEach((game, gameIndex) => {
     const courtDiv = document.createElement('div');
-    courtDiv.className = 'courtcard';
+    courtDiv.className = `courtcard court-${gameIndex + 1}`;
 
     const courtName = document.createElement('div');
     courtName.classList.add('courtname');
@@ -1661,11 +1677,11 @@ function goodrenderGames(data, roundIndex) {
     const teamLeft = makeTeamDiv('L');
     const teamRight = makeTeamDiv('R');
 
-    const vs = document.createElement('span');
-    vs.className = 'vs';
-    vs.innerText = '  ';
+    const vsDivider = document.createElement('div');
+    vsDivider.className = 'vs-divider';
+    vsDivider.innerHTML = '<div class="vs-line"></div><span>VS</span><div class="vs-line"></div>';
 
-    teamsDiv.append(teamLeft, vs, teamRight);
+    teamsDiv.append(teamLeft, vsDivider, teamRight);
     courtDiv.append(courtName, teamsDiv);
     wrapper.appendChild(courtDiv);
   });
@@ -1680,7 +1696,7 @@ function renderGames2(data, index) {
 
   data.games.forEach((game, gameIndex) => {
     const courtDiv = document.createElement('div');
-    courtDiv.className = 'courtcard';
+    courtDiv.className = `courtcard court-${gameIndex + 1}`;
 
     const courtName = document.createElement('div');
     courtName.classList.add('courtname');
@@ -1819,11 +1835,11 @@ function renderGames2(data, index) {
     const teamLeft = makeTeamDiv('L');
     const teamRight = makeTeamDiv('R');
 
-    const vs = document.createElement('span');
-    vs.className = 'vs';
-    vs.innerText = '  ';
+    const vsDivider = document.createElement('div');
+    vsDivider.className = 'vs-divider';
+    vsDivider.innerHTML = '<div class="vs-line"></div><span>VS</span><div class="vs-line"></div>';
 
-    teamsDiv.append(teamLeft, vs, teamRight);
+    teamsDiv.append(teamLeft, vsDivider, teamRight);
     courtDiv.append(courtName, teamsDiv);
     wrapper.appendChild(courtDiv);
 
@@ -2023,26 +2039,18 @@ function makePlayerButton(name, teamSide, gameIndex, playerIndex, data, index) {
     ? 'Lplayer-btn'
     : 'Rplayer-btn';
 
-  /* ───────── GENDER EMOJI (LEFT) ───────── */
-  if (IS_MIXED_SESSION && player?.gender) {
+  /* ───────── AVATAR (always shown, like fixed card) ───────── */
   const genderIcon = document.createElement('img');
   genderIcon.className = 'gender-icon';
+  genderIcon.src = (player?.gender === 'Female') ? 'female.png' : 'male.png';
+  genderIcon.alt = player?.gender || 'Male';
+  btn.appendChild(genderIcon);
 
-  genderIcon.src =
-  player.gender === 'Female'
-    ? 'female.png'
-    : 'male.png';
-
-  genderIcon.alt = player.gender;
-  btn.prepend(genderIcon);
-}
-
-  /* ───────── PLAYER NAME (TRUNCATED) ───────── */
+  /* ───────── PLAYER NAME ───────── */
   const nameSpan = document.createElement('span');
   nameSpan.className = 'player-name';
-  nameSpan.textContent = name;
-  nameSpan.title = name; // full name on long-press / hover
-
+  nameSpan.textContent = name.split('#')[0];
+  nameSpan.title = name;
   btn.appendChild(nameSpan);
 
   /* ───────────────────────────────────── */
@@ -2536,4 +2544,13 @@ function updateModeLabel() {
     getPlayMode() === "competitive"
       ? "🏆"
       : "🎲";
+}
+
+// Patched toggleRoundSettings — no chevron ref
+var _origToggle = toggleRoundSettings;
+function toggleRoundSettings() {
+  const body = document.getElementById('roundSettingsBody');
+  const isOpen = body.classList.toggle('open');
+  const gearBtn = document.querySelector('.action-card .action.mid.small:last-child');
+  if (gearBtn) gearBtn.classList.toggle('settings-active', isOpen);
 }

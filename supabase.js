@@ -116,13 +116,20 @@ async function dbGetPlayers(forceFresh = false) {
     }
 
     // Normalize to local format
-    const normalized = players.map(p => ({
-      id:           p.id,
-      name:         p.name,
-      gender:       p.gender,
-      rating:       parseFloat(p.rating) || 1.0,
-      registeredDate: p.registered_date
-    }));
+    const club       = getMyClub();
+    const normalized = players.map(p => {
+      const clubRatings = p.club_ratings || {};
+      const clubRating  = club.id ? (parseFloat(clubRatings[club.id]) || 1.0) : 1.0;
+      return {
+        id:           p.id,
+        name:         p.name,
+        gender:       p.gender,
+        rating:       parseFloat(p.rating) || 1.0,
+        clubRating,
+        club_ratings: clubRatings,
+        registeredDate: p.registered_date
+      };
+    });
 
     localStorage.setItem(CACHE_PLAYERS,   JSON.stringify(normalized));
     localStorage.setItem(CACHE_TIMESTAMP, String(Date.now()));
@@ -175,31 +182,51 @@ async function dbAddPlayer(name, gender, _unused) {
 
 /// Sync ratings after each round — no password needed (game results are objective)
 async function dbSyncRatings(updatedRatings) {
+  const club    = getMyClub();
+
+  // No club logged in — skip entirely, no server updates
+  if (!club.id) return;
+
+  const isTrusted = localStorage.getItem('kbrr_club_trusted') === 'true';
+  const mode      = localStorage.getItem('kbrr_rating_mode') || 'local';
+
+  // Untrusted clubs can never update global rating — force local
+  const effectiveMode = (mode === 'global' && isTrusted) ? 'global' : 'local';
+
   for (const update of updatedRatings) {
     try {
-      // Build patch payload — always update rating
-      const patch = { rating: Math.round(update.rating * 10) / 10 };
+      const roundedRating = Math.round(update.rating * 10) / 10;
+      let patch = {};
 
-      // Increment wins/losses using Supabase RPC if player had games this round
-      if (update.wins > 0 || update.losses > 0) {
-        // Fetch current wins/losses first then increment
-        const rows = await sbGet("players", `name=ilike.${encodeURIComponent(update.name)}&select=id,wins,losses`);
+      if (effectiveMode === 'local') {
+        // Update club_ratings[clubId] only
+        const rows = await sbGet("players", `name=ilike.${encodeURIComponent(update.name)}&select=id,wins,losses,club_ratings`);
         if (rows && rows.length) {
-          patch.wins   = (rows[0].wins   || 0) + (update.wins   || 0);
-          patch.losses = (rows[0].losses || 0) + (update.losses || 0);
+          const existing    = rows[0].club_ratings || {};
+          existing[club.id] = roundedRating;
+          patch.club_ratings = existing;
+          if (update.wins > 0 || update.losses > 0) {
+            patch.wins   = (rows[0].wins   || 0) + (update.wins   || 0);
+            patch.losses = (rows[0].losses || 0) + (update.losses || 0);
+          }
+        }
+      } else {
+        // Global mode — trusted clubs only
+        patch = { rating: roundedRating };
+        if (update.wins > 0 || update.losses > 0) {
+          const rows = await sbGet("players", `name=ilike.${encodeURIComponent(update.name)}&select=id,wins,losses`);
+          if (rows && rows.length) {
+            patch.wins   = (rows[0].wins   || 0) + (update.wins   || 0);
+            patch.losses = (rows[0].losses || 0) + (update.losses || 0);
+          }
         }
       }
 
-      await sbPatch(
-        "players",
-        `name=ilike.${encodeURIComponent(update.name)}`,
-        patch
-      );
-    } catch (e) {
-      // Silent fail per player
-    }
+      if (Object.keys(patch).length) {
+        await sbPatch("players", `name=ilike.${encodeURIComponent(update.name)}`, patch);
+      }
+    } catch (e) { /* silent fail per player */ }
   }
-  // Invalidate cache
   localStorage.removeItem(CACHE_PLAYERS);
   localStorage.removeItem(CACHE_TIMESTAMP);
 }
@@ -276,13 +303,47 @@ async function githubSyncAfterRound(roundWins, roundLosses) {
   try {
     const updatedRatings = schedulerState.allPlayers.map(p => ({
       name:   p.name,
-      rating: getRating(p.name),
+      rating: (typeof getActiveRating === 'function') ? getActiveRating(p.name) : getRating(p.name),
       wins:   (roundWins   && roundWins.get(p.name))   || 0,
       losses: (roundLosses && roundLosses.get(p.name)) || 0
     }));
     await dbSyncRatings(updatedRatings);
   } catch (e) {
     // Silent fail
+  }
+  // Refresh global players cache after ratings update
+  syncGlobalPlayersCache();
+}
+
+/// ============================================================
+/// GLOBAL PLAYERS CACHE
+/// Stores all global players in localStorage so imports work
+/// offline and without repeated Supabase calls.
+/// Refreshed on app load and after every round.
+/// ============================================================
+
+const CACHE_GLOBAL_PLAYERS = "kbrr_cache_global_players";
+
+async function syncGlobalPlayersCache() {
+  try {
+    const raw = await sbGet("players", "order=name.asc");
+    const players = raw.map(p => ({
+      displayName: p.name,
+      gender:      p.gender || "Male",
+      rating:      parseFloat(p.rating) || 1.0
+    }));
+    localStorage.setItem(CACHE_GLOBAL_PLAYERS, JSON.stringify(players));
+  } catch (e) {
+    // Silent fail — cache stays as-is if offline
+  }
+}
+
+function getGlobalPlayersCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_GLOBAL_PLAYERS);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
   }
 }
 
@@ -306,4 +367,48 @@ async function dbDeleteClub(clubId) {
   await sbDelete("club_members", `club_id=eq.${clubId}`);
   // Then delete the club
   await sbDelete("clubs", `id=eq.${clubId}`);
+}
+
+/// ============================================================
+/// PLAYER SESSIONS — stored in player_sessions table
+/// Table: player_sessions (player_name text, date text, wins int, losses int, rating float)
+/// ============================================================
+
+async function savePlayerSession(playerName, entry) {
+  // Upsert by player_name + date (same day = overwrite)
+  // First check if row exists for this player+date
+  const existing = await sbGet(
+    "player_sessions",
+    `player_name=ilike.${encodeURIComponent(playerName)}&date=eq.${entry.date}&select=id`
+  );
+
+  if (existing && existing.length) {
+    // Update existing row
+    await sbPatch(
+      "player_sessions",
+      `player_name=ilike.${encodeURIComponent(playerName)}&date=eq.${entry.date}`,
+      { wins: entry.wins, losses: entry.losses, rating: entry.rating }
+    );
+  } else {
+    // Insert new row
+    await sbPost("player_sessions", {
+      player_name: playerName,
+      date:        entry.date,
+      wins:        entry.wins,
+      losses:      entry.losses,
+      rating:      entry.rating
+    });
+  }
+}
+
+async function getPlayerSessions(playerName) {
+  try {
+    const rows = await sbGet(
+      "player_sessions",
+      `player_name=ilike.${encodeURIComponent(playerName)}&order=date.desc&limit=10`
+    );
+    return rows || [];
+  } catch (e) {
+    return [];
+  }
 }

@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof githubAdminInit === "function") githubAdminInit();
   // Sync GitHub players into local history (silent, background)
   syncGithubToLocal();
+  // Sync all global players into local cache (for offline import)
+  if (typeof syncGlobalPlayersCache === "function") syncGlobalPlayersCache();
 });
 
 window.addEventListener('beforeunload', () => {
@@ -262,17 +264,7 @@ function updateMixedSessionFlag() {
 
 
 
-function toggleGender() {
-  const toggle = document.querySelector(".gender-toggle");
-  const hiddenInput = document.getElementById("genderValue");
 
-  toggle.classList.toggle("active");
-
-  const isFemale = toggle.classList.contains("active");
-  hiddenInput.value = isFemale ? "Female" : "Male";
-
-  console.log("Selected Gender:", hiddenInput.value);
-}
 
 
 // Page initialization
@@ -331,10 +323,10 @@ async function syncGithubToLocal() {
 /* =============================================================
    POWER BUTTON — End Session
 ============================================================= */
-async function endSession() {
+async function endSession(fromProfile = false) {
   // Check if any games were played this session
   const gamesPlayed = (typeof allRounds !== "undefined") &&
-    allRounds.some(round => round.some(game => game.winner));
+    allRounds.some(round => (round.games || round).some(game => game.winner));
 
   const msg = gamesPlayed
     ? "End session?\n\nGame results will be saved before resetting."
@@ -347,36 +339,81 @@ async function endSession() {
     try {
       const today = new Date().toISOString().split("T")[0];
 
-      // Collect total wins/losses per player across all rounds
-      const totalWins   = new Map();
-      const totalLosses = new Map();
+      // Build gender lookup for avatar display
+      const genderMap = new Map();
+      (schedulerState.allPlayers || []).forEach(p => genderMap.set(p.name, p.gender || "Male"));
+
+      // Build per-player match history from allRounds
+      // playerMatches: Map<playerName, [{opponents, opponentGenders, result}]>
+      const playerMatches = new Map();
 
       for (const round of allRounds) {
-        for (const game of round) {
+        const games = round.games || round;
+        for (const game of games) {
           if (!game.winner) continue;
-          const winners = game.winner === "L" ? game.pair1 : game.pair2;
-          const losers  = game.winner === "L" ? game.pair2 : game.pair1;
-          winners.forEach(p => totalWins.set(p,   (totalWins.get(p)   || 0) + 1));
-          losers.forEach(p  => totalLosses.set(p, (totalLosses.get(p) || 0) + 1));
+
+          const leftWon  = game.winner === "L";
+          const pair1    = game.pair1 || [];
+          const pair2    = game.pair2 || [];
+
+          // For each player in pair1
+          for (const p of pair1) {
+            if (!playerMatches.has(p)) playerMatches.set(p, []);
+            playerMatches.get(p).push({
+              partner:          pair1.filter(x => x !== p),
+              partnerGenders:   pair1.filter(x => x !== p).map(n => genderMap.get(n) || "Male"),
+              opponents:        pair2,
+              opponentGenders:  pair2.map(n => genderMap.get(n) || "Male"),
+              result:           leftWon ? "W" : "L"
+            });
+          }
+          // For each player in pair2
+          for (const p of pair2) {
+            if (!playerMatches.has(p)) playerMatches.set(p, []);
+            playerMatches.get(p).push({
+              partner:          pair2.filter(x => x !== p),
+              partnerGenders:   pair2.filter(x => x !== p).map(n => genderMap.get(n) || "Male"),
+              opponents:        pair1,
+              opponentGenders:  pair1.map(n => genderMap.get(n) || "Male"),
+              result:           leftWon ? "L" : "W"
+            });
+          }
         }
       }
 
-      // Update sessions JSON for each player
+      // Save for every player who played
       const players = schedulerState.allPlayers || [];
       for (const p of players) {
-        const wins   = totalWins.get(p.name)   || 0;
-        const losses = totalLosses.get(p.name) || 0;
-        if (wins === 0 && losses === 0) continue;
+        const matches = playerMatches.get(p.name) || [];
+        if (!matches.length) continue;
 
+        const wins   = matches.filter(m => m.result === "W").length;
+        const losses = matches.filter(m => m.result === "L").length;
+
+        const newEntry = {
+          date:    today,
+          wins,
+          losses,
+          rating:  getRating(p.name),
+          matches  // full match details
+        };
+
+        // ── LAYER 1: localStorage ──
+        try {
+          const lsKey    = `kbrr_sessions_${p.name.toLowerCase().replace(/\s+/g, "_")}`;
+          const existing = JSON.parse(localStorage.getItem(lsKey) || "[]");
+          const updated  = [newEntry, ...existing].slice(0, 3);
+          localStorage.setItem(lsKey, JSON.stringify(updated));
+        } catch (e) { /* silent */ }
+
+        // ── LAYER 2: Supabase players.sessions column ──
         try {
           const rows = await sbGet("players", `name=ilike.${encodeURIComponent(p.name)}&select=id,sessions`);
-          if (!rows || !rows.length) continue;
-
-          const existing = rows[0].sessions || [];
-          const newEntry = { date: today, wins, losses, rating: getRating(p.name) };
-          const updated  = [newEntry, ...existing].slice(0, 3); // keep last 3
-
-          await sbPatch("players", `name=ilike.${encodeURIComponent(p.name)}`, { sessions: updated });
+          if (rows && rows.length) {
+            const existing = rows[0].sessions || [];
+            const updated  = [newEntry, ...existing].slice(0, 3);
+            await sbPatch("players", `name=ilike.${encodeURIComponent(p.name)}`, { sessions: updated });
+          }
         } catch (e) { /* silent */ }
       }
     } catch (e) { /* silent */ }
@@ -392,7 +429,8 @@ async function endSession() {
 /* === SETTINGS TAB SWITCHER === */
 function settingsShowTab(tab) {
   ["font","theme","reset"].forEach(t => {
-    document.getElementById("settingsTab" + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? "" : "none";
+    const el = document.getElementById("settingsTab" + t.charAt(0).toUpperCase() + t.slice(1));
+    if (el) el.style.display = t === tab ? "" : "none";
     const btn = document.getElementById("settingsTab" + t.charAt(0).toUpperCase() + t.slice(1) + "Btn");
     if (btn) btn.classList.toggle("active", t === tab);
   });
@@ -406,3 +444,47 @@ document.addEventListener("click", function(e) {
     }
   }
 });
+
+/* ============================================================
+   RATING MODE — global vs local (club)
+   kbrr_rating_mode: "global" | "local"
+   ============================================================ */
+
+function getRatingMode() {
+  return localStorage.getItem('kbrr_rating_mode') || 'global';
+}
+
+function setRatingMode(mode) {
+  localStorage.setItem('kbrr_rating_mode', mode);
+  syncRatings();
+}
+
+/* getActiveRating — returns club rating or global rating based on mode */
+function getActiveRating(name) {
+  if (getRatingMode() === 'local') {
+    return getClubRating(name);
+  }
+  return getRating(name);
+}
+
+/* getClubRating — reads from in-memory allPlayers clubRating field */
+function getClubRating(name) {
+  try {
+    const p = schedulerState.allPlayers.find(
+      p => p.name.trim().toLowerCase() === name.trim().toLowerCase()
+    );
+    return (p && p.clubRating !== undefined) ? p.clubRating : 1.0;
+  } catch(e) { return 1.0; }
+}
+
+/* setClubRating — writes club rating to in-memory allPlayers */
+function setClubRating(name, rating) {
+  try {
+    const p = schedulerState.allPlayers.find(
+      p => p.name.trim().toLowerCase() === name.trim().toLowerCase()
+    );
+    if (p) {
+      p.clubRating = Math.min(5.0, Math.max(1.0, Math.round(rating * 10) / 10));
+    }
+  } catch(e) {}
+}
