@@ -186,12 +186,13 @@ async function showProfileCard(player) {
   // Name
   document.getElementById('pcName').textContent = player.name;
 
-  // Rating + tier — both global and club
-  const club         = (typeof getMyClub === 'function') ? getMyClub() : {};
-  const globalRating = (typeof getRating === 'function') ? getRating(player.name) : 1.0;
-  const clubRatings  = player.club_ratings || {};
-  const clubRating   = club.id ? (parseFloat(clubRatings[club.id]) || 1.0) : 1.0;
-  const activeRating = (localStorage.getItem('kbrr_rating_mode') === 'local') ? clubRating : globalRating;
+  // Single gate — sync first, then read both raw values from cache
+  await syncGithubToLocal();
+  const master       = JSON.parse(localStorage.getItem('newImportHistory') || '[]');
+  const hp           = master.find(h => h.displayName.trim().toLowerCase() === player.name.trim().toLowerCase());
+  const globalRating = parseFloat(hp && hp.rating)      || 1.0;  // players.rating — only updated in global mode
+  const clubRating   = parseFloat(hp && hp.clubRating)  || 1.0;  // club_ratings[clubId] — only updated in local mode
+  const activeRating = parseFloat(hp && hp.activeRating)|| 1.0;  // what session uses
   const tier         = ratingTierLabel(activeRating);
 
   document.getElementById('pcRating').textContent     = globalRating.toFixed(1);
@@ -319,7 +320,7 @@ function renderSessions(sessions, playerName) {
   if (hasLive) {
     const liveWins   = liveMatches.filter(m => m.result === 'W').length;
     const liveLosses = liveMatches.filter(m => m.result === 'L').length;
-    const rating     = (typeof getRating === 'function') ? getRating(playerName) : 1.0;
+    const rating     = (typeof getActiveRating === 'function') ? getActiveRating(playerName) : getRating(playerName);
     const tier       = ratingTierLabel(rating);
 
     const block = document.createElement('div');

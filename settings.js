@@ -166,9 +166,9 @@ function updateRoundTitle(round) {
 function setFontSize(size) {
   const root = document.documentElement;
 
-  if (size === "small") root.style.setProperty("--base-font-size", "12px");
-  if (size === "medium") root.style.setProperty("--base-font-size", "14px");
-  if (size === "large") root.style.setProperty("--base-font-size", "17px");
+  if (size === "small") root.style.setProperty("--base-font-size", "14px");
+  if (size === "medium") root.style.setProperty("--base-font-size", "16px");
+  if (size === "large") root.style.setProperty("--base-font-size", "19px");
 
   localStorage.setItem("appFontSize", size); // 👈 SAVE (ADD THIS)
 
@@ -264,25 +264,118 @@ function adminVerifyPassword() {
   }
 }
 
+// ── Player subtabs: All / Playing ──
+function playerSubtabShow(tab) {
+  document.getElementById('playerSubtabAll').style.display     = tab === 'all'     ? '' : 'none';
+  document.getElementById('playerSubtabPlaying').style.display = tab === 'playing' ? '' : 'none';
+  document.getElementById('playerSubtabAllBtn').classList.toggle('active',     tab === 'all');
+  document.getElementById('playerSubtabPlayingBtn').classList.toggle('active', tab === 'playing');
+  if (tab === 'all')     playerMgmtRenderList();
+  if (tab === 'playing') playerPlayingRenderList();
+}
+
+async function playerPlayingRenderList() {
+  const container = document.getElementById('playerPlayingList');
+  container.innerHTML = '<p style="color:#aaa;font-size:0.85rem">Loading...</p>';
+  const admin = isAdminMode();
+
+  try {
+    const rows = await sbGet('players',
+      'is_playing=eq.true&select=name,gender,session_id,session_started_at&order=name.asc'
+    );
+
+    if (!rows || !rows.length) {
+      container.innerHTML = '<p class="player-mgmt-empty">No players currently locked.</p>';
+      return;
+    }
+
+    container.innerHTML = '';
+
+    // Release All button — admin only
+    if (admin) {
+      const bar = document.createElement('div');
+      bar.style.cssText = 'padding:8px 0 12px;';
+      const releaseAllBtn = document.createElement('button');
+      releaseAllBtn.className = 'player-mgmt-add-btn';
+      releaseAllBtn.style.background = '#e63757';
+      releaseAllBtn.textContent = '🔓 Release All (' + rows.length + ')';
+      releaseAllBtn.onclick = playerPlayingReleaseAll;
+      bar.appendChild(releaseAllBtn);
+      container.appendChild(bar);
+    }
+
+    rows.forEach(function(p) {
+      const row = document.createElement('div');
+      row.className = 'player-mgmt-row';
+      const started = p.session_started_at
+        ? new Date(p.session_started_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+        : '—';
+
+      const img = document.createElement('img');
+      img.src = p.gender === 'Female' ? 'female.png' : 'male.png';
+      img.className = 'player-mgmt-avatar';
+      img.style.cursor = 'default';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'player-mgmt-name';
+      nameSpan.textContent = p.name;
+
+      const timeSpan = document.createElement('span');
+      timeSpan.style.cssText = 'font-size:0.75rem;color:var(--muted);margin-right:8px';
+      timeSpan.textContent = 'since ' + started;
+
+      row.appendChild(img);
+      row.appendChild(nameSpan);
+      row.appendChild(timeSpan);
+
+      if (admin) {
+        const btn = document.createElement('button');
+        btn.className = 'player-mgmt-del-btn';
+        btn.style.cssText = 'background:#e63757;color:#fff;border:none;border-radius:20px;padding:4px 10px;font-size:0.8rem';
+        btn.textContent = '🔓';
+        btn.onclick = function() { playerPlayingRelease(p.name); };
+        row.appendChild(btn);
+      }
+
+      container.appendChild(row);
+    });
+
+  } catch(e) {
+    container.innerHTML = '<p class="player-mgmt-empty">Failed to load. Check connection.</p>';
+    console.error('playerPlayingRenderList error:', e);
+  }
+}
+
+async function playerPlayingRelease(name) {
+  if (!confirm('Release "' + name + '" from active session?')) return;
+  try {
+    await sbPatch('players', 'name=ilike.' + encodeURIComponent(name), {
+      is_playing: false, session_id: null, session_started_at: null
+    });
+    playerPlayingRenderList();
+  } catch(e) { alert('Failed to release: ' + e.message); }
+}
+
+async function playerPlayingReleaseAll() {
+  if (!confirm('Release ALL locked players?')) return;
+  try {
+    await sbPatch('players', 'is_playing=eq.true', {
+      is_playing: false, session_id: null, session_started_at: null
+    });
+    playerPlayingRenderList();
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+
 // ── Render master player list ──
 async function playerMgmtRenderList() {
   const container = document.getElementById("playerMgmtList");
   container.innerHTML = "<p style='color:#aaa;font-size:0.85rem'>Loading...</p>";
 
-  // If local cache is empty, fetch fresh from Supabase
-  let players = newImportState.historyPlayers || [];
-  if (!players.length) {
-    try {
-      const fresh = await dbGetPlayers(true);
-      players = (fresh || []).map(p => ({
-        displayName: p.name,
-        gender: p.gender || "Male",
-        rating: parseFloat(p.rating) || 1.0
-      }));
-      newImportState.historyPlayers = players;
-      localStorage.setItem("newImportHistory", JSON.stringify(players));
-    } catch(e) { /* offline */ }
+  // Always use syncGithubToLocal as single source of truth — never fetch directly
+  if (!newImportState.historyPlayers || !newImportState.historyPlayers.length) {
+    await syncGithubToLocal();
   }
+  let players = newImportState.historyPlayers || [];
 
   container.innerHTML = "";
 
@@ -313,7 +406,7 @@ async function playerMgmtRenderList() {
              title="Tap to toggle gender">
         <span class="player-mgmt-name player-mgmt-name-link" onclick="showPlayerStats('${safeName}')">${p.displayName}</span>
         <input type="number" class="rating-edit-input"
-          value="${getRating(p.displayName).toFixed(1)}"
+          value="${(typeof getActiveRating === "function" ? getActiveRating(p.displayName) : getRating(p.displayName)).toFixed(1)}"
           min="1.0" max="5.0" step="0.1"
           onchange="playerMgmtSaveRating('${safeName}', this.value)">
         <button class="player-mgmt-del-btn"
@@ -324,7 +417,7 @@ async function playerMgmtRenderList() {
         <img src="${p.gender === 'Female' ? 'female.png' : 'male.png'}"
              class="player-mgmt-avatar" style="cursor:default">
         <span class="player-mgmt-name player-mgmt-name-link" onclick="showPlayerStats('${safeName}')">${p.displayName}</span>
-        <span class="rating-badge" style="font-size:0.8rem;padding:2px 7px">${getRating(p.displayName).toFixed(1)}</span>
+        <span class="rating-badge" style="font-size:0.8rem;padding:2px 7px">${(typeof getActiveRating === "function" ? getActiveRating(p.displayName) : getRating(p.displayName)).toFixed(1)}</span>
       `;
     }
     container.appendChild(row);
@@ -387,7 +480,7 @@ function playerMgmtAddNew() {
   if (newImportState.historyPlayers.some(p => p.displayName.trim().toLowerCase() === key)) {
     alert("Player already exists."); return;
   }
-  newImportState.historyPlayers.unshift({ displayName: trimmed, gender: "Male", rating: 1.0 });
+  newImportState.historyPlayers.unshift({ displayName: trimmed, gender: "Male", rating: 1.0, clubRating: 1.0, activeRating: 1.0 });
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
   playerMgmtRenderList();
 }
@@ -415,7 +508,7 @@ function sbShowClubTab(tab) {
     if (content) content.style.display = t === tab ? "block" : "none";
     if (btn) btn.classList.toggle("active", t === tab);
   });
-  if (tab === "players") playerMgmtRenderList();
+  if (tab === "players") { playerSubtabShow('all'); }
   if (tab === "create") sbPopulateDeleteDropdown();
 }
 
@@ -471,6 +564,46 @@ function sbRenderClubStatus() {
       document.getElementById("sbRatingLocal")?.classList.toggle("active",  ratingMode === "local");
     }
   }
+
+  // Also sync Vault status strip
+  vaultSyncStatus();
+}
+
+/* ── Vault tab functions ── */
+function vaultShowTab(tab, btn) {
+  document.querySelectorAll('.vault-inner-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.vault-inner-tab').forEach(b => b.classList.remove('active'));
+  const content = document.getElementById('vaultTab' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  if (content) content.classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (tab === 'players') playerSubtabShow('all');
+}
+
+function vaultSyncStatus() {
+  const club = (typeof getMyClub === 'function') ? getMyClub() : { id: null, name: null };
+  const mode = (typeof getClubMode === 'function') ? getClubMode() : null;
+
+  const dot   = document.getElementById('vaultStatusDot');
+  const name  = document.getElementById('vaultStatusName');
+  const role  = document.getElementById('vaultStatusRole');
+  const strip = document.getElementById('vaultStatusStrip');
+
+  if (!name) return; // vault section not yet in DOM
+
+  if (club.name) {
+    if (name)  name.textContent  = club.name;
+    if (dot)   { dot.style.background = '#2dce89'; dot.style.boxShadow = '0 0 0 3px rgba(45,206,137,0.2)'; }
+    if (strip) strip.style.borderColor = 'rgba(45,206,137,0.2)';
+    if (role) {
+      role.style.display = 'inline-block';
+      if (mode === 'admin') { role.textContent = 'ADMIN'; role.style.background = '#2dce89'; role.style.color = '#000'; }
+      else                  { role.textContent = 'USER';  role.style.background = 'var(--accent)'; role.style.color = '#fff'; }
+    }
+  } else {
+    if (name)  name.textContent  = 'No club selected';
+    if (dot)   { dot.style.background = 'var(--muted)'; dot.style.boxShadow = 'none'; }
+    if (role)  role.style.display = 'none';
+  }
 }
 
 async function sbConfirmJoin() {
@@ -496,8 +629,12 @@ async function sbConfirmJoin() {
     localStorage.setItem("kbrr_club_mode",    mode);
     localStorage.setItem("kbrr_club_trusted", club.trusted ? "true" : "false");
 
-    // Default rating mode to "local" always — trusted clubs can switch to global
-    localStorage.setItem("kbrr_rating_mode", "local");
+    // Set rating field at login — single gate decision made here, used everywhere
+    // 'club_ratings' = local mode (default). 'rating' = global mode (future)
+    localStorage.setItem('kbrr_rating_field', 'club_ratings');
+    localStorage.setItem('kbrr_rating_mode',  'local');
+    // Single gate decision — which field to read/write for ratings
+    localStorage.setItem("kbrr_rating_field", "club_ratings");
 
     pwInput.value = "";
     sbRenderClubStatus();
@@ -511,28 +648,27 @@ async function sbConfirmJoin() {
 }
 
 function sbRenderRatingMode(isTrusted) {
+  // global mode blocked until fully tested — hide UI always
   const wrap = document.getElementById("sbRatingModeWrap");
-  if (!wrap) return;
-  if (isTrusted) {
-    wrap.style.display = "block";
-    sbSetRatingMode("local"); // default to local
-  } else {
-    wrap.style.display = "none";
-    localStorage.setItem("kbrr_rating_mode", "local"); // force local silently
-  }
+  if (wrap) wrap.style.display = "none";
+  localStorage.setItem("kbrr_rating_mode", "local");
 }
 
 function sbSetRatingMode(mode) {
   localStorage.setItem("kbrr_rating_mode", mode);
   document.getElementById("sbRatingGlobal")?.classList.toggle("active", mode === "global");
   document.getElementById("sbRatingLocal")?.classList.toggle("active",  mode === "local");
+  // Re-sync so activeRating is recomputed from the correct field for the new mode
+  if (typeof syncGithubToLocal === "function") syncGithubToLocal();
 }
 
 function sbClearClub() {
   clearMyClub();
-  localStorage.removeItem("kbrr_club_mode");
-  localStorage.removeItem("kbrr_club_trusted");
-  localStorage.removeItem("kbrr_rating_mode");
+  localStorage.removeItem('kbrr_club_mode');
+  localStorage.removeItem('kbrr_club_trusted');
+  localStorage.removeItem('kbrr_rating_mode');
+  localStorage.removeItem('kbrr_rating_field');
+  localStorage.removeItem("kbrr_rating_field");
   document.getElementById("sbRatingModeWrap") && (document.getElementById("sbRatingModeWrap").style.display = "none");
   sbRenderClubStatus();
   sbFeedback("Club cleared.", "gray");
@@ -649,15 +785,17 @@ async function showPlayerStats(name) {
   try {
     const rows = await sbGet(
       "players",
-      `name=ilike.${encodeURIComponent(name)}&select=name,gender,rating,wins,losses,sessions`
+      `name=ilike.${encodeURIComponent(name)}&select=name,gender,wins,losses,sessions`
     );
     if (!rows || !rows.length) {
       content.innerHTML = "<div class='stats-loading'>Player not found.</div>";
       return;
     }
-    const p        = rows[0];
-    const gender   = p.gender || "Male";
-    const rating   = parseFloat(p.rating || 1.0).toFixed(1);
+    const p      = rows[0];
+    const gender = p.gender || "Male";
+    // Single gate — sync first, then read activeRating
+    await syncGithubToLocal();
+    const rating = getActiveRating(name).toFixed(1);
     const wins     = p.wins   || 0;
     const losses   = p.losses || 0;
     const sessions = Array.isArray(p.sessions) ? p.sessions : [];

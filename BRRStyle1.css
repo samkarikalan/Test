@@ -258,7 +258,8 @@ height: 44px; min-height: 44px; box-sizing: border-box;
   background: var(--accent-dim); color: var(--accent);
   border: 1px solid var(--accent); white-space: nowrap;
   letter-spacing: 0.02em; flex-shrink: 0;
-  display: inline-flex; align-items: center;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 36px;
 }
 .pec-delete { text-align: right; }
 .pec-delete .delete { all: unset; font-size: 22px; cursor: pointer; color: var(--muted); transition: color 0.2s; }
@@ -337,10 +338,11 @@ height: 44px; min-height: 44px; box-sizing: border-box;
 .newImport-search::placeholder { color: var(--muted); }
 .newImport-list-actions { display: flex; gap: 8px; margin-bottom: 8px; }
 .newImport-player-card { width: 100%; border: 1px solid var(--border2); border-radius: var(--r-xl); padding: 0 14px; height: 44px; min-height: 44px; box-sizing: border-box; background: var(--surface2); display: flex; align-items: center; gap: 10px; }
-.newImport-player-top { display: flex; align-items: center; gap: 8px; flex: 1; }
-.newImport-player-top img { width: 26px; height: 26px; cursor: pointer; border-radius: 50%; }
-.newImport-player-name { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); font-weight: 500; }
-.newImport-player-actions { display: flex; align-items: center; gap: 6px; }
+.newImport-player-top { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.newImport-player-top img { width: 26px; height: 26px; flex-shrink: 0; cursor: pointer; border-radius: 50%; }
+.newImport-player-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text); font-weight: 500; }
+.avail-dot { flex-shrink: 0; font-size: 0.6rem; line-height: 1; }
+.newImport-player-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; width: 148px; justify-content: flex-end; }
 .circle-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border2); background: var(--surface3); color: var(--text-dim); cursor: pointer; font-size: 1rem; display: flex; align-items: center; justify-content: center; transition: all 0.15s; line-height: 1; padding: 0; }
 .circle-btn:hover { transform: scale(1.08); }
 .circle-btn.active-favorite { background: var(--amber); color: #fff; border-color: transparent; }
@@ -949,3 +951,79 @@ display: block;
 }
 
 .browse-player-btn-remove:hover { background: #d42b50; }
+
+/* ── Player subtabs (All / Playing) ── */
+.player-subtab-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--border, #e0e0e0);
+  padding-bottom: 0;
+}
+.player-subtab-btn {
+  background: none;
+  border: none;
+  padding: 6px 16px;
+  font-size: 0.9rem;
+  color: var(--muted, #888);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  font-weight: 500;
+}
+.player-subtab-btn.active {
+  color: var(--accent, #5e72e4);
+  border-bottom-color: var(--accent, #5e72e4);
+}
+
+/* ── ⚡ Vault Tab ── */
+.vault-tab-btn {
+  color: var(--amber) !important;
+}
+.vault-tab-btn.active {
+  color: var(--amber) !important;
+  border-bottom-color: var(--amber) !important;
+}
+.vault-status-strip {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(45,206,137,0.08);
+  border: 1px solid rgba(45,206,137,0.15);
+  border-radius: var(--r-lg); padding: 8px 12px;
+  margin-bottom: 12px;
+}
+.vault-status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted); flex-shrink: 0;
+}
+.vault-status-name { font-size: 0.88rem; font-weight: 600; flex: 1; }
+.vault-status-role {
+  font-size: 0.6rem; font-weight: 700;
+  border-radius: 10px; padding: 2px 8px;
+  display: none;
+}
+.vault-logout-btn {
+  padding: 5px 12px; border-radius: 20px; border: none;
+  background: rgba(239,68,68,0.12); color: var(--red);
+  font-size: 0.75rem; font-weight: 700; cursor: pointer;
+  font-family: var(--font-body);
+}
+.vault-inner-tabs {
+  display: flex; gap: 4px;
+  background: var(--surface3);
+  border-radius: var(--r-xl); padding: 4px;
+  margin-bottom: 12px;
+}
+.vault-inner-tab {
+  flex: 1; border: none; background: none;
+  padding: 7px 4px; border-radius: var(--r-lg);
+  font-size: 0.78rem; font-weight: 600;
+  color: var(--muted); cursor: pointer;
+  transition: all 0.15s; font-family: var(--font-body);
+}
+.vault-inner-tab.active {
+  background: var(--amber);
+  color: #000;
+  box-shadow: 0 2px 8px rgba(245,158,11,0.3);
+}
+.vault-inner-content { display: none; }
+.vault-inner-content.active { display: block; }
