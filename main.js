@@ -25,12 +25,53 @@ document.addEventListener('DOMContentLoaded', () => {
   consolidateMasterDB();
   updateRoundsPageAccess();
   updateSummaryPageAccess();
-  // Init GitHub admin state (token + club)
-  if (typeof githubAdminInit === "function") githubAdminInit();
-  // Sync GitHub players into local history (silent, background)
-  syncGithubToLocal();
+  // Init Supabase admin state (token + club)
+  if (typeof clubAdminInit === "function") clubAdminInit();
+  // Sync Supabase players into local history (silent, background)
+  syncToLocal();
   // Sync all global players into local cache (for offline import)
   if (typeof syncGlobalPlayersCache === "function") syncGlobalPlayersCache();
+  // Clean up stale live_sessions from previous days
+  if (typeof cleanupLiveSessions === "function") cleanupLiveSessions();
+
+  // ── Profile gate — must select profile before using app ──
+  setTimeout(() => {
+    const player = (typeof getMyPlayer === "function") ? getMyPlayer() : null;
+    if (!player) {
+      if (typeof openProfileDrawer === "function") openProfileDrawer();
+    }
+  }, 800); // slight delay so club join overlay takes priority if needed
+
+  // Auto end session if no round activity for 1 hour
+  const AUTO_END_MS = 60 * 60 * 1000; // 1 hour
+  setInterval(async () => {
+    // Only trigger if there are active rounds with scored games
+    const hasGames = typeof allRounds !== "undefined" &&
+      allRounds.some(r => (r.games || r).some(g => g.winner));
+    if (!hasGames) return;
+
+    // Check last round update time from live_sessions
+    try {
+      const club = (typeof getMyClub === "function") ? getMyClub() : { id: null };
+      if (!club.id) return;
+      const today = new Date().toISOString().split("T")[0];
+      const rows  = await sbGet("live_sessions",
+        `club_id=eq.${club.id}&date=eq.${today}&order=updated_at.desc&limit=1`);
+      if (!rows || !rows.length) return;
+
+      const lastUpdate = new Date(rows[0].updated_at).getTime();
+      if (Date.now() - lastUpdate < AUTO_END_MS) return;
+
+      // 1hr idle — silently end session
+      console.log("Auto-ending session after 1hr idle");
+      if (typeof flushLiveSession === "function") await flushLiveSession();
+      if (typeof dbReleaseMySession === "function") await dbReleaseMySession();
+      localStorage.removeItem("schedulerState");
+      localStorage.removeItem("allRounds");
+      localStorage.removeItem("currentRoundIndex");
+      location.reload();
+    } catch(e) { /* silent */ }
+  }, 5 * 60 * 1000); // check every 5 minutes
 });
 
 window.addEventListener('beforeunload', () => {
@@ -91,14 +132,14 @@ function consolidateMasterDB() {
 /* ============================================================
    RATING — SINGLE DOOR
    
-   Rule: activeRating is computed ONCE at sync time in syncGithubToLocal.
+   Rule: activeRating is computed ONCE at sync time in syncToLocal.
    Everything else reads newImportHistory[].activeRating — mode-blind.
 
    getActiveRating(name)     — only READ path
    setActiveRating(name,val) — only WRITE path (in-memory + localStorage)
    syncRatings()             — refreshes all visible badges
    
-   Mode logic lives ONLY in syncGithubToLocal (read) and dbSyncRatings (write).
+   Mode logic lives ONLY in syncToLocal (read) and dbSyncRatings (write).
    ============================================================ */
 
 function getRatingMode() {
@@ -248,7 +289,9 @@ function showPage(pageID, el) {
     renderRounds();
   }
 
-  if (pageID === "helpPage") {}
+  if (pageID === "helpPage") {
+    if (typeof onHelpTabOpen === "function") onHelpTabOpen();
+  }
 
   // Update last visited page
   lastPage = pageID;
@@ -312,13 +355,12 @@ function initPage() {
    Pulls from Supabase → picks correct field based on mode → 
    writes as activeRating → everything else is mode-blind.
 ============================================================ */
-async function syncGithubToLocal() {
-  const club      = (typeof getMyClub === "function") ? getMyClub() : { id: null };
-  const indicator = document.getElementById("sbSyncStatus");
-  if (indicator) { indicator.textContent = "🔄 Syncing..."; indicator.style.color = "#aaa"; }
+async function syncToLocal() {
+  const club = (typeof getMyClub === "function") ? getMyClub() : { id: null };
+  setSyncIndicator("🔄 Syncing...", "#aaa");
 
   if (!club.id) {
-    if (indicator) { indicator.textContent = "⚠️ No club selected"; indicator.style.color = "#e6a817"; }
+    setSyncIndicator("⚠️ No club selected", "#e6a817");
     return;
   }
 
@@ -328,7 +370,7 @@ async function syncGithubToLocal() {
 
     const players = await dbGetPlayers(true);
     if (!players || !players.length) {
-      if (indicator) { indicator.textContent = "⚠️ No players found"; indicator.style.color = "#e6a817"; }
+      setSyncIndicator("⚠️ No players found", "#e6a817");
       return;
     }
 
@@ -369,17 +411,32 @@ async function syncGithubToLocal() {
 
     syncRatings();
 
-    if (indicator) {
-      const count = synced.length;
-      indicator.textContent = `✅ ${count} player${count !== 1 ? "s" : ""} synced`;
-      indicator.style.color = "#2dce89";
-      setTimeout(() => { if (indicator) indicator.textContent = ""; }, 4000);
-    }
+    const count = synced.length;
+    const msg   = `✅ ${count} player${count !== 1 ? "s" : ""} synced · ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+    localStorage.setItem("kbrr_last_sync", JSON.stringify({ msg, color: "#2dce89" }));
+    setSyncIndicator(msg, "#2dce89");
 
   } catch (e) {
-    console.warn("syncGithubToLocal failed:", e.message);
-    if (indicator) { indicator.textContent = "⚠️ Offline — using cache"; indicator.style.color = "#e6a817"; }
+    console.warn("syncToLocal failed:", e.message);
+    const msg = "⚠️ Offline — using cache";
+    localStorage.setItem("kbrr_last_sync", JSON.stringify({ msg, color: "#e6a817" }));
+    setSyncIndicator(msg, "#e6a817");
   }
+}
+
+function setSyncIndicator(msg, color) {
+  const indicator = document.getElementById("sbSyncStatus");
+  if (indicator) { indicator.textContent = msg; indicator.style.color = color; }
+}
+
+function restoreSyncIndicator() {
+  try {
+    const saved = localStorage.getItem("kbrr_last_sync");
+    if (saved) {
+      const { msg, color } = JSON.parse(saved);
+      setSyncIndicator(msg, color);
+    }
+  } catch(e) {}
 }
 
 
@@ -397,90 +454,10 @@ async function endSession(fromProfile = false) {
 
   if (!confirm(msg)) return;
 
-  // Save session summary if games were played
-  if (gamesPlayed && typeof schedulerState !== "undefined") {
-    try {
-      const today = new Date().toISOString().split("T")[0];
+  // Session data flushed via flushLiveSession() below (written to live_sessions after each round)
 
-      // Build gender lookup for avatar display
-      const genderMap = new Map();
-      (schedulerState.allPlayers || []).forEach(p => genderMap.set(p.name, p.gender || "Male"));
-
-      // Build per-player match history from allRounds
-      // playerMatches: Map<playerName, [{opponents, opponentGenders, result}]>
-      const playerMatches = new Map();
-
-      for (const round of allRounds) {
-        const games = round.games || round;
-        for (const game of games) {
-          if (!game.winner) continue;
-
-          const leftWon  = game.winner === "L";
-          const pair1    = game.pair1 || [];
-          const pair2    = game.pair2 || [];
-
-          // For each player in pair1
-          for (const p of pair1) {
-            if (!playerMatches.has(p)) playerMatches.set(p, []);
-            playerMatches.get(p).push({
-              partner:          pair1.filter(x => x !== p),
-              partnerGenders:   pair1.filter(x => x !== p).map(n => genderMap.get(n) || "Male"),
-              opponents:        pair2,
-              opponentGenders:  pair2.map(n => genderMap.get(n) || "Male"),
-              result:           leftWon ? "W" : "L"
-            });
-          }
-          // For each player in pair2
-          for (const p of pair2) {
-            if (!playerMatches.has(p)) playerMatches.set(p, []);
-            playerMatches.get(p).push({
-              partner:          pair2.filter(x => x !== p),
-              partnerGenders:   pair2.filter(x => x !== p).map(n => genderMap.get(n) || "Male"),
-              opponents:        pair1,
-              opponentGenders:  pair1.map(n => genderMap.get(n) || "Male"),
-              result:           leftWon ? "L" : "W"
-            });
-          }
-        }
-      }
-
-      // Save for every player who played
-      const players = schedulerState.allPlayers || [];
-      for (const p of players) {
-        const matches = playerMatches.get(p.name) || [];
-        if (!matches.length) continue;
-
-        const wins   = matches.filter(m => m.result === "W").length;
-        const losses = matches.filter(m => m.result === "L").length;
-
-        const newEntry = {
-          date:    today,
-          wins,
-          losses,
-          rating:  (typeof getActiveRating === "function" ? getActiveRating(p.name) : getRating(p.name)),
-          matches  // full match details
-        };
-
-        // ── LAYER 1: localStorage ──
-        try {
-          const lsKey    = `kbrr_sessions_${p.name.toLowerCase().replace(/\s+/g, "_")}`;
-          const existing = JSON.parse(localStorage.getItem(lsKey) || "[]");
-          const updated  = [newEntry, ...existing].slice(0, 3);
-          localStorage.setItem(lsKey, JSON.stringify(updated));
-        } catch (e) { /* silent */ }
-
-        // ── LAYER 2: Supabase players.sessions column ──
-        try {
-          const rows = await sbGet("players", `name=ilike.${encodeURIComponent(p.name)}&select=id,sessions`);
-          if (rows && rows.length) {
-            const existing = rows[0].sessions || [];
-            const updated  = [newEntry, ...existing].slice(0, 3);
-            await sbPatch("players", `name=ilike.${encodeURIComponent(p.name)}`, { sessions: updated });
-          }
-        } catch (e) { /* silent */ }
-      }
-    } catch (e) { /* silent */ }
-  }
+  // Flush live_sessions → players.sessions, then delete temp rows
+  if (typeof flushLiveSession === "function") await flushLiveSession();
 
   // Release session slots before reset
   if (typeof dbReleaseMySession === "function") await dbReleaseMySession();

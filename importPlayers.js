@@ -179,6 +179,10 @@ function newImportShowSelectMode(mode) {
   const addSection     = document.getElementById("newImportAddPlayersSection");
   const searchInput    = document.getElementById("newImportSearch");
 
+  // Always hide vault section first — shown only when mode === 'vault'
+  const vaultSection = document.getElementById("newImportVaultSection");
+  if (vaultSection) vaultSection.style.display = "none";
+
   if (mode === "addplayers") {
     listContainer.style.display  = "none";
     addSection.style.display     = "block";
@@ -198,16 +202,13 @@ function newImportShowSelectMode(mode) {
     searchInput.style.display    = "none";
     clearHistory.style.display   = "none";
     clearFavorites.style.display = "none";
-    const vaultSection = document.getElementById("newImportVaultSection");
     if (vaultSection) vaultSection.style.display = "block";
     if (mode === "register") newImportRenderRegister();
-    // Sync vault status strip with current club
     if (typeof vaultSyncStatus === "function") vaultSyncStatus();
+    if (typeof restoreSyncIndicator === "function") restoreSyncIndicator();
+    if (typeof playerPlayingRenderList === "function") playerPlayingRenderList();
     return;
   }
-  // Hide vault section when switching away
-  const vaultSection = document.getElementById("newImportVaultSection");
-  if (vaultSection) vaultSection.style.display = "none";
 
   // Leaving addplayers tab — reset star toggle state
   newImportResetFavToggle();
@@ -317,12 +318,7 @@ function newImportRefreshSelectCards() {
             <div class="newImport-set-player-row${busy ? ' player-busy' : ''}">
               <img src="${p.gender === 'Male' ? 'male.png' : 'female.png'}"
                 class="newImport-set-player-img"
-                data-action="set-gender"
-                data-setname="${safeName}"
-                data-name="${p.displayName.replace(/"/g, '&quot;')}"
-                data-gender="${p.gender}"
-                title="Tap to toggle gender"
-                style="${busy ? 'opacity:0.4' : ''}">
+                style="${busy ? 'opacity:0.4' : ''}; cursor:default">
               <span class="newImport-set-player-name" style="${busy ? 'opacity:0.5' : ''}">${p.displayName}</span>
               ${playerAvailDot(p.displayName)}
               <span class="rating-badge" style="font-size:0.68rem;padding:2px 5px;" data-player="${p.displayName}">${getActiveRating(p.displayName).toFixed(1)}</span>
@@ -385,8 +381,7 @@ function newImportRefreshSelectCards() {
       card.innerHTML = `
         <div class="newImport-player-top">
           <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
-               data-action="${busy ? "" : "gender"}" data-player="${p.displayName}"
-               style="${busy ? "opacity:0.4" : ""}">
+               style="${busy ? "opacity:0.4" : ""}; cursor:default">
           <div class="newImport-player-name" style="${busy ? "opacity:0.5" : ""}">${p.displayName}</div>
           ${statusDot}
         </div>
@@ -601,18 +596,8 @@ function newImportHandleCardClick(e) {
     return;
   }
 
-  // TOGGLE GENDER
-  if (action === "gender") {
-    player.gender = player.gender === "Male" ? "Female" : "Male";
-    [newImportState.historyPlayers, newImportState.favoritePlayers].forEach(list => {
-      const p = list.find(p => p.displayName === player.displayName);
-      if (p) p.gender = player.gender;
-    });
-    localStorage.setItem("newImportHistory",   JSON.stringify(newImportState.historyPlayers));
-    localStorage.setItem("newImportFavorites", JSON.stringify(newImportState.favoritePlayers));
-    newImportRefreshSelectCards();
-    return;
-  }
+  // TOGGLE GENDER — disabled, edits only in Vault Modify
+  if (action === "gender") { return; }
 
   // TOGGLE FAVORITE
   if (action === "favorite") {
@@ -721,8 +706,7 @@ function newImportRefreshSelectedCards() {
     card.innerHTML = `
       <div class="newImport-player-top">
         <img src="${p.gender === "Male" ? "male.png" : "female.png"}"
-             data-action="gender" data-player="${p.displayName}"
-             style="${busy2 ? "opacity:0.4" : ""}">
+             style="${busy2 ? "opacity:0.4" : ""}; cursor:default">
         <div class="newImport-player-name" style="${busy2 ? "opacity:0.5" : ""}">${p.displayName}</div>
         ${playerAvailDot(p.displayName)}
       </div>
@@ -860,7 +844,7 @@ function newImportLoadSetToSelected(setName) {
   set.players.forEach(p => {
     const key = (p.displayName || p.name || "").trim().toLowerCase();
     if (registeredKeys.has(key)) {
-      // Use the registered version (correct name/gender/rating from GitHub)
+      // Use the registered version (correct name/gender/rating from Supabase)
       const reg = registered.find(r => r.displayName.trim().toLowerCase() === key);
       addToListIfNotExists(newImportState.selectedPlayers, reg || p);
     }
@@ -1019,7 +1003,7 @@ function newImportAddPlayers() {
 }
 
 /* =============================================================
-   REGISTER TAB — GitHub DB player registration
+   REGISTER TAB — Supabase DB player registration
    Added: step82
 ============================================================= */
 

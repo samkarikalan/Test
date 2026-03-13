@@ -1,6 +1,6 @@
 /* ============================================================
    SUPABASE SERVICE LAYER
-   Replaces github.js — same public API, Supabase backend
+   Replaces supabase.js — same public API, Supabase backend
    ============================================================ */
 
 const SUPABASE_URL = "https://utdpcqolkslzuqgiqmde.supabase.co";
@@ -64,6 +64,19 @@ async function sbDelete(table, query) {
     headers: SB_HEADERS
   });
   if (!res.ok) throw new Error(`DELETE ${table} failed: ${res.status}`);
+}
+
+async function sbUpsert(table, body, onConflict) {
+  const url = `${SUPABASE_URL}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`;
+  const res = await fetch(url, {
+    method:  "POST",
+    headers: { ...SB_HEADERS, "Prefer": "resolution=merge-duplicates,return=minimal" },
+    body:    JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `UPSERT ${table} failed: ${res.status}`);
+  }
 }
 
 /// ============================================================
@@ -178,7 +191,7 @@ async function dbAddPlayer(name, gender, _unused) {
   // Invalidate cache + refresh immediately
   localStorage.removeItem(CACHE_PLAYERS);
   localStorage.removeItem(CACHE_TIMESTAMP);
-  if (typeof syncGithubToLocal === "function") await syncGithubToLocal();
+  if (typeof syncToLocal === "function") await syncToLocal();
 
   return player;
 }
@@ -332,7 +345,7 @@ async function dbOverrideRating(playerId, newRating) {
   localStorage.removeItem(CACHE_PLAYERS);
   localStorage.removeItem(CACHE_TIMESTAMP);
   // Refresh immediately so all displays show new value
-  if (typeof syncGithubToLocal === "function") await syncGithubToLocal();
+  if (typeof syncToLocal === "function") await syncToLocal();
 }
 
 /// Edit player — requires club admin password
@@ -362,7 +375,7 @@ async function dbDeletePlayer(playerId, clubAdminPassword) {
   await sbDelete("club_members", `player_id=eq.${playerId}&club_id=eq.${club.id}`);
   localStorage.removeItem(CACHE_PLAYERS);
   localStorage.removeItem(CACHE_TIMESTAMP);
-  if (typeof syncGithubToLocal === "function") await syncGithubToLocal();
+  if (typeof syncToLocal === "function") await syncToLocal();
 }
 
 /// ============================================================
@@ -404,7 +417,7 @@ async function dbVerifyClubAccess(clubId, selectPassword) {
 /// SYNC AFTER ROUND
 /// ============================================================
 
-async function githubSyncAfterRound(roundWins, roundLosses) {
+async function syncAfterRound(roundWins, roundLosses) {
   try {
     // STEP 1 — Push: send updated ratings + wins/losses to Supabase
     const playedNames = new Set([...roundWins.keys(), ...roundLosses.keys()]);
@@ -418,13 +431,184 @@ async function githubSyncAfterRound(roundWins, roundLosses) {
       }));
 
     await dbSyncRatings(updatedRatings);
-    // Pull fresh — syncGithubToLocal will also flush any queued items
-    await syncGithubToLocal();
+
+    // STEP 2 — Write live session to Supabase live_sessions table
+    await syncLiveSession(playedNames);
+
+    // Pull fresh — syncToLocal will also flush any queued items
+    await syncToLocal();
 
   } catch (e) {
-    console.error("githubSyncAfterRound error:", e.message);
+    console.error("syncAfterRound error:", e.message);
   }
 }
+
+async function syncSessionAfterRound(playedNames) {
+  // Session data saved on End Session only
+}
+
+/// ============================================================
+/// LIVE SESSIONS
+/// Temporary per-round session data stored in live_sessions table.
+/// Flushed to players.sessions on End Session or after 1hr idle.
+/// Visible to all club members in real time via profile card.
+/// ============================================================
+
+async function syncLiveSession(playedNames) {
+  try {
+    const club = getMyClub();
+    if (!club.id) return;
+
+    const today     = new Date().toISOString().split("T")[0];
+    const players   = schedulerState.allPlayers || [];
+    const genderMap = new Map();
+    players.forEach(p => genderMap.set(p.name, p.gender || "Male"));
+
+    // Build per-player match history from ALL rounds this session
+    const playerMatches = new Map();
+    for (const round of (allRounds || [])) {
+      const games = round.games || round;
+      for (const game of (games || [])) {
+        if (!game.winner) continue;
+        const leftWon = game.winner === "L";
+        const pair1   = game.pair1 || [];
+        const pair2   = game.pair2 || [];
+        for (const p of pair1) {
+          if (!playerMatches.has(p)) playerMatches.set(p, []);
+          playerMatches.get(p).push({
+            partner:         pair1.filter(x => x !== p),
+            partnerGenders:  pair1.filter(x => x !== p).map(n => genderMap.get(n) || "Male"),
+            opponents:       pair2,
+            opponentGenders: pair2.map(n => genderMap.get(n) || "Male"),
+            result:          leftWon ? "W" : "L"
+          });
+        }
+        for (const p of pair2) {
+          if (!playerMatches.has(p)) playerMatches.set(p, []);
+          playerMatches.get(p).push({
+            partner:         pair2.filter(x => x !== p),
+            partnerGenders:  pair2.filter(x => x !== p).map(n => genderMap.get(n) || "Male"),
+            opponents:       pair1,
+            opponentGenders: pair1.map(n => genderMap.get(n) || "Male"),
+            result:          leftWon ? "L" : "W"
+          });
+        }
+      }
+    }
+
+    // started_by — same for all rows, resolve once outside the map
+    const myPlayer  = (typeof getMyPlayer === "function") ? getMyPlayer() : null;
+    const startedBy = myPlayer ? myPlayer.name : null;
+
+    // Upsert all played players in parallel
+    const upserts = players
+      .filter(p => playedNames.has(p.name) && (playerMatches.get(p.name) || []).length)
+      .map(p => {
+        const matches = playerMatches.get(p.name);
+        const wins    = matches.filter(m => m.result === "W").length;
+        const losses  = matches.filter(m => m.result === "L").length;
+
+        const row = {
+          player_name: p.name,
+          club_id:     club.id,
+          date:        today,
+          wins,
+          losses,
+          rating:      getActiveRating(p.name),
+          matches,
+          started_by:  startedBy,
+          updated_at:  new Date().toISOString()
+        };
+        return sbUpsert("live_sessions", row, "player_name,club_id,date").catch(() => {});
+      });
+    await Promise.all(upserts);
+  } catch (e) {
+    console.warn("syncLiveSession error:", e.message);
+  }
+}
+
+// Flush live_sessions → players.sessions for all players in this club, then delete
+async function flushLiveSession() {
+  try {
+    const club = getMyClub();
+    if (!club.id) return;
+
+    const today = new Date().toISOString().split("T")[0];
+    const rows  = await sbGet("live_sessions",
+      `club_id=eq.${club.id}&date=eq.${today}`);
+    if (!rows || !rows.length) return;
+
+    // Write all players in parallel — no sequential awaits
+    const writes = rows.map(async row => {
+      const matches = typeof row.matches === "string"
+        ? JSON.parse(row.matches) : (row.matches || []);
+      if (!matches.length) return;
+
+      // Write to players.sessions — merge with existing today entry if present
+      try {
+        const playerRows = await sbGet("players",
+          `name=ilike.${encodeURIComponent(row.player_name)}&select=id,sessions`);
+        if (playerRows && playerRows.length) {
+          const existing   = playerRows[0].sessions || [];
+          const todayEntry = existing.find(s => s.date === today);
+          const otherDays  = existing.filter(s => s.date !== today);
+
+          // Merge matches — append new ones, avoiding exact duplicates
+          const prevMatches = todayEntry ? (todayEntry.matches || []) : [];
+          const allMatches  = [...prevMatches, ...matches];
+          const mergedWins   = allMatches.filter(m => m.result === "W").length;
+          const mergedLosses = allMatches.filter(m => m.result === "L").length;
+
+          const entry = {
+            date:    row.date,
+            wins:    mergedWins,
+            losses:  mergedLosses,
+            rating:  parseFloat(row.rating) || 1.0,  // latest rating
+            matches: allMatches
+          };
+
+          const updated = [entry, ...otherDays].slice(0, 3);
+          await sbPatch("players",
+            `name=ilike.${encodeURIComponent(row.player_name)}`, { sessions: updated });
+
+          // Mirror to localStorage
+          try {
+            const lsKey = `kbrr_sessions_${row.player_name.toLowerCase().replace(/\s+/g, "_")}`;
+            const lsExisting  = JSON.parse(localStorage.getItem(lsKey) || "[]");
+            const lsOtherDays = lsExisting.filter(s => s.date !== today);
+            localStorage.setItem(lsKey, JSON.stringify([entry, ...lsOtherDays].slice(0, 3)));
+          } catch(e) {}
+        }
+      } catch(e) { /* continue */ }
+    });
+
+    // Wait for all writes with a 10s timeout — never hang End Session
+    await Promise.race([
+      Promise.allSettled(writes),
+      new Promise(resolve => setTimeout(resolve, 10000))
+    ]);
+
+    // Delete live rows regardless of write success
+    await sbDelete("live_sessions", `club_id=eq.${club.id}&date=eq.${today}`);
+
+  } catch (e) {
+    console.warn("flushLiveSession error:", e.message);
+  }
+}
+
+// Delete stale live_sessions rows older than today for this club
+async function cleanupLiveSessions() {
+  try {
+    const club  = getMyClub();
+    if (!club.id) return;
+    const today = new Date().toISOString().split("T")[0];
+    await sbDelete("live_sessions", `club_id=eq.${club.id}&date=lt.${today}`);
+  } catch (e) {
+    console.warn("cleanupLiveSessions error:", e.message);
+  }
+}
+
+
 
 /// ============================================================
 /// GLOBAL PLAYERS CACHE

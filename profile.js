@@ -4,6 +4,8 @@
    ============================================================ */
 
 const PROFILE_KEY = 'kbrr_my_player';
+let _profileSwitching = false; // true while user is mid-switch
+let _previousPlayer   = null;  // saved before switch so cancel can restore
 
 function getMyPlayer() {
   try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) || null; }
@@ -65,11 +67,48 @@ async function profileEndSession() {
 }
 
 /* ── Open drawer ── */
-function openProfileDrawer() {
+async function openProfileDrawer() {
   const overlay = document.getElementById('profileOverlay');
   const drawer  = document.getElementById('profileDrawer');
   overlay.classList.remove('hidden');
   drawer.classList.add('open');
+
+  // Determine if End Session button should be visible:
+  // — Admin: always
+  // — The player who started the rounds (started_by in live_sessions): always
+  // — Anyone else: hidden
+  const endBtn = document.getElementById('profileEndBtn');
+  if (endBtn) {
+    const isAdmin = (typeof isAdminMode === 'function') && isAdminMode();
+    if (isAdmin) {
+      endBtn.style.display = '';
+    } else {
+      // Check live_sessions for today to see who started rounds
+      try {
+        const club  = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+        const today = new Date().toISOString().split('T')[0];
+        const myPlayer = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
+        let canEnd = false;
+
+        if (club.id && myPlayer) {
+          const rows = await sbGet('live_sessions',
+            `club_id=eq.${club.id}&date=eq.${today}&order=updated_at.desc&limit=1`);
+          if (rows && rows.length) {
+            const startedBy = rows[0].started_by;
+            // Allow if: name matches started_by, OR started_by not set, OR has local active rounds
+            const nameMatch  = startedBy &&
+              startedBy.trim().toLowerCase() === myPlayer.name.trim().toLowerCase();
+            const hasRounds  = typeof allRounds !== 'undefined' &&
+              allRounds.some(r => (r.games || r).some(g => g.winner));
+            canEnd = nameMatch || hasRounds;
+          }
+        }
+        endBtn.style.display = canEnd ? '' : 'none';
+      } catch(e) {
+        endBtn.style.display = 'none';
+      }
+    }
+  }
 
   const player = getMyPlayer();
   if (player) {
@@ -81,6 +120,19 @@ function openProfileDrawer() {
 
 /* ── Close drawer ── */
 function closeProfileDrawer() {
+  const player = getMyPlayer();
+  if (!player) {
+    if (_profileSwitching && _previousPlayer) {
+      // Cancel switch — restore previous player and close
+      _profileSwitching = false;
+      setMyPlayer(_previousPlayer);
+      updateProfileBtn();
+      _previousPlayer = null;
+    } else {
+      // No profile at all — block closing
+      return;
+    }
+  }
   document.getElementById('profileOverlay').classList.add('hidden');
   document.getElementById('profileDrawer').classList.remove('open');
 }
@@ -89,8 +141,10 @@ function closeProfileDrawer() {
 let _pickerAllPlayers = []; // cache for search filtering
 
 function showProfilePicker() {
-  document.getElementById('profilePicker').style.display = 'block';
-  document.getElementById('profileCard').style.display   = 'none';
+  document.getElementById('profilePicker').style.display    = 'block';
+  document.getElementById('profileCard').style.display      = 'none';
+  document.getElementById('pickerListView').style.display   = 'block';
+  document.getElementById('pinScreenView').style.display    = 'none';
 
   const list = document.getElementById('profilePickerList');
   list.innerHTML = '<div class="profile-sessions-loading">Loading players...</div>';
@@ -100,12 +154,14 @@ function showProfilePicker() {
   if (searchEl) searchEl.value = '';
 
   // Load ALL players from server (no club filter)
-  sbGet('players', 'order=name.asc&select=id,name,gender,rating,club_ratings').then(players => {
+  sbGet('players', 'order=name.asc&select=id,name,gender,rating,club_ratings,pin,recovery_word').then(players => {
     _pickerAllPlayers = (players || []).map(p => ({
-      name:        p.name,
-      gender:      p.gender || 'Male',
-      rating:      p.rating || 1.0,
-      club_ratings: p.club_ratings || {}
+      name:          p.name,
+      gender:        p.gender || 'Male',
+      rating:        p.rating || 1.0,
+      club_ratings:  p.club_ratings || {},
+      pin:           p.pin || null,
+      recovery_word: p.recovery_word || null
     }));
     renderPickerList(_pickerAllPlayers);
   }).catch(() => {
@@ -133,11 +189,7 @@ function renderPickerList(players) {
       <img src="${p.gender === 'Female' ? 'female.png' : 'male.png'}" class="profile-picker-avatar">
       <span>${p.name}</span>
     `;
-    btn.onclick = () => {
-      setMyPlayer({ name: p.name, gender: p.gender || 'Male' });
-      updateProfileBtn();
-      showProfileCard({ name: p.name, gender: p.gender || 'Male' });
-    };
+    btn.onclick = () => profileSelectPlayer(p);
     list.appendChild(btn);
   });
 }
@@ -150,8 +202,157 @@ function filterPickerList(query) {
   renderPickerList(filtered);
 }
 
+/* ── PIN FLOW ── */
+
+// Entry point when player name tapped
+function profileSelectPlayer(p) {
+  if (!p.pin) {
+    // No PIN yet — show setup screen
+    showPinSetup(p);
+  } else {
+    // PIN exists — show login screen
+    showPinLogin(p);
+  }
+}
+
+// Render a PIN screen inside the picker area
+function _showPinScreen(html) {
+  document.getElementById('pickerListView').style.display  = 'none';
+  const pinView = document.getElementById('pinScreenView');
+  pinView.style.display = 'block';
+  pinView.innerHTML = `
+    <div class="profile-drawer-header">
+      <span class="profile-drawer-title">Who are you?</span>
+      <button class="profile-drawer-close" onclick="showProfilePicker()">✕</button>
+    </div>
+    <div class="pin-screen">${html}</div>`;
+}
+
+// ── Setup: first time — set PIN + recovery word ──
+function showPinSetup(p) {
+  _showPinScreen(`
+    <div class="pin-name">${p.name}</div>
+    <p class="pin-hint">First time? Set a 4-digit PIN and a recovery word.</p>
+    <input id="pinSetupPin" type="password" inputmode="numeric" maxlength="4"
+      class="pin-input" placeholder="Set PIN (4 digits)">
+    <input id="pinSetupConfirm" type="password" inputmode="numeric" maxlength="4"
+      class="pin-input" placeholder="Confirm PIN">
+    <input id="pinSetupRecovery" type="text" class="pin-input"
+      placeholder="Recovery word (secret)">
+    <div id="pinSetupError" class="pin-error"></div>
+    <button class="pin-btn" onclick="confirmPinSetup('${p.name.replace(/'/g,"\\'")}')">Save & Continue</button>
+  `);
+}
+
+async function confirmPinSetup(name) {
+  const pin     = document.getElementById('pinSetupPin').value.trim();
+  const confirm = document.getElementById('pinSetupConfirm').value.trim();
+  const recovery = document.getElementById('pinSetupRecovery').value.trim().toLowerCase();
+  const err     = document.getElementById('pinSetupError');
+
+  if (!/^\d{4}$/.test(pin))       { err.textContent = 'PIN must be exactly 4 digits.'; return; }
+  if (pin !== confirm)             { err.textContent = 'PINs do not match.'; return; }
+  if (recovery.length < 3)        { err.textContent = 'Recovery word too short.'; return; }
+
+  err.textContent = '⏳ Saving...';
+  try {
+    await sbPatch('players', `name=ilike.${encodeURIComponent(name)}`, {
+      pin, recovery_word: recovery
+    });
+    const p = _pickerAllPlayers.find(x => x.name === name);
+    if (p) { p.pin = pin; p.recovery_word = recovery; }
+    err.textContent = '';
+    _completeProfileSelection(name);
+  } catch(e) {
+    err.textContent = 'Failed to save. Try again.';
+  }
+}
+
+// ── Login: enter PIN ──
+function showPinLogin(p) {
+  _showPinScreen(`
+    <div class="pin-name">${p.name}</div>
+    <p class="pin-hint">Enter your PIN to continue.</p>
+    <input id="pinLoginPin" type="password" inputmode="numeric" maxlength="4"
+      class="pin-input" placeholder="Enter PIN">
+    <div id="pinLoginError" class="pin-error"></div>
+    <button class="pin-btn" onclick="confirmPinLogin('${p.name.replace(/'/g,"\\'")}')">Continue</button>
+    <button class="pin-btn-secondary" onclick="showPinRecovery('${p.name.replace(/'/g,"\\'")}')">Forgot PIN?</button>
+  `);
+  // Allow Enter key
+  setTimeout(() => {
+    const el = document.getElementById('pinLoginPin');
+    if (el) el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') confirmPinLogin(p.name);
+    });
+  }, 50);
+}
+
+function confirmPinLogin(name) {
+  const entered = document.getElementById('pinLoginPin').value.trim();
+  const err     = document.getElementById('pinLoginError');
+  const p       = _pickerAllPlayers.find(x => x.name === name);
+  if (!p) { err.textContent = 'Player not found.'; return; }
+  if (entered !== p.pin) { err.textContent = '❌ Wrong PIN. Try again.'; return; }
+  _completeProfileSelection(name);
+}
+
+// ── Recovery: enter recovery word → reset PIN ──
+function showPinRecovery(name) {
+  _showPinScreen(`
+    <div class="pin-name">${name}</div>
+    <p class="pin-hint">Enter your recovery word to reset your PIN.</p>
+    <input id="pinRecoveryWord" type="text" class="pin-input" placeholder="Recovery word">
+    <input id="pinRecoveryNew" type="password" inputmode="numeric" maxlength="4"
+      class="pin-input" placeholder="New PIN (4 digits)">
+    <input id="pinRecoveryConfirm" type="password" inputmode="numeric" maxlength="4"
+      class="pin-input" placeholder="Confirm new PIN">
+    <div id="pinRecoveryError" class="pin-error"></div>
+    <button class="pin-btn" onclick="confirmPinRecovery('${name.replace(/'/g,"\\'")}')">Reset PIN</button>
+    <button class="pin-btn-secondary" onclick="showProfilePicker()">Back</button>
+  `);
+}
+
+async function confirmPinRecovery(name) {
+  const word    = document.getElementById('pinRecoveryWord').value.trim().toLowerCase();
+  const newPin  = document.getElementById('pinRecoveryNew').value.trim();
+  const confirm = document.getElementById('pinRecoveryConfirm').value.trim();
+  const err     = document.getElementById('pinRecoveryError');
+  const p       = _pickerAllPlayers.find(x => x.name === name);
+
+  if (!p) { err.textContent = 'Player not found.'; return; }
+  if (word !== (p.recovery_word || '').toLowerCase()) {
+    err.textContent = '❌ Wrong recovery word.'; return;
+  }
+  if (!/^\d{4}$/.test(newPin))    { err.textContent = 'PIN must be 4 digits.'; return; }
+  if (newPin !== confirm)          { err.textContent = 'PINs do not match.'; return; }
+
+  err.textContent = '⏳ Saving...';
+  try {
+    await sbPatch('players', `name=ilike.${encodeURIComponent(name)}`, { pin: newPin });
+    p.pin = newPin;
+    err.textContent = '';
+    _completeProfileSelection(name);
+  } catch(e) {
+    err.textContent = 'Failed to save. Try again.';
+  }
+}
+
+// ── Final step: set profile and open card ──
+function _completeProfileSelection(name) {
+  _profileSwitching = false;
+  _previousPlayer   = null;
+  const p = _pickerAllPlayers.find(x => x.name === name);
+  const player = { name, gender: (p && p.gender) || 'Male' };
+  setMyPlayer(player);
+  updateProfileBtn();
+  showProfileCard(player);
+}
+
 /* ── Switch player ── */
 function switchProfilePlayer() {
+  _previousPlayer   = getMyPlayer(); // save so cancel can restore
+  _profileSwitching = true;
   clearMyPlayer();
   updateProfileBtn();
   showProfilePicker();
@@ -187,7 +388,7 @@ async function showProfileCard(player) {
   document.getElementById('pcName').textContent = player.name;
 
   // Single gate — sync first, then read both raw values from cache
-  await syncGithubToLocal();
+  await syncToLocal();
   const master       = JSON.parse(localStorage.getItem('newImportHistory') || '[]');
   const hp           = master.find(h => h.displayName.trim().toLowerCase() === player.name.trim().toLowerCase());
   const globalRating = parseFloat(hp && hp.rating)      || 1.0;  // players.rating — only updated in global mode
@@ -207,32 +408,46 @@ async function showProfileCard(player) {
   document.getElementById('pcSessions').innerHTML  =
     '<div class="profile-sessions-loading">Loading...</div>';
 
-  // Fetch from Supabase players.sessions column + merge with localStorage
+  // Fetch players.sessions + live_sessions in parallel
   try {
-    const rows = await sbGet('players',
-      `name=ilike.${encodeURIComponent(player.name)}&select=wins,losses,sessions`);
+    const club  = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+    const today = new Date().toISOString().split('T')[0];
 
-    const lsKey       = `kbrr_sessions_${player.name.toLowerCase().replace(/\s+/g, '_')}`;
+    const [playerRows, liveRows] = await Promise.all([
+      sbGet('players', `name=ilike.${encodeURIComponent(player.name)}&select=wins,losses,sessions`),
+      club.id
+        ? sbGet('live_sessions',
+            `player_name=ilike.${encodeURIComponent(player.name)}&club_id=eq.${club.id}&date=eq.${today}`)
+        : Promise.resolve([])
+    ]);
+
+    const lsKey         = `kbrr_sessions_${player.name.toLowerCase().replace(/\s+/g, '_')}`;
     const localSessions = JSON.parse(localStorage.getItem(lsKey) || '[]');
 
-    if (rows && rows.length) {
-      const data           = rows[0];
+    // Live session row from DB (visible from any device)
+    const liveRow     = liveRows && liveRows.length ? liveRows[0] : null;
+    const liveMatches = liveRow
+      ? (typeof liveRow.matches === 'string' ? JSON.parse(liveRow.matches) : (liveRow.matches || []))
+      : null;
+
+    if (playerRows && playerRows.length) {
+      const data           = playerRows[0];
       const remoteSessions = data.sessions || [];
       const merged         = mergeSessions(localSessions, remoteSessions);
       document.getElementById('pcWins').textContent   = (data.wins   || 0);
       document.getElementById('pcLosses').textContent = (data.losses || 0);
-      renderSessions(merged, player.name);
+      renderSessions(merged, player.name, liveMatches);
     } else {
       document.getElementById('pcWins').textContent   = '—';
       document.getElementById('pcLosses').textContent = '—';
-      renderSessions(localSessions, player.name);
+      renderSessions(localSessions, player.name, liveMatches);
     }
   } catch (e) {
     const lsKey         = `kbrr_sessions_${player.name.toLowerCase().replace(/\s+/g, '_')}`;
     const localSessions = JSON.parse(localStorage.getItem(lsKey) || '[]');
     document.getElementById('pcWins').textContent   = '—';
     document.getElementById('pcLosses').textContent = '—';
-    renderSessions(localSessions, player.name);
+    renderSessions(localSessions, player.name, null);
   }
 }
 
@@ -277,13 +492,13 @@ function renderMatchRow(m, playerName) {
 }
 
 /* ── Render sessions with PDF-style match history ── */
-function renderSessions(sessions, playerName) {
+function renderSessions(sessions, playerName, liveMatches) {
   const container = document.getElementById('pcSessions');
   container.innerHTML = '';
 
-  // ── Live current session from allRounds ──
-  let liveMatches = [];
-  if (typeof allRounds !== 'undefined' && allRounds.length) {
+  // liveMatches comes from live_sessions DB (any device) or allRounds (local fallback)
+  if (!liveMatches && typeof allRounds !== 'undefined' && allRounds.length) {
+    liveMatches = [];
     for (const round of allRounds) {
       const games = round.games || round;
       for (const game of games) {
@@ -308,7 +523,7 @@ function renderSessions(sessions, playerName) {
     }
   }
 
-  const hasLive = liveMatches.length > 0;
+  const hasLive = Array.isArray(liveMatches) && liveMatches.length > 0;
   const hasPast = sessions.length > 0;
 
   if (!hasLive && !hasPast) {
