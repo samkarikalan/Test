@@ -1431,6 +1431,7 @@ function renderGames(data, roundIndex) {
       }
 
       const toggleWinner = (e) => {
+        if (typeof appMode !== 'undefined' && appMode === 'viewer') return;
         if (currentState === "idle") return;
         e.stopPropagation();
         e.preventDefault();
@@ -1590,6 +1591,7 @@ function goodrenderGames(data, roundIndex) {
 
       // 🏆 Winner toggle logic (minimal, correct)
       const toggleWinner = (e) => {
+        if (typeof appMode !== 'undefined' && appMode === 'viewer') return;
         if (currentState === "idle") return;
         e.stopPropagation();
         e.preventDefault();
@@ -2472,6 +2474,7 @@ document.body.classList.add('locked');
 const lockBtn = document.getElementById('lockToggleBtn');
 
 lockBtn.addEventListener('click', () => {
+  if (typeof appMode !== 'undefined' && appMode === 'viewer') return;
   interactionLocked = !interactionLocked;
 
   // Toggle body class

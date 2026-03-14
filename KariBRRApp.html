@@ -28,6 +28,35 @@
 <body>
 
   <!-- ============================= -->
+  <!--       MODE SELECT OVERLAY     -->
+  <!-- ============================= -->
+  <div id="modeSelectOverlay" class="mode-select-overlay">
+    <div class="mode-select-card">
+      <div class="mode-select-logo">🏸</div>
+      <div class="mode-select-title">CLUB Scheduler</div>
+      <div class="mode-select-subtitle">How are you joining today?</div>
+      <div class="mode-select-options">
+        <button class="mode-select-btn viewer" onclick="selectMode('viewer')">
+          <span class="mode-select-btn-icon">👁</span>
+          <div class="mode-select-btn-info">
+            <div class="mode-select-btn-name">Viewer</div>
+            <div class="mode-select-btn-desc">Watch live rounds &amp; scores</div>
+          </div>
+          <span class="mode-select-btn-arrow">›</span>
+        </button>
+        <button class="mode-select-btn organiser" onclick="selectMode('organiser')">
+          <span class="mode-select-btn-icon">⚙️</span>
+          <div class="mode-select-btn-info">
+            <div class="mode-select-btn-name">Organiser</div>
+            <div class="mode-select-btn-desc">Run session, score games, manage players</div>
+          </div>
+          <span class="mode-select-btn-arrow">›</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================= -->
   <!--        CLUB JOIN OVERLAY      -->
   <!-- ============================= -->
   <div id="clubJoinOverlay" class="club-join-overlay" style="display:none">
@@ -69,6 +98,11 @@
       </div>
     </div>
     <span class="app-logo-premium">CLUB Scheduler</span>
+    <button class="mode-badge-btn" id="modeBadgeBtn" onclick="openModeSwitcher()" title="Switch mode">
+      <span class="mode-badge-dot" id="modeBadgeDot"></span>
+      <span class="mode-badge-label" id="modeBadgeLabel">Viewer</span>
+      <span class="mode-badge-chevron">▾</span>
+    </button>
     <button class="profile-btn" id="profileBtn" onclick="openProfileDrawer()" aria-label="Profile" title="My Profile">
       <img id="profileBtnAvatar" src="male.png" class="profile-btn-avatar" style="display:none;">
       <span id="profileBtnIcon" class="profile-btn-icon">👤</span>

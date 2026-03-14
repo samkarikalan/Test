@@ -1829,3 +1829,183 @@ body.app-dark .newImport-player-card.player-added {
   outline: none;
 }
 .vault-rating-input:focus { border-color: var(--accent); }
+
+/* ══════════════════════════════════════════════
+   MODE SELECT OVERLAY
+══════════════════════════════════════════════ */
+.mode-select-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.25s ease;
+}
+.mode-select-card {
+  width: 100%; max-width: 340px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px;
+}
+.mode-select-logo {
+  font-size: 3rem; line-height: 1;
+  margin-bottom: 4px;
+}
+.mode-select-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem; font-weight: 700;
+  color: var(--text); letter-spacing: -0.02em;
+}
+.mode-select-subtitle {
+  font-size: 0.88rem; color: var(--text-dim);
+  margin-bottom: 12px;
+}
+.mode-select-options {
+  width: 100%; display: flex; flex-direction: column; gap: 12px;
+}
+.mode-select-btn {
+  width: 100%; display: flex; align-items: center; gap: 14px;
+  padding: 18px 16px;
+  border-radius: 18px;
+  border: 1.5px solid var(--border2);
+  background: var(--surface);
+  cursor: pointer; text-align: left;
+  transition: all 0.18s;
+  position: relative; overflow: hidden;
+}
+.mode-select-btn::before {
+  content: ''; position: absolute;
+  inset: 0; opacity: 0;
+  transition: opacity 0.18s;
+}
+.mode-select-btn.viewer::before  { background: rgba(96,165,250,0.06); }
+.mode-select-btn.organiser::before { background: rgba(108,99,255,0.06); }
+.mode-select-btn:active::before  { opacity: 1; }
+.mode-select-btn:active { transform: scale(0.98); }
+
+.mode-select-btn.viewer   { border-color: rgba(96,165,250,0.25); }
+.mode-select-btn.organiser { border-color: rgba(108,99,255,0.25); }
+
+.mode-select-btn-icon {
+  font-size: 1.8rem; flex-shrink: 0;
+  width: 48px; height: 48px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.mode-select-btn.viewer   .mode-select-btn-icon { background: rgba(96,165,250,0.12); }
+.mode-select-btn.organiser .mode-select-btn-icon { background: rgba(108,99,255,0.12); }
+
+.mode-select-btn-info { flex: 1; }
+.mode-select-btn-name {
+  font-family: var(--font-display);
+  font-size: 1rem; font-weight: 700;
+  color: var(--text); margin-bottom: 3px;
+}
+.mode-select-btn.viewer   .mode-select-btn-name { color: #60a5fa; }
+.mode-select-btn.organiser .mode-select-btn-name { color: var(--accent); }
+.mode-select-btn-desc {
+  font-size: 0.78rem; color: var(--text-dim); line-height: 1.4;
+}
+.mode-select-btn-arrow {
+  font-size: 1.4rem; color: var(--text-dim); flex-shrink: 0;
+}
+
+/* Mode badge in top bar */
+.mode-badge-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 20px; border: 1.5px solid;
+  background: transparent; cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.68rem; font-weight: 700;
+  transition: all 0.18s;
+  margin: 0 auto;
+  position: absolute; left: 50%; transform: translateX(-50%);
+}
+.mode-badge-btn.viewer-mode   { border-color: rgba(96,165,250,0.35); color: #60a5fa; }
+.mode-badge-btn.organiser-mode { border-color: rgba(108,99,255,0.35); color: var(--accent); }
+.mode-badge-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.mode-badge-chevron { font-size: 0.55rem; opacity: 0.7; }
+
+/* Mode switch bottom sheet */
+.mode-switch-sheet {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 9998;
+  background: var(--surface);
+  border-top: 1px solid var(--border2);
+  border-radius: 22px 22px 0 0;
+  padding: 8px 16px 32px;
+  box-shadow: 0 -8px 40px rgba(0,0,0,0.4);
+  animation: slideUp 0.22s cubic-bezier(.4,0,.2,1);
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: none; } }
+.mode-sheet-handle {
+  width: 36px; height: 4px;
+  background: var(--border2); border-radius: 2px;
+  margin: 4px auto 16px;
+}
+.mode-sheet-title {
+  font-family: var(--font-display);
+  font-size: 0.72rem; font-weight: 700;
+  color: var(--text-dim); text-transform: uppercase;
+  letter-spacing: 0.08em; margin-bottom: 12px;
+}
+.mode-sheet-options { display: flex; flex-direction: column; gap: 10px; }
+.mode-sheet-btn {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; border-radius: 14px;
+  border: 1.5px solid var(--border2);
+  background: var(--surface2); cursor: pointer;
+  transition: all 0.15s; text-align: left;
+}
+.mode-sheet-btn.active-viewer    { border-color: rgba(96,165,250,0.35);  background: rgba(96,165,250,0.08); }
+.mode-sheet-btn.active-organiser { border-color: rgba(108,99,255,0.35); background: var(--accent-dim); }
+.mode-sheet-icon {
+  font-size: 1.4rem; width: 40px; height: 40px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mode-sheet-btn.viewer   .mode-sheet-icon { background: rgba(96,165,250,0.12); }
+.mode-sheet-btn.organiser .mode-sheet-icon { background: rgba(108,99,255,0.12); }
+.mode-sheet-info { flex: 1; }
+.mode-sheet-name {
+  font-family: var(--font-display);
+  font-size: 0.9rem; font-weight: 700; margin-bottom: 2px;
+}
+.mode-sheet-btn.active-viewer    .mode-sheet-name { color: #60a5fa; }
+.mode-sheet-btn.active-organiser .mode-sheet-name { color: var(--accent); }
+.mode-sheet-desc { font-size: 0.72rem; color: var(--text-dim); }
+.mode-sheet-check { font-size: 1.1rem; flex-shrink: 0; }
+.mode-sheet-overlay {
+  position: fixed; inset: 0; z-index: 9997;
+  background: rgba(0,0,0,0.5);
+}
+
+/* ══════════════════════════════════════════════
+   VIEWER MODE — block all scoring interactions
+══════════════════════════════════════════════ */
+body.viewer-mode .team[data-team-side],
+body.viewer-mode .win-cup,
+body.viewer-mode .swap-icon,
+body.viewer-mode .Lplayer-btn,
+body.viewer-mode .Rplayer-btn {
+  pointer-events: none !important;
+}
+body.viewer-mode .win-cup {
+  opacity: 0.3 !important;
+}
+body.viewer-mode .swap-icon {
+  opacity: 0 !important;
+}
+/* Read-only banner on rounds page in viewer mode */
+body.viewer-mode #roundsPage::before {
+  content: '👁  View only — switch to Organiser to score';
+  display: block;
+  margin: 10px 12px 0;
+  padding: 8px 14px;
+  background: rgba(245,166,35,0.08);
+  border: 1px solid rgba(245,166,35,0.2);
+  border-radius: 10px;
+  font-size: 0.74rem;
+  color: #f5a623;
+  text-align: center;
+}

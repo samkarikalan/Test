@@ -1,3 +1,160 @@
+/* ══════════════════════════════════════════════
+   MODE SYSTEM — Viewer / Organiser
+   Stored in sessionStorage (resets on app close)
+══════════════════════════════════════════════ */
+
+var appMode = null; // 'viewer' | 'organiser'
+
+function selectMode(mode) {
+  appMode = mode;
+  sessionStorage.setItem('appMode', mode);
+  // Hide overlay
+  const overlay = document.getElementById('modeSelectOverlay');
+  if (overlay) overlay.style.display = 'none';
+  // Show badge
+  const badgeEl = document.getElementById('modeBadgeBtn');
+  if (badgeEl) badgeEl.style.display = '';
+  // Apply mode
+  applyMode(mode);
+  // Now check profile
+  const player = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
+  if (!player) {
+    if (typeof openProfileDrawer === 'function') openProfileDrawer();
+  }
+}
+
+function applyMode(mode) {
+  appMode = mode;
+  // Update badge
+  const badge = document.getElementById('modeBadgeBtn');
+  const label = document.getElementById('modeBadgeLabel');
+  if (badge) {
+    badge.className = 'mode-badge-btn ' + (mode === 'viewer' ? 'viewer-mode' : 'organiser-mode');
+  }
+  if (label) label.textContent = mode === 'viewer' ? 'Viewer' : 'Organiser';
+
+  // Show/hide Players tab
+  const tabs = document.querySelectorAll('.tab-btn');
+  tabs.forEach(btn => {
+    const label = btn.querySelector('.tab-label');
+    if (!label) return;
+    const txt = (label.dataset.i18n || label.textContent || '').toLowerCase();
+    if (txt === 'players') {
+      btn.style.display = mode === 'viewer' ? 'none' : '';
+    }
+  });
+
+  // If viewer is on Players page, redirect to Rounds
+  if (mode === 'viewer') {
+    const playersPage = document.getElementById('playersPage');
+    if (playersPage && playersPage.style.display !== 'none') {
+      const roundsBtn = [...document.querySelectorAll('.tab-btn')].find(b => {
+        const l = b.querySelector('.tab-label');
+        return l && (l.dataset.i18n || l.textContent || '').toLowerCase() === 'rounds';
+      });
+      showPage('roundsPage', roundsBtn || null);
+    }
+    // Disable scoring buttons
+    setViewerMode(true);
+  } else {
+    setViewerMode(false);
+  }
+}
+
+function setViewerMode(isViewer) {
+  // Use body class — all viewer restrictions handled via CSS + JS checks
+  if (isViewer) {
+    document.body.classList.add('viewer-mode');
+  } else {
+    document.body.classList.remove('viewer-mode');
+  }
+
+  // Lock/Unlock toggle button
+  const lockBtn = document.getElementById('lockToggleBtn');
+  if (lockBtn) {
+    lockBtn.style.pointerEvents = isViewer ? 'none' : '';
+    lockBtn.style.opacity       = isViewer ? '0.35' : '';
+  }
+
+  // New round / control buttons in rounds page
+  ['#addRoundBtn', '#removeRoundBtn', '#minRoundsPlus', '#minRoundsMinus'].forEach(sel => {
+    const el = document.querySelector(sel);
+    if (el) { el.style.pointerEvents = isViewer ? 'none' : ''; el.style.opacity = isViewer ? '0.35' : ''; }
+  });
+
+  // Import/Add buttons — hide entirely in viewer
+  ['#openImportBtn', '.open-import-btn', '#addPlayersTypeBtn', '#addPlayersBrowseBtn'].forEach(sel => {
+    document.querySelectorAll(sel).forEach(el => {
+      el.style.display = isViewer ? 'none' : '';
+    });
+  });
+}
+
+function openModeSwitcher() {
+  // Remove existing sheet if any
+  const existing = document.getElementById('modeSheetOverlay');
+  if (existing) { existing.remove(); return; }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'mode-sheet-overlay';
+  overlay.id = 'modeSheetOverlay';
+  overlay.onclick = () => overlay.remove();
+
+  const sheet = document.createElement('div');
+  sheet.className = 'mode-switch-sheet';
+  const isViewer = appMode === 'viewer';
+  sheet.innerHTML = `
+    <div class="mode-sheet-handle"></div>
+    <div class="mode-sheet-title">Switch Mode</div>
+    <div class="mode-sheet-options">
+      <button class="mode-sheet-btn viewer ${isViewer ? 'active-viewer' : ''}"
+              onclick="switchMode('viewer')">
+        <div class="mode-sheet-icon">👁</div>
+        <div class="mode-sheet-info">
+          <div class="mode-sheet-name">Viewer</div>
+          <div class="mode-sheet-desc">Watch live rounds &amp; scores</div>
+        </div>
+        ${isViewer ? '<span class="mode-sheet-check">✅</span>' : ''}
+      </button>
+      <button class="mode-sheet-btn organiser ${!isViewer ? 'active-organiser' : ''}"
+              onclick="switchMode('organiser')">
+        <div class="mode-sheet-icon">⚙️</div>
+        <div class="mode-sheet-info">
+          <div class="mode-sheet-name">Organiser</div>
+          <div class="mode-sheet-desc">Run session, score games, manage players</div>
+        </div>
+        ${!isViewer ? '<span class="mode-sheet-check">✅</span>' : ''}
+      </button>
+    </div>
+  `;
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+  // Prevent sheet clicks from closing overlay
+  sheet.onclick = e => e.stopPropagation();
+}
+
+function switchMode(mode) {
+  const overlay = document.getElementById('modeSheetOverlay');
+  if (overlay) overlay.remove();
+  applyMode(mode);
+  sessionStorage.setItem('appMode', mode);
+}
+
+function initModeOnLoad() {
+  const overlay = document.getElementById('modeSelectOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  // Hide badge and Players tab until mode is selected
+  const badge = document.getElementById('modeBadgeBtn');
+  if (badge) badge.style.display = 'none';
+  // Hide Players tab until mode known
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    const lbl = btn.querySelector('.tab-label');
+    if (lbl && (lbl.dataset.i18n || lbl.textContent || '').toLowerCase() === 'players') {
+      btn.style.display = 'none';
+    }
+  });
+}
+
 /* ============================================================
    MAIN — Navigation, tab access, scheduler init, round progression
    File: main.js
@@ -21,6 +178,9 @@ function isPageVisible(pageId) {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Show mode select overlay first
+  initModeOnLoad();
+
   // schedulerState starts empty — user imports players fresh each session
   consolidateMasterDB();
   updateRoundsPageAccess();
@@ -34,13 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Clean up stale live_sessions from previous days
   if (typeof cleanupLiveSessions === "function") cleanupLiveSessions();
 
-  // ── Profile gate — must select profile before using app ──
-  setTimeout(() => {
-    const player = (typeof getMyPlayer === "function") ? getMyPlayer() : null;
-    if (!player) {
-      if (typeof openProfileDrawer === "function") openProfileDrawer();
-    }
-  }, 800); // slight delay so club join overlay takes priority if needed
+  // ── Profile gate handled by selectMode() after mode is chosen ──
 
   // Auto end session if no round activity for 1 hour
   const AUTO_END_MS = 60 * 60 * 1000; // 1 hour
