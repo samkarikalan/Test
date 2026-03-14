@@ -2135,19 +2135,25 @@ body.viewer-mode #roundsPage::before {
 .mode-switch-card-btn.organiser.active { background: var(--accent-dim); border-color: rgba(108,99,255,0.35); color: var(--accent); }
 .mode-switch-card-btn:active { opacity: 0.7; }
 
-/* ── Tab label sizing for scrollable tabs ── */
+/* ── Tab label — fixed size, never changes with font setting ── */
 .tab-label {
-  font-size: 10px;
+  font-size: 10px !important;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
 }
+.tab-icon {
+  font-size: 20px !important;
+}
+.tab-btn {
+  font-size: 10px !important;
+}
 
-/* Organiser scrollable tab buttons */
+/* Organiser scrollable tab buttons — exactly 3 visible */
 body.organiser-tabs .tab-btn {
-  flex: 0 0 auto;
-  width: calc(33vw - 4px);
-  min-width: 80px;
-  max-width: 110px;
+  flex: 0 0 33.333vw;
+  width: 33.333vw;
+  min-width: 33.333vw;
+  max-width: 33.333vw;
   scroll-snap-align: start;
 }
