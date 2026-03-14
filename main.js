@@ -25,36 +25,43 @@ function selectMode(mode) {
 
 function applyMode(mode) {
   appMode = mode;
+
   // Update badge
   const badge = document.getElementById('modeBadgeBtn');
-  const label = document.getElementById('modeBadgeLabel');
-  if (badge) {
-    badge.className = 'mode-badge-btn ' + (mode === 'viewer' ? 'viewer-mode' : 'organiser-mode');
-  }
-  if (label) label.textContent = mode === 'viewer' ? 'Viewer' : 'Organiser';
+  const badgeLabel = document.getElementById('modeBadgeLabel');
+  if (badge) badge.className = 'mode-badge-btn ' + (mode === 'viewer' ? 'viewer-mode' : 'organiser-mode');
+  if (badgeLabel) badgeLabel.textContent = mode === 'viewer' ? 'Viewer' : 'Organiser';
 
-  // Show/hide Players tab
-  const tabs = document.querySelectorAll('.tab-btn');
-  tabs.forEach(btn => {
-    const label = btn.querySelector('.tab-label');
-    if (!label) return;
-    const txt = (label.dataset.i18n || label.textContent || '').toLowerCase();
-    if (txt === 'players') {
-      btn.style.display = mode === 'viewer' ? 'none' : '';
-    }
+  // Update Settings mode switch card
+  const cardViewer    = document.getElementById('modeCardViewer');
+  const cardOrganiser = document.getElementById('modeCardOrganiser');
+  if (cardViewer)    cardViewer.classList.toggle('active',    mode === 'viewer');
+  if (cardOrganiser) cardOrganiser.classList.toggle('active', mode === 'organiser');
+
+  // Tab visibility rules
+  // Viewer:    Settings · Dashboard · Help
+  // Organiser: Settings · Players · Rounds · Summary · Dashboard · Help
+  const tabRules = {
+    tabBtnPlayers:   { viewer: false, organiser: true },
+    tabBtnRounds:    { viewer: false, organiser: true },
+    tabBtnSummary:   { viewer: false, organiser: true },
+    tabBtnDashboard: { viewer: true,  organiser: true },
+  };
+  Object.entries(tabRules).forEach(([id, rules]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = rules[mode] ? '' : 'none';
   });
 
-  // If viewer is on Players page, redirect to Rounds
+  // If viewer is on a hidden page → redirect to Dashboard
   if (mode === 'viewer') {
-    const playersPage = document.getElementById('playersPage');
-    if (playersPage && playersPage.style.display !== 'none') {
-      const roundsBtn = [...document.querySelectorAll('.tab-btn')].find(b => {
-        const l = b.querySelector('.tab-label');
-        return l && (l.dataset.i18n || l.textContent || '').toLowerCase() === 'rounds';
-      });
-      showPage('roundsPage', roundsBtn || null);
+    const hiddenPages = ['playersPage', 'roundsPage', 'summaryPage'];
+    const onHiddenPage = hiddenPages.some(pid => {
+      const p = document.getElementById(pid);
+      return p && p.style.display !== 'none';
+    });
+    if (onHiddenPage) {
+      showPage('dashboardPage', document.getElementById('tabBtnDashboard'));
     }
-    // Disable scoring buttons
     setViewerMode(true);
   } else {
     setViewerMode(false);
@@ -143,15 +150,12 @@ function switchMode(mode) {
 function initModeOnLoad() {
   const overlay = document.getElementById('modeSelectOverlay');
   if (overlay) overlay.style.display = 'flex';
-  // Hide badge and Players tab until mode is selected
+  // Hide badge and mode-dependent tabs until mode is selected
   const badge = document.getElementById('modeBadgeBtn');
   if (badge) badge.style.display = 'none';
-  // Hide Players tab until mode known
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    const lbl = btn.querySelector('.tab-label');
-    if (lbl && (lbl.dataset.i18n || lbl.textContent || '').toLowerCase() === 'players') {
-      btn.style.display = 'none';
-    }
+  ['tabBtnPlayers','tabBtnRounds','tabBtnSummary','tabBtnDashboard'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
   });
 }
 
@@ -445,6 +449,10 @@ function showPage(pageID, el) {
 
   if (pageID === "helpPage") {
     if (typeof onHelpTabOpen === "function") onHelpTabOpen();
+  }
+
+  if (pageID === "dashboardPage") {
+    if (typeof renderDashboard === "function") renderDashboard();
   }
 
   // Update last visited page
