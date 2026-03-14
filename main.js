@@ -26,6 +26,9 @@ function selectMode(mode) {
 function applyMode(mode) {
   appMode = mode;
 
+  // Toggle scrollable tabs body class
+  document.body.classList.toggle('organiser-tabs', mode === 'organiser');
+
   // Update badge
   const badge = document.getElementById('modeBadgeBtn');
   const badgeLabel = document.getElementById('modeBadgeLabel');

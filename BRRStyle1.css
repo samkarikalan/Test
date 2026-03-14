@@ -121,6 +121,12 @@ display: none; overflow: hidden; z-index: 1000; min-width: 130px;
   flex-direction: row;
   gap: 0;
   background: transparent;
+  overflow-x: hidden;
+  padding: 0;
+}
+
+/* Organiser mode — scrollable tabs */
+body.organiser-tabs .tabs-container {
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -128,12 +134,11 @@ display: none; overflow: hidden; z-index: 1000; min-width: 130px;
   scrollbar-width: none;
   padding: 0 4px;
 }
-.tabs-container::-webkit-scrollbar { display: none; }
+body.organiser-tabs .tabs-container::-webkit-scrollbar { display: none; }
 
 .tab-btn {
-  flex: 0 0 auto;
-  min-width: 72px;
-  max-width: 90px;
+  flex: 1;
+  min-width: 0;
   background: none;
   color: var(--muted);
   border: none;
