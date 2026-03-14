@@ -408,7 +408,11 @@ function showPage(pageID, el) {
 
   // Update active tab styling
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  if (el) el.classList.add('active');
+  if (el) {
+    el.classList.add('active');
+    // Scroll active tab into view smoothly
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }
 
   // Sync all rating badges on the newly visible page
   syncRatings();
