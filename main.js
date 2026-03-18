@@ -69,7 +69,7 @@ const STEPS = [
     id: 'step-rounds',
     icon: '🏸',
     title: 'Start Rounds',
-    sub: 'Everything is set — let's play!',
+    sub: "Everything is set — let's play!",
     doneSub: () => 'Session in progress',
     isComplete: () => Array.isArray(allRounds) && allRounds.length > 0,
     action: () => homeNavigate('roundsPage', 'tabBtnRounds'),
