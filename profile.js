@@ -22,11 +22,11 @@ function clearMyPlayer() {
 
 /* ── Tier label from rating ── */
 function ratingTierLabel(r) {
-  if (r < 2.0) return { label: 'Beginner',     color: '#9e9e9e' };
-  if (r < 3.0) return { label: 'Developing',   color: '#4a9eff' };
-  if (r < 4.0) return { label: 'Intermediate', color: '#2dce89' };
-  if (r < 4.5) return { label: 'Advanced',     color: '#f5a623' };
-  return             { label: 'Elite',          color: '#e63757' };
+  if (r < 2.0) return { label: 'Rookie',       color: '#9e9e9e' };
+  if (r < 3.0) return { label: 'Club',          color: '#4a9eff' };
+  if (r < 4.0) return { label: 'Competitive',   color: '#2dce89' };
+  if (r < 4.5) return { label: 'Advanced',      color: '#f5a623' };
+  return             { label: 'Elite',           color: '#e63757' };
 }
 
 /* ── Update header profile button appearance ── */
@@ -57,9 +57,13 @@ async function profileEndSession() {
   btn.style.opacity = '0.7';
 
   try {
-    await endSession(true); // pass flag to skip drawer close logic
+    await endSession(true);
+    // Close profile drawer after session ended
+    const overlay = document.getElementById('profileOverlay');
+    const drawer  = document.getElementById('profileDrawer');
+    if (overlay) overlay.style.display = 'none';
+    if (drawer)  drawer.classList.remove('open');
   } catch(e) {
-    // endSession reloads page on success, so if we get here something went wrong
     btn.disabled        = false;
     btnText.textContent = 'End Session';
     btn.style.opacity   = '1';

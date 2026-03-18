@@ -7,6 +7,11 @@ function renderRounds() {
   const exportRoot = document.getElementById('export');
   exportRoot.innerHTML = '';
 
+  const debugDiv = document.createElement('div');
+  debugDiv.style.cssText = 'font-size:0.75rem;color:var(--muted);padding:6px 4px;';
+  debugDiv.textContent = `allRounds: ${allRounds.length} total, ${allRounds.slice(0,-1).length} completed`;
+  exportRoot.appendChild(debugDiv);
+
   allRounds.slice(0, -1).forEach((data) => {
     /* ───────── Round Container ───────── */
     const roundDiv = document.createElement('div');
@@ -57,23 +62,23 @@ function renderRounds() {
     /* ───────── Sitting Out Section ───────── */
     const restTitle = document.createElement('div');
     restTitle.className = 'export-rest-title';
-    restTitle.textContent = t('sittingOut'); 
+    restTitle.textContent = t('sittingOut');
     roundDiv.appendChild(restTitle);
 
     const restBox = document.createElement('div');
     restBox.className = 'export-rest-box';
 
     if (!data.resting || data.resting.length === 0) {
-      restBox.textContent = t('none'); 
+      restBox.textContent = t('none');
     } else {
       restBox.innerHTML = data.resting.join(', ');
     }
 
     roundDiv.appendChild(restBox);
-
     exportRoot.appendChild(roundDiv);
   });
 }
+
 
 // ExportCSS.js
 

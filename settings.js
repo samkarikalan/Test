@@ -152,6 +152,9 @@ document.addEventListener("DOMContentLoaded", () => {
 function setLanguage(lang) {
   currentLang = lang;
   localStorage.setItem("appLanguage", lang);
+  // Always close the language menu when a language is selected
+  const langMenu = document.getElementById('langMenu');
+  if (langMenu) langMenu.style.display = 'none';
 
   document.querySelectorAll("[id^='lang_']").forEach(btn => {
     btn.classList.remove("active");
@@ -210,7 +213,9 @@ function resetRounds() {
   report(); 
   sessionFinished = false;
   document.getElementById("nextBtn").disabled = false;
-  document.getElementById("roundShufle").disabled = false;
+  // Shuffle state managed by _syncShuffleBtn
+  if (typeof _syncShuffleBtn   === 'function') _syncShuffleBtn();
+  if (typeof _syncModeBanner   === 'function') _syncModeBanner();
 
   // Optional: also disable End to prevent double-click
   //document.getElementById("endBtn").disabled = false;
@@ -295,9 +300,25 @@ async function playerPlayingRenderList() {
   const admin = isAdminMode();
 
   try {
-    const rows = await sbGet('players',
-      'is_playing=eq.true&select=name,gender,session_id,session_started_at&order=name.asc'
-    );
+    const club = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+
+    let rows;
+    if (club.id) {
+      // Get only players belonging to this club
+      const members = await sbGet('club_members', `club_id=eq.${club.id}&select=player_id`);
+      if (!members || !members.length) {
+        container.innerHTML = '<p class="player-mgmt-empty">No players currently locked.</p>';
+        return;
+      }
+      const idList = '(' + members.map(m => m.player_id).join(',') + ')';
+      rows = await sbGet('players',
+        `id=in.${idList}&is_playing=eq.true&select=name,gender,session_id,session_started_at&order=name.asc`
+      );
+    } else {
+      // No club logged in — show nothing
+      container.innerHTML = '<p class="player-mgmt-empty">Join a club to view playing players.</p>';
+      return;
+    }
 
     if (!rows || !rows.length) {
       container.innerHTML = '<p class="player-mgmt-empty">No players currently locked.</p>';
@@ -374,7 +395,12 @@ async function playerPlayingRelease(name) {
 async function playerPlayingReleaseAll() {
   if (!confirm('Release ALL locked players?')) return;
   try {
-    await sbPatch('players', 'is_playing=eq.true', {
+    const club = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+    if (!club.id) { alert('No club logged in.'); return; }
+    const members = await sbGet('club_members', `club_id=eq.${club.id}&select=player_id`);
+    if (!members || !members.length) return;
+    const idList = '(' + members.map(m => m.player_id).join(',') + ')';
+    await sbPatch('players', `id=in.${idList}&is_playing=eq.true`, {
       is_playing: false, session_id: null, session_started_at: null
     });
     playerPlayingRenderList();
@@ -494,25 +520,11 @@ function playerMgmtAddNew() {
 // ── Club Admin (Supabase) ────────────────────────────────────
 
 function clubAdminInit() {
-  sbLoadClubs();
   sbRenderClubStatus();
   updateRegisterTabVisibility();
-  // Show join overlay if no club selected yet
-  const club = getMyClub();
-  if (!club.id) {
-    showClubJoinOverlay();
-  }
 }
 
-function showClubJoinOverlay() {
-  const overlay = document.getElementById('clubJoinOverlay');
-  if (overlay) overlay.style.display = 'flex';
-}
 
-function hideClubJoinOverlay() {
-  const overlay = document.getElementById('clubJoinOverlay');
-  if (overlay) overlay.style.display = 'none';
-}
 
 function sbShowClubTab(tab) {
   ["join","create","players"].forEach(t => {
@@ -525,22 +537,11 @@ function sbShowClubTab(tab) {
   if (tab === "create") sbPopulateDeleteDropdown();
 }
 
-async function sbLoadClubs() {
-  try {
-    const clubs = await dbGetClubs();
-    const select = document.getElementById("sbClubSelect");
-    if (!select) return;
-    select.innerHTML = '<option value="">— Select club —</option>';
-    clubs.forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.name;
-      select.appendChild(opt);
-    });
-  } catch (e) {
-    console.warn("Could not load clubs:", e.message);
-  }
-}
+
+
+
+
+
 
 function sbRenderClubStatus() {
   const club  = getMyClub();
@@ -604,43 +605,53 @@ async function vaultRenderModify() {
     return;
   }
 
-  container.innerHTML = '<p style="color:#aaa;font-size:0.85rem">Loading...</p>';
-
-  if (!newImportState.historyPlayers || !newImportState.historyPlayers.length) {
-    await syncToLocal();
-  }
-  const players = [...(newImportState.historyPlayers || [])].sort((a, b) =>
-    a.displayName.localeCompare(b.displayName)
-  );
-
-  if (!players.length) {
-    container.innerHTML = '<p class="player-mgmt-empty">No players in club yet.</p>';
+  const club = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+  if (!club.id) {
+    container.innerHTML = '<p class="player-mgmt-empty">Join a club to manage players.</p>';
     return;
   }
 
-  container.innerHTML = '';
-  players.forEach(p => {
-    const row = document.createElement('div');
-    row.className = 'player-mgmt-row';
-    const safeName = p.displayName.replace(/'/g, "\\'");
-    const genderImg = p.gender === 'Female' ? 'female.png' : 'male.png';
-    const currentRating = (typeof getActiveRating === 'function' ? getActiveRating(p.displayName) : getRating(p.displayName)).toFixed(1);
-    row.innerHTML = `
-      <img src="${genderImg}" class="player-mgmt-avatar vault-gender-toggle"
-           onclick="vaultToggleGender('${safeName}', this)"
-           title="Tap to toggle gender">
-      <span class="player-mgmt-name vault-name-edit"
-            onclick="vaultEditName('${safeName}')"
-            title="Tap to edit name">${p.displayName}</span>
-      <input type="number" class="rating-edit-input vault-rating-input"
-             value="${currentRating}" min="1.0" max="5.0" step="0.1"
-             onchange="vaultSaveRating('${safeName}', this.value)"
-             title="Edit rating">
-      <button class="player-mgmt-del-btn"
-              onclick="vaultDeletePlayer('${safeName}')">🗑</button>
-    `;
-    container.appendChild(row);
-  });
+  container.innerHTML = '<p style="color:#aaa;font-size:0.85rem">Loading...</p>';
+
+  try {
+    const clubPlayers = await dbGetPlayers(true); // force fresh from DB
+    const players = (clubPlayers || []).map(p => ({
+      displayName: p.name,
+      gender: p.gender || 'Male',
+      rating: parseFloat(p.rating) || 1.0
+    })).sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+    if (!players.length) {
+      container.innerHTML = '<p class="player-mgmt-empty">No players in club yet.</p>';
+      return;
+    }
+
+    container.innerHTML = '';
+    players.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'player-mgmt-row';
+      const safeName = p.displayName.replace(/'/g, "\\'");
+      const genderImg = p.gender === 'Female' ? 'female.png' : 'male.png';
+      const currentRating = (typeof getActiveRating === 'function' ? getActiveRating(p.displayName) : getRating(p.displayName)).toFixed(1);
+      row.innerHTML = `
+        <img src="${genderImg}" class="player-mgmt-avatar vault-gender-toggle"
+             onclick="vaultToggleGender('${safeName}', this)"
+             title="Tap to toggle gender">
+        <span class="player-mgmt-name vault-name-edit"
+              onclick="vaultEditName('${safeName}')"
+              title="Tap to edit name">${p.displayName}</span>
+        <input type="number" class="rating-edit-input vault-rating-input"
+               value="${currentRating}" min="1.0" max="5.0" step="0.1"
+               onchange="vaultSaveRating('${safeName}', this.value)"
+               title="Edit rating">
+        <button class="player-mgmt-del-btn"
+                onclick="vaultDeletePlayer('${safeName}')">🗑</button>
+      `;
+      container.appendChild(row);
+    });
+  } catch(e) {
+    container.innerHTML = '<p class="player-mgmt-empty">Failed to load players.</p>';
+  }
 }
 
 function vaultSaveRating(displayName, value) {
@@ -706,38 +717,149 @@ async function vaultDeletePlayer(displayName) {
   vaultRenderModify();
 }
 
-// ── Club Management in Settings — password protected ──
-const PLATFORM_ADMIN_PW = 'kbrr2024admin'; // change to your platform password
+// ── Club Management — OTP-based create/delete ──
 
-function toggleClubMgmt() {
+var _clubCreateEmail = ''; // store email during OTP flow
+var _clubDeleteEmail = ''; // store registration email during delete OTP flow
+var _clubDeleteId    = ''; // store selected club id during delete OTP flow
+
+function toggleClubMgmt(forceOpen) {
   const panel = document.getElementById('clubMgmtPanel');
   const arrow = document.getElementById('clubMgmtArrow');
-  const open  = panel.style.display === 'none';
+  const open  = forceOpen === true ? true : panel.style.display === 'none';
   panel.style.display = open ? 'block' : 'none';
   arrow.textContent   = open ? '▼' : '▶';
-  // Reset lock on close
-  if (!open) lockClubMgmt();
+  if (open) sbPopulateDeleteDropdown();
 }
 
-function unlockClubMgmt() {
-  const pw  = document.getElementById('clubMgmtPassword');
-  const fb  = document.getElementById('clubMgmtLockFeedback');
-  if (pw.value === PLATFORM_ADMIN_PW) {
-    document.getElementById('clubMgmtLock').style.display     = 'none';
-    document.getElementById('clubMgmtUnlocked').style.display = 'block';
-    pw.value = '';
-    sbPopulateDeleteDropdown();
-  } else {
-    fb.textContent = 'Wrong password.';
-    pw.value = '';
-    setTimeout(() => { fb.textContent = ''; }, 2000);
-  }
+/* ── CREATE CLUB — Step 1: Send OTP ── */
+async function clubCreateSendOtp() {
+  const name    = document.getElementById('sbNewClubName')?.value.trim();
+  const email   = document.getElementById('sbNewClubEmail')?.value.trim();
+  const selPw   = document.getElementById('sbNewClubSelectPw')?.value.trim();
+  const adminPw = document.getElementById('sbNewClubAdminPw')?.value.trim();
+  const fb      = document.getElementById('clubCreateFeedback');
+
+  const setFb = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
+
+  if (!name)    { setFb('Enter club name.', false); return; }
+  if (!email || !email.includes('@')) { setFb('Enter a valid email.', false); return; }
+  if (!selPw)   { setFb('Enter user password.', false); return; }
+  if (!adminPw) { setFb('Enter admin password.', false); return; }
+
+  setFb('Sending OTP...', true);
+  try {
+    await dbSendOtp(email);
+    _clubCreateEmail = email;
+    document.getElementById('clubCreateEmailMasked').textContent = maskEmail(email);
+    document.getElementById('clubCreateStep1').style.display = 'none';
+    document.getElementById('clubCreateStep2').style.display = '';
+    document.getElementById('sbNewClubOtp').value = '';
+    document.getElementById('sbNewClubOtp').focus();
+    setFb('OTP sent! Check your email.', true);
+  } catch (e) { setFb('❌ ' + e.message, false); }
 }
 
-function lockClubMgmt() {
-  document.getElementById('clubMgmtLock').style.display     = 'block';
-  document.getElementById('clubMgmtUnlocked').style.display = 'none';
-  document.getElementById('clubMgmtPassword').value = '';
+async function clubCreateResend() {
+  if (!_clubCreateEmail) return;
+  try {
+    await dbSendOtp(_clubCreateEmail);
+    document.getElementById('clubCreateFeedback').textContent = 'OTP resent.';
+    document.getElementById('clubCreateFeedback').style.color = '#2dce89';
+  } catch (e) {}
+}
+
+/* ── CREATE CLUB — Step 2: Verify OTP & Create ── */
+async function clubCreateVerify() {
+  const otp     = document.getElementById('sbNewClubOtp')?.value.trim();
+  const name    = document.getElementById('sbNewClubName')?.value.trim();
+  const selPw   = document.getElementById('sbNewClubSelectPw')?.value.trim();
+  const adminPw = document.getElementById('sbNewClubAdminPw')?.value.trim();
+  const fb      = document.getElementById('clubCreateFeedback');
+  const setFb   = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
+
+  if (!otp || otp.length < 8) { setFb('Enter the 8-digit OTP.', false); return; }
+  setFb('Verifying...', true);
+  try {
+    await dbVerifyOtp(_clubCreateEmail, otp);
+    // OTP verified — create the club
+    const club = await dbAddClub(name, selPw, adminPw, _clubCreateEmail);
+    setMyClub(club.id, club.name);
+    localStorage.setItem('kbrr_club_mode',    'admin');
+    localStorage.setItem('kbrr_rating_field', 'club_ratings');
+    // Reset form
+    ['sbNewClubName','sbNewClubEmail','sbNewClubSelectPw','sbNewClubAdminPw','sbNewClubOtp'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('clubCreateStep1').style.display = '';
+    document.getElementById('clubCreateStep2').style.display = 'none';
+    _clubCreateEmail = '';
+    setFb('✅ Club "' + club.name + '" created! You are now Admin.', true);
+    sbRenderClubStatus();
+    vaultSyncStatus();
+    if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
+    await syncToLocal();
+  } catch (e) { setFb('❌ ' + e.message, false); }
+}
+
+/* ── DELETE CLUB — Step 1: Send OTP ── */
+async function clubDeleteSendOtp() {
+  const select = document.getElementById('sbDeleteClubSelect');
+  const fb     = document.getElementById('clubDeleteFeedback');
+  const setFb  = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
+
+  if (!select || !select.value) { setFb('Select a club to delete.', false); return; }
+
+  setFb('Fetching club details...', true);
+  try {
+    const regEmail = await dbGetClubRegEmail(select.value);
+    if (!regEmail) { setFb('This club has no registration email. Cannot delete via OTP.', false); return; }
+    await dbSendOtp(regEmail);
+    _clubDeleteEmail = regEmail;
+    _clubDeleteId    = select.value;
+    document.getElementById('clubDeleteEmailMasked').textContent = maskEmail(regEmail);
+    document.getElementById('clubDeleteStep1').style.display = 'none';
+    document.getElementById('clubDeleteStep2').style.display = '';
+    document.getElementById('sbDeleteOtp').value = '';
+    document.getElementById('sbDeleteOtp').focus();
+    setFb('OTP sent to club registration email.', true);
+  } catch (e) { setFb('❌ ' + e.message, false); }
+}
+
+async function clubDeleteResend() {
+  if (!_clubDeleteEmail) return;
+  try {
+    await dbSendOtp(_clubDeleteEmail);
+    document.getElementById('clubDeleteFeedback').textContent = 'OTP resent.';
+    document.getElementById('clubDeleteFeedback').style.color = '#2dce89';
+  } catch (e) {}
+}
+
+/* ── DELETE CLUB — Step 2: Verify OTP & Delete ── */
+async function clubDeleteVerify() {
+  const otp   = document.getElementById('sbDeleteOtp')?.value.trim();
+  const fb    = document.getElementById('clubDeleteFeedback');
+  const setFb = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
+
+  if (!otp || otp.length < 8) { setFb('Enter the 8-digit OTP.', false); return; }
+  setFb('Verifying...', true);
+  try {
+    await dbVerifyOtp(_clubDeleteEmail, otp);
+    const clubName = document.getElementById('sbDeleteClubSelect')?.options[document.getElementById('sbDeleteClubSelect').selectedIndex]?.text || '';
+    await dbDeleteClub(_clubDeleteId);
+    // If deleted club was active, clear session
+    const myClub = getMyClub();
+    if (myClub.id === _clubDeleteId) sbClearClub();
+    // Reset
+    document.getElementById('sbDeleteClubSelect').value = '';
+    document.getElementById('clubDeleteStep1').style.display = '';
+    document.getElementById('clubDeleteStep2').style.display = 'none';
+    document.getElementById('sbDeleteOtp').value = '';
+    _clubDeleteEmail = '';
+    _clubDeleteId    = '';
+    await sbPopulateDeleteDropdown();
+    setFb('✅ Club "' + clubName + '" deleted.', true);
+  } catch (e) { setFb('❌ ' + e.message, false); }
 }
 
 function vaultRenderRegister() {
@@ -783,49 +905,17 @@ function vaultSyncStatus() {
     if (dot)   { dot.style.background = 'var(--muted)'; dot.style.boxShadow = 'none'; }
     if (role)  role.style.display = 'none';
   }
+
+
+
 }
 
-async function sbConfirmJoin() {
-  const select   = document.getElementById("sbClubSelect");
-  const pwInput  = document.getElementById("sbPasswordInput");
-  if (!select || !select.value) { sbFeedback("Please select a club.", "red"); return; }
-  const password = pwInput?.value.trim();
-  if (!password) { sbFeedback("Enter password.", "red"); return; }
 
-  try {
-    // Fetch club including trusted flag
-    const clubs = await sbGet("clubs", `id=eq.${select.value}&select=id,name,select_password,admin_password,trusted`);
-    if (!clubs.length) throw new Error("Club not found.");
-    const club = clubs[0];
 
-    let mode = null;
-    if (password === club.admin_password)       mode = "admin";
-    else if (password === club.select_password) mode = "user";
-    else throw new Error("Wrong password.");
 
-    // Save club + mode + trusted flag
-    setMyClub(club.id, club.name);
-    localStorage.setItem("kbrr_club_mode",    mode);
-    localStorage.setItem("kbrr_club_trusted", club.trusted ? "true" : "false");
 
-    // Set rating field at login — single gate decision made here, used everywhere
-    // 'club_ratings' = local mode (default). 'rating' = global mode (future)
-    localStorage.setItem('kbrr_rating_field', 'club_ratings');
-    localStorage.setItem('kbrr_rating_mode',  'local');
-    // Single gate decision — which field to read/write for ratings
-    localStorage.setItem("kbrr_rating_field", "club_ratings");
 
-    pwInput.value = "";
-    sbRenderClubStatus();
-    sbRenderRatingMode(club.trusted === true);
-    sbFeedback(`✅ Joined as ${mode === "admin" ? "Admin 🔑" : "User 👤"}`, "green");
-    hideClubJoinOverlay();
-    syncToLocal();
-    updateRegisterTabVisibility();
-  } catch (e) {
-    sbFeedback("❌ " + e.message, "red");
-  }
-}
+
 
 function sbRenderRatingMode(isTrusted) {
   // global mode blocked until fully tested — hide UI always
@@ -848,49 +938,28 @@ function sbClearClub() {
   localStorage.removeItem('kbrr_club_trusted');
   localStorage.removeItem('kbrr_rating_mode');
   localStorage.removeItem('kbrr_rating_field');
-  localStorage.removeItem("kbrr_rating_field");
-  document.getElementById("sbRatingModeWrap") && (document.getElementById("sbRatingModeWrap").style.display = "none");
+  localStorage.removeItem('kbrr_rating_field');
+
+  // Clear all player data on logout
+  localStorage.removeItem('newImportHistory');
+  localStorage.removeItem('schedulerPlayers');
+  if (typeof newImportState !== 'undefined' && newImportState) {
+    newImportState.historyPlayers = [];
+    newImportState.selectedPlayers = [];
+  }
+  if (typeof schedulerState !== 'undefined' && schedulerState) {
+    schedulerState.allPlayers    = [];
+    schedulerState.activeplayers = [];
+  }
+
+  document.getElementById('sbRatingModeWrap') && (document.getElementById('sbRatingModeWrap').style.display = 'none');
   sbRenderClubStatus();
+  vaultSyncStatus();
+  if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
   updateRegisterTabVisibility();
-  showClubJoinOverlay();
 }
 
-async function sbDeleteClub() {
-  const select  = document.getElementById("sbDeleteClubSelect");
-  const pwInput = document.getElementById("sbDeleteAdminPw");
-  const clubId  = select?.value;
-  const pw      = pwInput?.value.trim();
-
-  if (!clubId)  { sbFeedback("Select a club to delete.", "red"); return; }
-  if (!pw)      { sbFeedback("Enter admin password.", "red"); return; }
-
-  // Verify admin password against selected club
-  const clubName = select.options[select.selectedIndex]?.text || "";
-  try {
-    const clubs = await sbGet("clubs", `id=eq.${clubId}&select=id,name,admin_password`);
-    if (!clubs || !clubs.length) { sbFeedback("Club not found.", "red"); return; }
-    if (clubs[0].admin_password !== pw) { sbFeedback("Wrong admin password.", "red"); return; }
-  } catch (e) {
-    sbFeedback("Verification failed.", "red"); return;
-  }
-
-  const confirmed = confirm(`Delete club "${clubName}"?\nThis will remove all members and cannot be undone.`);
-  if (!confirmed) return;
-
-  try {
-    await dbDeleteClub(clubId);
-    // If deleted club was active, clear session
-    const myClub = getMyClub();
-    if (myClub.id === clubId) sbClearClub();
-    if (select)  select.value  = "";
-    if (pwInput) pwInput.value = "";
-    await sbLoadClubs();
-    await sbPopulateDeleteDropdown();
-    sbFeedback(`Club "${clubName}" deleted.`, "red");
-  } catch (e) {
-    sbFeedback("Delete failed: " + (e.message || e), "red");
-  }
-}
+// sbDeleteClub replaced by clubDeleteSendOtp/clubDeleteVerify (OTP flow)
 
 async function sbPopulateDeleteDropdown() {
   const select = document.getElementById("sbDeleteClubSelect");
@@ -915,28 +984,7 @@ function isAdminMode() {
   return getClubMode() === "admin";
 }
 
-async function sbCreateClub() {
-  const name    = document.getElementById("sbNewClubName")?.value.trim();
-  const selPw   = document.getElementById("sbNewClubSelectPw")?.value.trim();
-  const adminPw = document.getElementById("sbNewClubAdminPw")?.value.trim();
-
-  if (!name)    { sbFeedback("Enter club name.", "red"); return; }
-  if (!selPw)   { sbFeedback("Enter club password.", "red"); return; }
-  if (!adminPw) { sbFeedback("Enter admin password.", "red"); return; }
-
-  try {
-    const club = await dbAddClub(name, selPw, adminPw);
-    setMyClub(club.id, club.name);
-    document.getElementById("sbNewClubName").value    = "";
-    document.getElementById("sbNewClubSelectPw").value  = "";
-    document.getElementById("sbNewClubAdminPw").value = "";
-    sbRenderClubStatus();
-    await sbLoadClubs();
-    sbFeedback(`✅ Club "${name}" created!`, "green");
-  } catch (e) {
-    sbFeedback("❌ " + e.message, "red");
-  }
-}
+// sbCreateClub replaced by clubCreateSendOtp/clubCreateVerify (OTP flow)
 
 function sbFeedback(msg, color) {
   const el = document.getElementById("sbClubFeedback");
@@ -946,10 +994,7 @@ function sbFeedback(msg, color) {
 }
 
 function updateRegisterTabVisibility() {
-  const tab = document.getElementById("newImportVaultBtn");
-  if (!tab) return;
-  // Vault tab always visible — all users need access to Join
-  tab.style.display = "inline-block";
+  // Vault tab moved to top nav — no longer in import modal, nothing to update here
 }
 
 /* =============================================================

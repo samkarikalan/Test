@@ -8,19 +8,329 @@ var appMode = null; // 'viewer' | 'organiser'
 function selectMode(mode) {
   appMode = mode;
   sessionStorage.setItem('appMode', mode);
-  // Hide overlay
+  // Hide mode select overlay
   const overlay = document.getElementById('modeSelectOverlay');
   if (overlay) overlay.style.display = 'none';
-  // Show badge
-  const badgeEl = document.getElementById('modeBadgeBtn');
-  if (badgeEl) badgeEl.style.display = '';
-  // Apply mode
+  // Apply tab visibility / mode classes (safe — all refs guarded)
   applyMode(mode);
-  // Now check profile
-  const player = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
-  if (!player) {
-    if (typeof openProfileDrawer === 'function') openProfileDrawer();
+  // Show home screen
+  showHomeScreen();
+}
+
+/* ══════════════════════════════════════════════
+   HOME SCREEN
+══════════════════════════════════════════════ */
+
+
+/* ══════════════════════════════════════════════
+   SESSION STEPPER
+   Steps: 0=Players, 1=Fixed Pairs, 2=Courts, 3=Rounds
+══════════════════════════════════════════════ */
+
+const STEPS = [
+  {
+    id: 'step-players',
+    icon: '👥',
+    title: 'Select Players',
+    sub: 'Add at least 4 players to begin',
+    doneSub: () => {
+      const n = schedulerState.activeplayers.length;
+      return `${n} player${n !== 1 ? 's' : ''} selected`;
+    },
+    isComplete: () => schedulerState.activeplayers.length >= 4,
+    action: () => homeNavigate('playersPage', 'tabBtnPlayers'),
+  },
+  {
+    id: 'step-pairs',
+    icon: '🤝',
+    title: 'Fixed Pairs',
+    sub: 'Optional — pair players who always play together',
+    doneSub: () => {
+      const n = schedulerState.fixedPairs.length;
+      return n ? `${n} pair${n !== 1 ? 's' : ''} set` : 'No fixed pairs (optional)';
+    },
+    isComplete: () => true, // always optional — tapping "Skip / Done" marks it
+    action: () => homeNavigate('playersPage', 'tabBtnPlayers'),
+  },
+  {
+    id: 'step-courts',
+    icon: '🏟️',
+    title: 'Court Settings',
+    sub: 'Set number of courts and play mode',
+    doneSub: () => {
+      const c = parseInt(document.getElementById('stepNumCourts')?.textContent || document.getElementById('num-courts')?.textContent || 1);
+      const mode = document.getElementById('stepModeToggle')?.checked ? 'Competitive' : 'Random';
+      return `${c} court${c !== 1 ? 's' : ''} · ${mode}`;
+    },
+    isComplete: () => stepCourtsConfigured,
+    action: () => homeShowCourts(),
+  },
+  {
+    id: 'step-rounds',
+    icon: '🏸',
+    title: 'Start Rounds',
+    sub: 'Everything is set — let's play!',
+    doneSub: () => 'Session in progress',
+    isComplete: () => Array.isArray(allRounds) && allRounds.length > 0,
+    action: () => homeNavigate('roundsPage', 'tabBtnRounds'),
+  },
+];
+
+let stepCourtsConfigured = false;
+let currentStep = 0;
+
+function homeRefreshStepper() {
+  if (appMode !== 'organiser') return;
+
+  // Determine which steps are done
+  const done = STEPS.map(s => s.isComplete());
+
+  // Current step = first incomplete, or last if all done
+  currentStep = done.indexOf(false);
+  if (currentStep === -1) currentStep = STEPS.length - 1;
+
+  // Special: step 1 (fixed pairs) auto-completes once players are done
+  // We mark it done after user has visited players page
+  if (done[0] && !stepPairsVisited) currentStep = Math.max(currentStep, 1);
+
+  // Update stepper dots
+  STEPS.forEach((step, i) => {
+    const el = document.getElementById(step.id);
+    if (!el) return;
+    el.classList.remove('active', 'done', 'locked');
+    if (i < currentStep && done[i]) {
+      el.classList.add('done');
+      const check = el.querySelector('.stepper-check');
+      const num   = el.querySelector('.stepper-num');
+      if (check) check.style.display = '';
+      if (num)   num.style.display   = 'none';
+    } else if (i === currentStep) {
+      el.classList.add('active');
+      const check = el.querySelector('.stepper-check');
+      const num   = el.querySelector('.stepper-num');
+      if (check) check.style.display = 'none';
+      if (num)   num.style.display   = '';
+    } else {
+      el.classList.add(done[i] ? 'done' : 'locked');
+      const check = el.querySelector('.stepper-check');
+      const num   = el.querySelector('.stepper-num');
+      if (check) check.style.display = done[i] ? '' : 'none';
+      if (num)   num.style.display   = done[i] ? 'none' : '';
+    }
+
+    // Lines
+    const line = document.getElementById('stepline-' + (i + 1));
+    if (line) line.classList.toggle('done', i < currentStep && done[i]);
+  });
+
+  // Update step card
+  const step = STEPS[currentStep];
+  const isLastDone = currentStep === STEPS.length - 1 && done[currentStep];
+
+  const iconEl  = document.getElementById('stepCardIcon');
+  const titleEl = document.getElementById('stepCardTitle');
+  const subEl   = document.getElementById('stepCardSub');
+  const btnEl   = document.getElementById('stepCardBtn');
+
+  if (iconEl)  iconEl.textContent  = step.icon;
+  if (titleEl) titleEl.textContent = isLastDone ? '🎉 Session Active' : step.title;
+  if (subEl)   subEl.textContent   = (done[currentStep] && step.doneSub) ? step.doneSub() : step.sub;
+
+  if (btnEl) {
+    if (currentStep === 2 && !stepCourtsConfigured) {
+      btnEl.textContent = 'Set Up →';
+    } else if (currentStep === 1) {
+      btnEl.textContent = done[0] ? (stepPairsVisited ? 'Done ✓' : 'Set Pairs →') : 'Go →';
+    } else if (isLastDone) {
+      btnEl.textContent = 'View Rounds →';
+    } else {
+      btnEl.textContent = 'Go →';
+    }
   }
+
+  // Courts panel — hide when not on step 2
+  const courtsPanel = document.getElementById('stepCourtsPanel');
+  if (courtsPanel) courtsPanel.style.display = 'none';
+}
+
+let stepPairsVisited = false;
+
+function homeStepGo(stepIndex) {
+  // Only allow tapping done or current step
+  const done = STEPS.map(s => s.isComplete());
+  if (stepIndex > currentStep && !done[stepIndex]) return;
+  currentStep = stepIndex;
+  STEPS[stepIndex].action();
+}
+
+function homeStepAction() {
+  const step = STEPS[currentStep];
+  if (currentStep === 1) stepPairsVisited = true;
+  if (currentStep === 2) {
+    homeShowCourts();
+    return;
+  }
+  step.action();
+}
+
+function homeShowCourts() {
+  const panel = document.getElementById('stepCourtsPanel');
+  const card  = document.getElementById('sessionStepCard');
+  if (!panel || !card) return;
+
+  // Sync courts count from rounds page
+  const courtsDisplay = document.getElementById('num-courts');
+  const stepCourtsEl  = document.getElementById('stepNumCourts');
+  if (courtsDisplay && stepCourtsEl) stepCourtsEl.textContent = courtsDisplay.textContent;
+
+  // Sync mode toggle
+  const mainToggle = document.getElementById('modeToggle');
+  const stepToggle = document.getElementById('stepModeToggle');
+  if (mainToggle && stepToggle) stepToggle.checked = mainToggle.checked;
+
+  panel.style.display = 'block';
+  card.style.display  = 'none';
+}
+
+function stepCourtPlus() {
+  const el = document.getElementById('stepNumCourts');
+  if (!el) return;
+  const max = Math.floor(schedulerState.activeplayers.length / 4);
+  let val = parseInt(el.textContent) || 1;
+  if (val < max) { val++; el.textContent = val; }
+  // Mirror to actual rounds page counter
+  const main = document.getElementById('num-courts');
+  if (main) main.textContent = val;
+}
+
+function stepCourtMinus() {
+  const el = document.getElementById('stepNumCourts');
+  if (!el) return;
+  let val = parseInt(el.textContent) || 1;
+  if (val > 1) { val--; el.textContent = val; }
+  const main = document.getElementById('num-courts');
+  if (main) main.textContent = val;
+}
+
+function stepSyncMode() {
+  const stepToggle = document.getElementById('stepModeToggle');
+  const mainToggle = document.getElementById('modeToggle');
+  if (stepToggle && mainToggle) {
+    mainToggle.checked = stepToggle.checked;
+    mainToggle.dispatchEvent(new Event('change'));
+  }
+}
+
+function homeStepCourtsDone() {
+  stepCourtsConfigured = true;
+  const panel = document.getElementById('stepCourtsPanel');
+  const card  = document.getElementById('sessionStepCard');
+  if (panel) panel.style.display = 'none';
+  if (card)  card.style.display  = '';
+  homeNavigate('roundsPage', 'tabBtnRounds');
+}
+
+function showHomeScreen() {
+  const homeEl = document.getElementById('homePageOverlay');
+  if (!homeEl) return;
+  homeEl.style.display = 'flex';
+
+
+  // Sync flag display
+  const mainFlag = document.getElementById('currentFlag');
+  const homeFlag = document.getElementById('homeFlagDisplay');
+  if (mainFlag && homeFlag) homeFlag.textContent = mainFlag.textContent;
+
+  // Sync profile avatar
+  const mainAvatar = document.getElementById('profileBtnAvatar');
+  const homeAvatar = document.getElementById('homeProfileAvatar');
+  const mainIcon   = document.getElementById('profileBtnIcon');
+  const homeIcon   = document.getElementById('homeProfileIcon');
+  if (homeAvatar && mainAvatar) {
+    homeAvatar.src = mainAvatar.src;
+    homeAvatar.style.display = mainAvatar.style.display;
+  }
+  if (homeIcon && mainIcon) homeIcon.style.display = mainIcon.style.display;
+
+  // Status bar
+  const statusBar  = document.getElementById('homeStatusBar');
+  const statusName = document.getElementById('homeStatusName');
+  const statusRole = document.getElementById('homeStatusRole');
+  const isOrganiser = appMode === 'organiser';
+
+  const club   = (typeof getMyClub   === 'function') ? getMyClub()   : null;
+  const player = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
+  const isAdmin = (typeof isClubAdmin === 'function') ? isClubAdmin() : false;
+
+  if (club && club.name) {
+    if (statusName) statusName.textContent = club.name;
+    if (statusRole) statusRole.textContent = isAdmin ? 'ADMIN' : (isOrganiser ? 'ORGANISER' : 'VIEWER');
+    if (statusBar) statusBar.classList.remove('disconnected');
+    if (statusBar) statusBar.classList.toggle('viewer-bar', !isOrganiser);
+  } else if (player && player.displayName) {
+    if (statusName) statusName.textContent = player.displayName;
+    if (statusRole) statusRole.textContent = isOrganiser ? 'ORGANISER' : 'VIEWER';
+    if (statusBar) statusBar.classList.remove('disconnected');
+  } else {
+    if (statusName) statusName.textContent = 'Not logged in';
+    if (statusRole) statusRole.textContent = '';
+    if (statusBar) statusBar.classList.add('disconnected');
+  }
+
+  // Show organiser flow or viewer flow
+  const orgFlow  = document.getElementById('homeOrganizerFlow');
+  const viewFlow = document.getElementById('homeViewerFlow');
+  if (orgFlow)  orgFlow.style.display  = isOrganiser ? '' : 'none';
+  if (viewFlow) viewFlow.style.display = isOrganiser ? 'none' : '';
+
+  // Hide vault tile for viewer
+  document.querySelectorAll('.home-tile').forEach(tile => {
+    tile.style.display = '';
+    const name = tile.querySelector('.home-tile-name');
+    if (!isOrganiser && name && name.textContent === 'Vault') {
+      tile.style.display = 'none';
+    }
+  });
+
+  // Refresh stepper state
+  if (isOrganiser) homeRefreshStepper();
+}
+
+// Called from page back buttons — refresh stepper on return
+function homeReturnRefresh() {
+  showHomeScreen();
+}
+
+function homeHideScreen() {
+  const homeEl = document.getElementById('homePageOverlay');
+  if (homeEl) homeEl.style.display = 'none';
+
+}
+
+function homeNavigate(pageId, tabId) {
+  homeHideScreen();
+  const tabEl = tabId ? document.getElementById(tabId) : null;
+  showPage(pageId, tabEl);
+}
+
+function homeStartSession() {
+  if (appMode === 'organiser') {
+    homeNavigate('playersPage', 'tabBtnPlayers');
+  } else {
+    homeNavigate('dashboardPage', 'tabBtnDashboard');
+  }
+}
+
+function homeOpenProfile() {
+  if (typeof openProfileDrawer === 'function') openProfileDrawer();
+}
+
+function homeLangSelect(el) {
+  const mainFlag = document.getElementById('currentFlag');
+  if (mainFlag) mainFlag.textContent = el.dataset.flag;
+  const homeFlag = document.getElementById('homeFlagDisplay');
+  if (homeFlag) homeFlag.textContent = el.dataset.flag;
+  if (typeof setLanguage === 'function') setLanguage(el.dataset.lang);
 }
 
 function applyMode(mode) {
@@ -29,44 +339,20 @@ function applyMode(mode) {
   // Toggle scrollable tabs body class
   document.body.classList.toggle('organiser-tabs', mode === 'organiser');
 
-  // Update badge
-  const badge = document.getElementById('modeBadgeBtn');
-  const badgeLabel = document.getElementById('modeBadgeLabel');
-  if (badge) badge.className = 'mode-badge-btn ' + (mode === 'viewer' ? 'viewer-mode' : 'organiser-mode');
-  if (badgeLabel) badgeLabel.textContent = mode === 'viewer' ? 'Viewer' : 'Organiser';
-
   // Update Settings mode switch card
   const cardViewer    = document.getElementById('modeCardViewer');
   const cardOrganiser = document.getElementById('modeCardOrganiser');
   if (cardViewer)    cardViewer.classList.toggle('active',    mode === 'viewer');
   if (cardOrganiser) cardOrganiser.classList.toggle('active', mode === 'organiser');
 
-  // Tab visibility rules
-  // Viewer:    Settings · Dashboard · Help
-  // Organiser: Settings · Players · Rounds · Summary · Dashboard · Help
-  const tabRules = {
-    tabBtnPlayers:   { viewer: false, organiser: true },
-    tabBtnRounds:    { viewer: false, organiser: true },
-    tabBtnSummary:   { viewer: false, organiser: true },
-    tabBtnDashboard: { viewer: true,  organiser: true },
-  };
-  Object.entries(tabRules).forEach(([id, rules]) => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = rules[mode] ? '' : 'none';
-  });
-
-  // If viewer is on a hidden page → redirect to Dashboard
+  // Set viewer/organiser body classes and restrictions
   if (mode === 'viewer') {
-    const hiddenPages = ['playersPage', 'roundsPage', 'summaryPage'];
-    const onHiddenPage = hiddenPages.some(pid => {
-      const p = document.getElementById(pid);
-      return p && p.style.display !== 'none';
-    });
-    if (onHiddenPage) {
-      showPage('dashboardPage', document.getElementById('tabBtnDashboard'));
-    }
     setViewerMode(true);
   } else {
+    if (window._vSessionTabPinned) {
+      if (typeof viewerStopPoll === 'function') viewerStopPoll();
+      if (typeof _vHidePage === 'function') _vHidePage();
+    }
     setViewerMode(false);
   }
 }
@@ -75,6 +361,8 @@ function setViewerMode(isViewer) {
   // Use body class — all viewer restrictions handled via CSS + JS checks
   if (isViewer) {
     document.body.classList.add('viewer-mode');
+    // Ensure we're on the club tab by default
+    if (typeof settingsShowTab === 'function') settingsShowTab('club');
   } else {
     document.body.classList.remove('viewer-mode');
   }
@@ -128,7 +416,7 @@ function openModeSwitcher() {
       </button>
       <button class="mode-sheet-btn organiser ${!isViewer ? 'active-organiser' : ''}"
               onclick="switchMode('organiser')">
-        <div class="mode-sheet-icon">⚙️</div>
+        <div class="mode-sheet-icon"><img src="win-cup.png" style="width:32px;height:32px;object-fit:contain;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.25))"></div>
         <div class="mode-sheet-info">
           <div class="mode-sheet-name">Organiser</div>
           <div class="mode-sheet-desc">Run session, score games, manage players</div>
@@ -146,20 +434,19 @@ function openModeSwitcher() {
 function switchMode(mode) {
   const overlay = document.getElementById('modeSheetOverlay');
   if (overlay) overlay.remove();
-  applyMode(mode);
+  appMode = mode;
   sessionStorage.setItem('appMode', mode);
+  applyMode(mode);
+  showHomeScreen();
 }
 
 function initModeOnLoad() {
+  // Make sure home overlay is hidden until mode is chosen
+  const homeEl = document.getElementById('homePageOverlay');
+  if (homeEl) homeEl.style.display = 'none';
+  // Show the mode select overlay
   const overlay = document.getElementById('modeSelectOverlay');
   if (overlay) overlay.style.display = 'flex';
-  // Hide badge and mode-dependent tabs until mode is selected
-  const badge = document.getElementById('modeBadgeBtn');
-  if (badge) badge.style.display = 'none';
-  ['tabBtnPlayers','tabBtnRounds','tabBtnSummary','tabBtnDashboard'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
 }
 
 /* ============================================================
@@ -225,6 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 1hr idle — silently end session
       console.log("Auto-ending session after 1hr idle");
+      if (typeof dbCompleteSession === "function") await dbCompleteSession();
       if (typeof flushLiveSession === "function") await flushLiveSession();
       if (typeof dbReleaseMySession === "function") await dbReleaseMySession();
       localStorage.removeItem("schedulerState");
@@ -237,6 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 window.addEventListener('beforeunload', () => {
   consolidateMasterDB();   // merge any new players added during session on close
+  if (typeof dbCompleteSession === "function") dbCompleteSession();
   if (typeof dbReleaseMySession === "function") dbReleaseMySession();
 });
 
@@ -369,8 +658,7 @@ function syncPlayersFromMaster() { syncRatings(); }
 
 function updateRoundsPageAccess() {
   const block = schedulerState.activeplayers.length < 4;
-  const tabs = document.querySelectorAll('.tab-btn');
-  const roundsTab = tabs[2]; // ← was 1, now 2 (Settings added at 0)
+  const roundsTab = document.getElementById('tabBtnRounds');
 
   if (!roundsTab) return;
 
@@ -379,16 +667,14 @@ function updateRoundsPageAccess() {
   roundsTab.setAttribute('aria-disabled', block);
 
   if (block && isPageVisible('roundsPage')) {
-    showPage('playersPage', tabs[1]);
+    showPage('playersPage', document.getElementById('tabBtnPlayers'));
   }
 }
 
 
 function updateSummaryPageAccess() {
   const hasRounds = Array.isArray(allRounds) && allRounds.length > 0;
-  const tabs = document.querySelectorAll('.tab-btn');
-  const summaryTab = tabs[3]; // ← was 2, now 3
-
+  const summaryTab = document.getElementById('tabBtnSummary');
   const block = !hasRounds;
 
   if (!summaryTab) return;
@@ -398,7 +684,7 @@ function updateSummaryPageAccess() {
   summaryTab.setAttribute('aria-disabled', block);
 
   if (block && isPageVisible('summaryPage')) {
-    showPage('playersPage', tabs[1]);
+    showPage('playersPage', document.getElementById('tabBtnPlayers'));
   }
 }
 
@@ -415,6 +701,12 @@ function showPage(pageID, el) {
     el.classList.add('active');
     // Scroll active tab into view smoothly
     el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }
+
+  // Restore Session tab if a session is currently pinned open
+  if (window._vSessionTabPinned) {
+    const vBtn = document.getElementById('tabBtnViewer');
+    if (vBtn) vBtn.style.display = '';
   }
 
   // Sync all rating badges on the newly visible page
@@ -460,6 +752,15 @@ function showPage(pageID, el) {
 
   if (pageID === "dashboardPage") {
     if (typeof renderDashboard === "function") renderDashboard();
+  } else {
+    // Stop dashboard poll when navigating away
+    if (typeof dashboardStopPoll === 'function') dashboardStopPoll();
+  }
+
+  if (pageID === "vaultPage") {
+    if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
+    if (typeof viewerLoadClubs === 'function') viewerLoadClubs();
+    if (typeof sbPopulateDeleteDropdown === 'function') sbPopulateDeleteDropdown();
   }
 
   // Update last visited page
@@ -613,34 +914,42 @@ function restoreSyncIndicator() {
    POWER BUTTON — End Session
 ============================================================= */
 async function endSession(fromProfile = false) {
-  // Check if any games were played this session
-  const gamesPlayed = (typeof allRounds !== "undefined") &&
-    allRounds.some(round => (round.games || round).some(game => game.winner));
+  if (!confirm('End session?')) return;
 
-  const msg = gamesPlayed
-    ? "End session?\n\nGame results will be saved before resetting."
-    : "End session?\n\nNo games played — nothing will be saved.";
-
-  if (!confirm(msg)) return;
-
-  // Session data flushed via flushLiveSession() below (written to live_sessions after each round)
+  // Mark session completed in sessions table
+  if (typeof dbCompleteSession === 'function') await dbCompleteSession();
 
   // Flush live_sessions → players.sessions, then delete temp rows
-  if (typeof flushLiveSession === "function") await flushLiveSession();
+  if (typeof flushLiveSession === 'function') await flushLiveSession();
 
-  // Release session slots before reset
-  if (typeof dbReleaseMySession === "function") await dbReleaseMySession();
+  // Release session slots
+  if (typeof dbReleaseMySession === 'function') await dbReleaseMySession();
 
-  // Reset app
-  localStorage.removeItem("schedulerState");
-  localStorage.removeItem("allRounds");
-  localStorage.removeItem("currentRoundIndex");
-  location.reload();
+  // Clear local session state — no reload
+  localStorage.removeItem('schedulerState');
+  localStorage.removeItem('allRounds');
+  localStorage.removeItem('currentRoundIndex');
+  sessionStorage.removeItem('kbrr_session_db_id');
+
+  // Reset in-memory state
+  if (typeof allRounds !== 'undefined') allRounds.length = 0;
+  if (typeof schedulerState !== 'undefined') {
+    schedulerState.activeplayers = [];
+    schedulerState.allPlayers    = [];
+    if (schedulerState.winCount)    schedulerState.winCount.clear();
+    if (schedulerState.PlayedCount) schedulerState.PlayedCount.clear();
+    if (schedulerState.restCount)   schedulerState.restCount.clear();
+  }
+
+  // Stay on dashboard and refresh it
+  if (typeof showPage === 'function') {
+    showPage('dashboardPage', document.getElementById('tabBtnDashboard'));
+  }
 }
 
 /* === SETTINGS TAB SWITCHER === */
 function settingsShowTab(tab) {
-  ["font","theme","reset"].forEach(t => {
+  ["club","general"].forEach(t => {
     const el = document.getElementById("settingsTab" + t.charAt(0).toUpperCase() + t.slice(1));
     if (el) el.style.display = t === tab ? "" : "none";
     const btn = document.getElementById("settingsTab" + t.charAt(0).toUpperCase() + t.slice(1) + "Btn");

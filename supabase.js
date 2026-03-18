@@ -385,24 +385,72 @@ async function dbDeletePlayer(playerId, clubAdminPassword) {
 /// Get all clubs
 async function dbGetClubs() {
   try {
-    return await sbGet("clubs", "select=id,name,registered_date&order=name.asc");
+    return await sbGet("clubs", "select=id,name&order=name.asc");
   } catch (e) {
     return [];
   }
 }
 
 /// Create a new club
-async function dbAddClub(clubName, selectPassword, adminPassword) {
-  if (!clubName.trim()) throw new Error("Club name required.");
-  if (!selectPassword)  throw new Error("Select password required.");
-  if (!adminPassword)   throw new Error("Admin password required.");
+async function dbAddClub(clubName, selectPassword, adminPassword, registrationEmail) {
+  if (!clubName.trim()) throw new Error('Club name required.');
+  if (!selectPassword)  throw new Error('Select password required.');
+  if (!adminPassword)   throw new Error('Admin password required.');
 
-  const created = await sbPost("clubs", {
+  const payload = {
     name:            clubName.trim(),
     select_password: selectPassword,
     admin_password:  adminPassword
-  });
+  };
+  if (registrationEmail) payload.registration_email = registrationEmail.trim().toLowerCase();
+
+  const created = await sbPost('clubs', payload);
   return created[0];
+}
+
+/* ── OTP via Supabase Auth ── */
+async function dbSendOtp(email) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+    body: JSON.stringify({
+      email:       email.trim().toLowerCase(),
+      create_user: true,
+      options: { shouldCreateUser: true }
+    })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.msg || err.message || 'Failed to send OTP');
+  }
+  return true;
+}
+
+async function dbVerifyOtp(email, token) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+    body: JSON.stringify({ email: email.trim().toLowerCase(), token: token.trim(), type: 'email' })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.msg || err.message || 'Invalid or expired OTP');
+  }
+  return true;
+}
+
+/* ── Get club registration email (masked for display) ── */
+async function dbGetClubRegEmail(clubId) {
+  const rows = await sbGet('clubs', `id=eq.${clubId}&select=registration_email`);
+  if (!rows || !rows.length) throw new Error('Club not found.');
+  return rows[0].registration_email || null;
+}
+
+function maskEmail(email) {
+  if (!email) return '';
+  const [user, domain] = email.split('@');
+  const masked = user[0] + '***' + (user.length > 1 ? user.slice(-1) : '');
+  return masked + '@' + domain;
 }
 
 /// Verify club select password — returns club if correct
@@ -521,10 +569,256 @@ async function syncLiveSession(playedNames) {
         };
         return sbUpsert("live_sessions", row, "player_name,club_id,date").catch(() => {});
       });
+
     await Promise.all(upserts);
   } catch (e) {
     console.warn("syncLiveSession error:", e.message);
   }
+}
+
+
+/// ============================================================
+/// SESSIONS TABLE — stores last 3 sessions per club
+/// status: 'live' while session active, 'completed' on end
+/// rounds_data: full allRounds snapshot, updated on every change
+/// players: summary of who played + wins/losses (populated on complete)
+/// ============================================================
+
+// Session ID for this organiser's current session — stored in sessionStorage
+function getMySessionId() {
+  return sessionStorage.getItem('kbrr_session_db_id') || null;
+}
+function setMySessionId(id) {
+  if (id) sessionStorage.setItem('kbrr_session_db_id', id);
+  else sessionStorage.removeItem('kbrr_session_db_id');
+}
+
+// Called once when organiser starts session (first round created)
+// Multiple live sessions allowed per club — one per hall/organiser
+async function dbStartSession() {
+  try {
+    const club      = getMyClub();
+    if (!club.id) return;
+    const myPlayer  = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
+    const startedBy = myPlayer ? myPlayer.name : null;
+    const today     = new Date().toISOString().split('T')[0];
+
+    // Insert new live session — no uniqueness constraint, multiple allowed
+    const created = await sbPost('sessions', {
+      club_id:     club.id,
+      date:        today,
+      started_by:  startedBy,
+      status:      'live',
+      rounds_data: [],
+      players:     [],
+      updated_at:  new Date().toISOString()
+    });
+
+    // Store this session's DB id so we can update/complete exactly this row
+    const sessionDbId = created && created[0] ? created[0].id : null;
+    setMySessionId(sessionDbId);
+  } catch (e) {
+    console.warn('dbStartSession error:', e.message);
+  }
+}
+
+// Called on every round create + every winner mark
+// Updates only THIS organiser's session row by id
+async function dbSyncRoundsData() {
+  try {
+    const sessionDbId = getMySessionId();
+    if (!sessionDbId) return;
+
+    const roundsData = (allRounds || []).map(r => ({
+      round:   r.round,
+      resting: r.resting || [],
+      games:   (r.games || []).map(g => ({
+        pair1:  g.pair1,
+        pair2:  g.pair2,
+        winner: g.winner || null,
+        court:  g.court  || null
+      }))
+    }));
+
+    await sbPatch('sessions',
+      `id=eq.${sessionDbId}`,
+      { rounds_data: roundsData, updated_at: new Date().toISOString() }
+    );
+  } catch (e) {
+    console.warn('dbSyncRoundsData error:', e.message);
+  }
+}
+
+// Called on End Session — mark this session completed, keep last 3 per club
+async function dbCompleteSession() {
+  try {
+    const sessionDbId = getMySessionId();
+    const club        = getMyClub();
+    if (!sessionDbId || !club.id) return;
+
+    // Build player summary
+    const players = (schedulerState.allPlayers || []).map(p => ({
+      name:   p.name,
+      wins:   schedulerState.winCount    ? (schedulerState.winCount.get(p.name)   || 0) : 0,
+      losses: schedulerState.PlayedCount
+        ? Math.max(0, (schedulerState.PlayedCount.get(p.name) || 0) -
+            (schedulerState.winCount ? (schedulerState.winCount.get(p.name) || 0) : 0))
+        : 0
+    }));
+
+    // Mark this session completed
+    await sbPatch('sessions', `id=eq.${sessionDbId}`, {
+      status:     'completed',
+      players,
+      updated_at: new Date().toISOString()
+    });
+
+    // Keep only last 3 completed sessions per club — delete older ones
+    const all = await sbGet('sessions',
+      `club_id=eq.${club.id}&status=eq.completed&order=updated_at.desc&select=id`
+    );
+    if (all && all.length > 3) {
+      const toDelete = all.slice(3).map(s => s.id);
+      for (const id of toDelete) {
+        await sbDelete('sessions', `id=eq.${id}`).catch(() => {});
+      }
+    }
+
+    setMySessionId(null);
+  } catch (e) {
+    console.warn('dbCompleteSession error:', e.message);
+  }
+}
+
+// Auto-cleanup stale live sessions — mark completed if older than 3 hours
+async function dbCleanupStaleSessions() {
+  try {
+    const club = getMyClub();
+    if (!club.id) return;
+    const rows = await sbGet('sessions',
+      `club_id=eq.${club.id}&status=eq.live&select=id,created_at`
+    );
+    if (!rows || !rows.length) return;
+    const threeHoursAgo = Date.now() - (3 * 60 * 60 * 1000);
+    for (const sess of rows) {
+      const age = new Date(sess.created_at).getTime();
+      if (age < threeHoursAgo) {
+        await sbPatch('sessions', `id=eq.${sess.id}`, {
+          status:     'completed',
+          updated_at: new Date().toISOString()
+        }).catch(() => {});
+      }
+    }
+  } catch (e) { /* silent */ }
+}
+
+/* Force complete any session by ID — for ending stale/other-device sessions */
+async function dbForceCompleteSession(sessionId) {
+  try {
+    await sbPatch('sessions', `id=eq.${sessionId}`, {
+      status:     'completed',
+      updated_at: new Date().toISOString()
+    });
+    // Keep only last 3 completed per club
+    const club = getMyClub();
+    if (club.id) {
+      const all = await sbGet('sessions',
+        `club_id=eq.${club.id}&status=eq.completed&order=updated_at.desc&select=id`
+      );
+      if (all && all.length > 3) {
+        const toDelete = all.slice(3).map(s => s.id);
+        for (const id of toDelete) {
+          await sbDelete('sessions', `id=eq.${id}`).catch(() => {});
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('dbForceCompleteSession error:', e.message);
+  }
+}
+
+// Fetch ALL live sessions for this club (multiple halls)
+/* ── Get all club IDs a player belongs to ── */
+async function dbGetPlayerClubs(playerName) {
+  try {
+    if (!playerName) return [];
+    const players = await sbGet('players',
+      `name=ilike.${encodeURIComponent(playerName)}&select=id`
+    );
+    if (!players || !players.length) return [];
+    const playerId = players[0].id;
+    const members = await sbGet('club_members',
+      `player_id=eq.${playerId}&select=club_id`
+    );
+    return (members || []).map(m => m.club_id);
+  } catch (e) {
+    return [];
+  }
+}
+
+async function dbGetLiveSessions() {
+  try {
+    const isViewer = (typeof appMode !== 'undefined') && appMode === 'viewer';
+
+    if (isViewer) {
+      // Viewer — show sessions from all clubs the player belongs to
+      const myPlayer = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
+      if (!myPlayer) return [];
+      const clubIds = await dbGetPlayerClubs(myPlayer.name);
+      if (!clubIds.length) return [];
+      const inList = '(' + clubIds.join(',') + ')';
+      const rows = await sbGet('sessions',
+        `club_id=in.${inList}&status=eq.live&order=created_at.asc&select=id,rounds_data,started_by,updated_at,club_id`
+      );
+      return rows || [];
+    } else {
+      // Organiser — show sessions for their selected club
+      const club = getMyClub();
+      if (!club.id) return [];
+      const rows = await sbGet('sessions',
+        `club_id=eq.${club.id}&status=eq.live&order=created_at.asc&select=id,rounds_data,started_by,updated_at`
+      );
+      return rows || [];
+    }
+  } catch (e) {
+    return [];
+  }
+}
+
+// Fetch last 3 completed sessions for dashboard
+async function dbGetPastSessions() {
+  try {
+    const isViewer = (typeof appMode !== 'undefined') && appMode === 'viewer';
+
+    if (isViewer) {
+      const myPlayer = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
+      if (!myPlayer) return [];
+      const clubIds = await dbGetPlayerClubs(myPlayer.name);
+      if (!clubIds.length) return [];
+      const inList = '(' + clubIds.join(',') + ')';
+      const rows = await sbGet('sessions',
+        `club_id=in.${inList}&status=eq.completed&order=updated_at.desc&limit=5&select=id,date,started_by,players,rounds_data,updated_at,club_id`
+      );
+      return rows || [];
+    } else {
+      const club = getMyClub();
+      if (!club.id) return [];
+      const rows = await sbGet('sessions',
+        `club_id=eq.${club.id}&status=eq.completed&order=updated_at.desc&limit=3&select=id,date,started_by,players,rounds_data,updated_at`
+      );
+      return rows || [];
+    }
+  } catch (e) {
+    return [];
+  }
+}
+
+// ============================================================
+// SAVE ROUNDS TO DB — called on every round create + winner mark
+// Syncs full allRounds snapshot to sessions table for viewer rendering
+// ============================================================
+async function saveRoundsToDb() {
+  await dbSyncRoundsData();
 }
 
 // Flush live_sessions → players.sessions for all players in this club, then delete
@@ -539,7 +833,9 @@ async function flushLiveSession() {
     if (!rows || !rows.length) return;
 
     // Write all players in parallel — no sequential awaits
-    const writes = rows.map(async row => {
+    const writes = rows
+      .filter(row => row.player_name !== '__rounds__')  // skip sentinel row
+      .map(async row => {
       const matches = typeof row.matches === "string"
         ? JSON.parse(row.matches) : (row.matches || []);
       if (!matches.length) return;

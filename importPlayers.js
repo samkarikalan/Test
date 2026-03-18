@@ -144,6 +144,7 @@ function newImportShowModal() {
   syncPlayersFromMaster(); // ensure latest ratings before rendering
   newImportLoadHistory();
   newImportLoadFavorites();
+  _newImportFilterToClub(); // filter both to current club (async, refreshes cards when done)
   newImportRefreshSelectCards();
   newImportRefreshSelectedCards();
   // Load availability status in background — refresh cards when done
@@ -179,7 +180,7 @@ function newImportShowSelectMode(mode) {
   const addSection     = document.getElementById("newImportAddPlayersSection");
   const searchInput    = document.getElementById("newImportSearch");
 
-  // Always hide vault section first — shown only when mode === 'vault'
+  // Always hide vault section (removed from import modal)
   const vaultSection = document.getElementById("newImportVaultSection");
   if (vaultSection) vaultSection.style.display = "none";
 
@@ -193,20 +194,6 @@ function newImportShowSelectMode(mode) {
     if (ta && typeof translations !== "undefined" && translations[currentLang]?.importExample) {
       ta.placeholder = translations[currentLang].importExample;
     }
-    return;
-  }
-
-  if (mode === "register" || mode === "vault") {
-    listContainer.style.display  = "none";
-    addSection.style.display     = "none";
-    searchInput.style.display    = "none";
-    clearHistory.style.display   = "none";
-    clearFavorites.style.display = "none";
-    if (vaultSection) vaultSection.style.display = "block";
-    if (mode === "register") newImportRenderRegister();
-    if (typeof vaultSyncStatus === "function") vaultSyncStatus();
-    if (typeof restoreSyncIndicator === "function") restoreSyncIndicator();
-    if (typeof playerPlayingRenderList === "function") playerPlayingRenderList();
     return;
   }
 
@@ -250,10 +237,34 @@ function isValidPlayerName(name) {
    STORAGE — HISTORY
 ========================= */
 function newImportLoadHistory() {
-  // Master DB already consolidated by consolidateMasterDB() on app load
-  // Just load it into memory
   const raw = JSON.parse(localStorage.getItem("newImportHistory") || "[]");
   newImportState.historyPlayers = raw.filter(p => p && p.displayName);
+  // Filter to club members if logged in
+  _newImportFilterToClub();
+}
+
+// Filter history and favourites to only players in the current club
+async function _newImportFilterToClub() {
+  const club = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+  if (!club.id) return; // no club — show all history as-is
+
+  try {
+    const clubPlayers = await dbGetPlayers();
+    if (!clubPlayers || !clubPlayers.length) return;
+    const clubNames = new Set(clubPlayers.map(p => p.name.trim().toLowerCase()));
+
+    // Filter history
+    newImportState.historyPlayers = newImportState.historyPlayers.filter(
+      p => clubNames.has((p.displayName || '').trim().toLowerCase())
+    );
+
+    // Filter favourites
+    newImportState.favoritePlayers = newImportState.favoritePlayers.filter(
+      p => clubNames.has((p.displayName || '').trim().toLowerCase())
+    );
+
+    newImportRefreshSelectCards();
+  } catch(e) { /* silent — fall back to unfiltered */ }
 }
 
 /* =========================
@@ -960,15 +971,14 @@ function addPlayerSendToRegister(names) {
   }
 
   // Force-show Register tab button before switching (it may be hidden)
-  const regBtn = document.getElementById("newImportVaultBtn");
-  if (regBtn) regBtn.style.display = "inline-block";
+  // (Vault tab removed from import modal — register now handled via Vault page)
 
-  // Switch to Register tab keeping staging list intact
-  const regBtn2 = document.getElementById("newImportVaultBtn");
-  if (regBtn2) regBtn2.style.display = "inline-block";
+  // Switch to addplayers tab as fallback
+  const addBtn = document.getElementById("newImportAddplayersBtn");
+  if (addBtn) addBtn.style.display = "inline-block";
   document.querySelectorAll(".newImport-subtab-btn").forEach(b => b.classList.remove("active"));
-  if (regBtn2) regBtn2.classList.add("active");
-  newImportState.currentSelectMode = "register";
+  if (addBtn) addBtn.classList.add("active");
+  newImportState.currentSelectMode = "addplayers";
   ["newImportSelectCards","newImportAddPlayersSection","newImportSearch",
    "newImportClearHistoryBtn","newImportClearFavoritesBtn"].forEach(id => {
     const el = document.getElementById(id);
@@ -1273,8 +1283,13 @@ async function addPlayersBrowseLoad() {
   try {
     let players = [];
     if (scope === "club") {
-      // Use already-synced history players (club members)
-      players = newImportState.historyPlayers || [];
+      // Fetch club members directly from DB (respects current club filter)
+      const clubPlayers = await dbGetPlayers();
+      players = (clubPlayers || []).map(p => ({
+        displayName: p.name,
+        gender:      p.gender || "Male",
+        rating:      parseFloat(p.rating) || 1.0
+      }));
     } else {
       // Fetch ALL players globally (bypass club filter)
       const raw = await sbGet("players", "order=name.asc");
@@ -1344,7 +1359,6 @@ function addPlayersBrowseRender(players) {
             data-browse-action="favorite" data-browse-player="${nameSafe}">
             ${fav ? "★" : "☆"}
           </button>
-          <button class="circle-btn delete" data-browse-action="delete" data-browse-player="${nameSafe}">×</button>
           <button class="circle-btn add ${isSelected ? 'active-added' : ''} ${busy ? 'disabled-btn' : ''}"
             data-browse-action="${busy ? '' : 'add'}" data-browse-player="${nameSafe}"
             ${busy ? "disabled title='Already playing in another session'" : ""}>

@@ -4,15 +4,15 @@
    ============================================================ */
 
 
-let allRounds = [];
-let lastRound = [];
-let currentRoundIndex = 0;
-let isOnPage2 = false;
-let resetRest = false;
+var allRounds = [];
+var lastRound = [];
+var currentRoundIndex = 0;
+var isOnPage2 = false;
+var resetRest = false;
 
 
 	
-let schedulerState = {
+var schedulerState = {
     numCourts: 0,
     allPlayers: [],
     activeplayers: [],
@@ -29,13 +29,9 @@ let schedulerState = {
     markingWinnerMode: false,
     winCount: new Map(),
     pairCooldownMap: new Map(),
-    // ── Competitive algorithm additions ──
-    minRounds:  6,
     rankPoints: new Map(),
     streakMap:  new Map(),
-    tierMap:    new Map(),
     courts:     1,
-    // ─────────────────────────────────────
 };
 
 schedulerState.activeplayers = new Proxy([], {
@@ -163,9 +159,19 @@ function goToRounds() {
   }
   if (allRounds.length <= 1) {
     initScheduler(numCourts);
-    allRounds = [AischedulerNextRound(schedulerState)];
+    allRounds.length = 0;
+    allRounds.push(AischedulerNextRound(schedulerState));
     currentRoundIndex = 0;
     showRound(0);
+    // Start session in DB only if not already started
+    const existingSessionId = (typeof getMySessionId === 'function') ? getMySessionId() : null;
+    if (!existingSessionId && typeof dbStartSession === 'function') {
+      dbStartSession().then(() => {
+        if (typeof saveRoundsToDb === 'function') saveRoundsToDb();
+      });
+    } else {
+      if (typeof saveRoundsToDb === 'function') saveRoundsToDb();
+    }
   } else {   
       schedulerState.numCourts = numCourts;      
       schedulerState.fixedMap = new Map();
@@ -204,6 +210,7 @@ function nextRound() {
     allRounds.push(newRound);
     currentRoundIndex = allRounds.length - 1;
     showRound(currentRoundIndex);
+    if (typeof saveRoundsToDb === 'function') saveRoundsToDb();
   }
   updateSummaryPageAccess();
   // Sync ratings to Supabase silently after every round (called from updSchedule with wins/losses)
@@ -236,23 +243,25 @@ function prevRound() {
 }
 
 function initScheduler(numCourts) {
-  schedulerState.numCourts = numCourts;
-  schedulerState.restCount = new Map(schedulerState.activeplayers.map(p => [p, 0]));
-  schedulerState.PlayedCount = new Map(schedulerState.activeplayers.map(p => [p, 0]));
-  schedulerState.PlayerScoreMap = new Map(schedulerState.activeplayers.map(p => [p, 0]));
-  schedulerState.playedTogether = new Map();
-  schedulerState.fixedMap = new Map();
-  schedulerState.pairPlayedSet = new Set();
-  schedulerState.gamesMap = new Set();
-  schedulerState.roundIndex = 0;
+  schedulerState.numCourts   = numCourts;
+  schedulerState.courts      = numCourts;
+  schedulerState.roundIndex  = 0;
 
-  // ── Competitive algorithm additions ──
-  schedulerState.minRounds  = parseInt(localStorage.getItem('minRounds')) || 6;
-  schedulerState.rankPoints = new Map(schedulerState.activeplayers.map(p => [p, 100]));
-  schedulerState.streakMap  = new Map(schedulerState.activeplayers.map(p => [p, 0]));
-  schedulerState.tierMap    = new Map();
-  schedulerState.courts     = numCourts;
-  // ─────────────────────────────────────
+  schedulerState.restCount      = new Map(schedulerState.activeplayers.map(p => [p, 0]));
+  schedulerState.PlayedCount    = new Map(schedulerState.activeplayers.map(p => [p, 0]));
+  schedulerState.PlayerScoreMap = new Map(schedulerState.activeplayers.map(p => [p, 0]));
+  schedulerState.winCount       = new Map(schedulerState.activeplayers.map(p => [p, 0]));
+  schedulerState.rankPoints     = new Map(schedulerState.activeplayers.map(p => [p, 100]));
+  schedulerState.streakMap      = new Map(schedulerState.activeplayers.map(p => [p, 0]));
+
+  schedulerState.playedTogether = new Map();
+  schedulerState.fixedMap       = new Map();
+  schedulerState.pairPlayedSet  = new Set();
+  schedulerState.gamesMap       = new Set();
+
+  // New algorithm state
+  schedulerState.pairHistory    = new Map();   // _pairKey -> times played together
+  schedulerState.reachablePairs = new Set();   // all pairs that could ever play
 
   // Initialize opponentMap
   schedulerState.opponentMap = new Map();
@@ -264,28 +273,33 @@ function initScheduler(numCourts) {
     schedulerState.opponentMap.set(p1, innerMap);
   }
 
-  // Map each fixed pair for quick lookup
+  // Fixed pairs lookup
   schedulerState.fixedPairs.forEach(([a, b]) => {
     schedulerState.fixedMap.set(a, b);
     schedulerState.fixedMap.set(b, a);
   });
 
+  // Build rest queue sorted weak-to-strong (once at session start)
+  // FIFO rotation takes over from here naturally
   schedulerState.restQueue = createRestQueue();
 }
 
 
 function updateScheduler() {
-   schedulerState.opponentMap = new Map();
+  schedulerState.opponentMap = new Map();
   for (const p1 of schedulerState.activeplayers) {
     const innerMap = new Map();
     for (const p2 of schedulerState.activeplayers) {
-      if (p1 !== p2) innerMap.set(p2, 0); // start all counts at 0
+      if (p1 !== p2) innerMap.set(p2, 0);
     }
     schedulerState.opponentMap.set(p1, innerMap);
   }
-    schedulerState.restQueue = rebuildRestQueue(
-    schedulerState.restQueue );  // initial queue
-    
+
+  // Reset new algorithm state on court change
+  schedulerState.pairHistory    = new Map();
+  schedulerState.reachablePairs = new Set();
+
+  schedulerState.restQueue = rebuildRestQueue(schedulerState.restQueue);
 }
 
 /* ================================
@@ -515,6 +529,15 @@ for (const game of games) {
   }
 }
 
+  // ── Update pairHistory + opponentMap for new algorithm ──
+  if (!schedulerState.pairHistory) schedulerState.pairHistory = new Map();
+  for (const game of games) {
+    const k1 = _pairKey(game.pair1[0], game.pair1[1]);
+    const k2 = _pairKey(game.pair2[0], game.pair2[1]);
+    schedulerState.pairHistory.set(k1, (schedulerState.pairHistory.get(k1) || 0) + 1);
+    schedulerState.pairHistory.set(k2, (schedulerState.pairHistory.get(k2) || 0) + 1);
+  }
+
 // Refresh all visible badges
 syncRatings();
 updatePlayerList();
@@ -536,8 +559,17 @@ if ( resetRest === true &&
 }
 
 function createRestQueue() {
-  // Simply return active players in their current order
-  return [...schedulerState.activeplayers];
+  // Sort players weak-to-strong by active rating once at session start.
+  // FIFO rotation then takes over naturally from here.
+  // This ensures rest groups are rating-spread rather than clustered,
+  // giving every round a balanced playing pool.
+  const players = [...schedulerState.activeplayers];
+  players.sort((a, b) => {
+    const ra = (typeof getActiveRating === 'function') ? getActiveRating(a) : 1.0;
+    const rb = (typeof getActiveRating === 'function') ? getActiveRating(b) : 1.0;
+    return ra - rb; // ascending: weakest first
+  });
+  return players;
 }
 
 function rebuildRestQueue(restQueue) {
@@ -567,9 +599,17 @@ function rebuildRestQueue(restQueue) {
   
 
 function RefreshRound() {
+    const savedRoundIndex = schedulerState.roundIndex;
     schedulerState.roundIndex = allRounds.length - 1;
     currentRoundIndex = schedulerState.roundIndex;
-    const newRound = AischedulerNextRound(schedulerState);
+
+    // Use RandomRound directly — it uses pairPlayedSet + lastRound
+    // to actively avoid repeating pairs, giving genuine variety on reshuffle
+    const newRound = RandomRound(schedulerState);
+    newRound.round = savedRoundIndex + 1; // keep round number stable
+
+    // Restore roundIndex — shuffle should not advance the round counter
+    schedulerState.roundIndex = savedRoundIndex;
     allRounds[allRounds.length - 1] = newRound;
     showRound(currentRoundIndex);
 }
