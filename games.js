@@ -28,6 +28,7 @@ const roundStates = {
   }
 };
 function getPairKey(a, b) {
+  if (!a || !b) return null; // invalid pair — no key
   return [a, b].sort().join("|");
 }
 
@@ -183,12 +184,12 @@ function toggleRound() {
 
   // Update button label
   if (currentState === "idle") {
-    // Show "Start" if no rounds played yet, else "Next Round"
+    // Show t("startGame") if no rounds played yet, else "Next Round"
     const isFirst = allRounds.length <= 1;
     if (isFirst) {
       btn.classList.add("start-state");
       textEl.removeAttribute("data-i18n");
-      textEl.textContent = "Start";
+      textEl.textContent = t("startGame");
     } else {
       btn.classList.remove("start-state");
       textEl.dataset.i18n = "nround";
@@ -211,10 +212,10 @@ function toggleRound() {
 function setStatus(status) {
   //statusEl.classList.remove("status-ready", "status-progress");
 
-  /*if (status === "Ready") {
+  /*if (status === t("readyGame")) {
     statusEl.dataset.i18n = "statusReady";
     statusEl.classList.add("status-ready");
-  } else if (status === "In Progress") {
+  } else if (status === t("inProgressGame")) {
     statusEl.dataset.i18n = "statusProgress";
     statusEl.classList.add("status-progress");
   } 
@@ -1295,12 +1296,14 @@ function renderGames(data, roundIndex) {
       const pair1Key = getPairKey(g.pair1[0], g.pair1[1]);
       const pair2Key = getPairKey(g.pair2[0], g.pair2[1]);
 
-      previousPairSet.add(pair1Key);
-      previousPairSet.add(pair2Key);
+      if (pair1Key) previousPairSet.add(pair1Key);
+      if (pair2Key) previousPairSet.add(pair2Key);
 
       // ✅ FIXED — store game as pair-vs-pair (NOT 4 flattened players)
-      const gameKey = [pair1Key, pair2Key].sort().join("|");
-      previousGameSet.add(gameKey);
+      if (pair1Key && pair2Key) {
+        const gameKey = [pair1Key, pair2Key].sort().join("|");
+        previousGameSet.add(gameKey);
+      }
     });
   }
 
@@ -1326,9 +1329,9 @@ function renderGames(data, roundIndex) {
       const teamPairs = teamSide === 'L' ? game.pair1 : game.pair2;
 
       // ⭐ Pair repetition detection
-      if (teamPairs) {
+      if (teamPairs && teamPairs.length === 2) {
         const pairKey = getPairKey(teamPairs[0], teamPairs[1]);
-        if (previousPairSet.has(pairKey)) {
+        if (pairKey && previousPairSet.has(pairKey)) {
           teamDiv.classList.add('repeated-pair');
         }
       }
@@ -1348,7 +1351,7 @@ function renderGames(data, roundIndex) {
       const winCup = document.createElement('img');
       winCup.src = 'win-cup.png';
       winCup.className = 'win-cup blinking';
-      winCup.title = 'Mark winner';
+      winCup.title = t('markWinner');
       winCup.style.visibility = 'hidden';
       winCup.style.pointerEvents = 'none';
 
@@ -1451,16 +1454,17 @@ function renderGames(data, roundIndex) {
       const pair1Key = getPairKey(game.pair1[0], game.pair1[1]);
       const pair2Key = getPairKey(game.pair2[0], game.pair2[1]);
 
-      const currentGameKey = [pair1Key, pair2Key].sort().join("|");
-
-      if (previousGameSet.has(currentGameKey)) {
-        courtDiv.classList.add('repeated-game');
+      if (pair1Key && pair2Key) {
+        const currentGameKey = [pair1Key, pair2Key].sort().join("|");
+        if (previousGameSet.has(currentGameKey)) {
+          courtDiv.classList.add('repeated-game');
+        }
       }
     }
 
     const vsDivider = document.createElement('div');
     vsDivider.className = 'vs-divider';
-    vsDivider.innerHTML = '<div class="vs-line"></div><span>VS</span><div class="vs-line"></div>';
+    vsDivider.innerHTML = `<div class="vs-line"></div><span>${t('vsLabel')}</span><div class="vs-line"></div>`;
 
     teamsDiv.append(teamLeft, vsDivider, teamRight);
     courtDiv.append(courtName, teamsDiv);
@@ -1508,7 +1512,7 @@ function goodrenderGames(data, roundIndex) {
       const winCup = document.createElement('img');
       winCup.src = 'win-cup.png';
       winCup.className = 'win-cup blinking';
-      winCup.title = 'Mark winner';
+      winCup.title = t('markWinner');
       winCup.style.visibility = 'hidden';
       winCup.style.pointerEvents = 'none';
 
@@ -1612,7 +1616,7 @@ function goodrenderGames(data, roundIndex) {
 
     const vsDivider = document.createElement('div');
     vsDivider.className = 'vs-divider';
-    vsDivider.innerHTML = '<div class="vs-line"></div><span>VS</span><div class="vs-line"></div>';
+    vsDivider.innerHTML = `<div class="vs-line"></div><span>${t('vsLabel')}</span><div class="vs-line"></div>`;
 
     teamsDiv.append(teamLeft, vsDivider, teamRight);
     courtDiv.append(courtName, teamsDiv);
@@ -1662,7 +1666,7 @@ function renderGames2(data, index) {
       const winCup = document.createElement('img');
       winCup.src = 'win-cup.png';
       winCup.className = 'win-cup blinking';
-      winCup.title = 'Mark winner';
+      winCup.title = t('markWinner');
 
       // Start hidden
       winCup.style.visibility = 'hidden';
@@ -1772,7 +1776,7 @@ function renderGames2(data, index) {
 
     const vsDivider = document.createElement('div');
     vsDivider.className = 'vs-divider';
-    vsDivider.innerHTML = '<div class="vs-line"></div><span>VS</span><div class="vs-line"></div>';
+    vsDivider.innerHTML = `<div class="vs-line"></div><span>${t('vsLabel')}</span><div class="vs-line"></div>`;
 
     teamsDiv.append(teamLeft, vsDivider, teamRight);
     courtDiv.append(courtName, teamsDiv);
@@ -1825,7 +1829,7 @@ restDiv.appendChild(title);
 
   if (!data.resting || data.resting.length === 0) {
     const span = document.createElement('span');
-    span.innerText = 'None';
+    span.innerText = t('noneGame');
     restBox.appendChild(span);
   } else {
     data.resting.forEach(restName => {
@@ -2256,7 +2260,7 @@ function handleDropRestToTeam(
   // ---------------------------------------------
   const { restCount } = schedulerState;
 
-  if (oldPlayer && oldPlayer !== '(Empty)') {
+  if (oldPlayer && oldPlayer !== t('emptyGame')) {
 
     // Read only value
     const stored = restCount.get(oldPlayer) || 0;
@@ -2274,7 +2278,7 @@ function handleDropRestToTeam(
 function handleDropBetweenTeams(e, teamSide, gameIndex, playerIndex, data, index, src) {
   // src contains info about the player you selected first
   const { teamSide: fromTeamSide, gameIndex: fromGameIndex, playerIndex: fromPlayerIndex, playerName: player } = src;
-  if (!player || player === '(Empty)') return;
+  if (!player || player === t('emptyGame')) return;
   const fromTeamKey = fromTeamSide === 'L' ? 'pair1' : 'pair2';
   const toTeamKey = teamSide === 'L' ? 'pair1' : 'pair2';
   const fromTeam = data.games[fromGameIndex][fromTeamKey];
@@ -2284,7 +2288,7 @@ function handleDropBetweenTeams(e, teamSide, gameIndex, playerIndex, data, index
   const targetPlayer = toTeam[playerIndex];
   // ✅ Swap players
   toTeam[playerIndex] = movedPlayer;
-  fromTeam[fromPlayerIndex] = targetPlayer && targetPlayer !== '(Empty)' ? targetPlayer : '(Empty)';
+  fromTeam[fromPlayerIndex] = targetPlayer && targetPlayer !== t('emptyGame') ? targetPlayer : t('emptyGame');
   showRound(index);
 }
 
@@ -2413,7 +2417,7 @@ lockBtn.addEventListener('click', () => {
   interactionLocked = !interactionLocked;
   document.body.classList.toggle('locked', interactionLocked);
   lockBtn.src = interactionLocked ? 'lock.png' : 'unlock.png';
-  lockBtn.alt = interactionLocked ? 'Lock' : 'Unlock';
+  lockBtn.alt = interactionLocked ? 'Lock' : t('unlockBtn');
   _syncModeBanner();
   _syncShuffleBtn();
 });
@@ -2425,13 +2429,13 @@ function _syncModeBanner() {
 
   if (currentState === "active") {
     badge.className = 'mode-banner-badge live-mode';
-    badge.textContent = 'LIVE';
+    badge.textContent = t('liveBadge') || 'LIVE';
   } else if (!interactionLocked) {
     badge.className = 'mode-banner-badge setup-mode';
-    badge.textContent = 'SETUP';
+    badge.textContent = t('setupBadge') || 'SETUP';
   } else {
     badge.className = 'mode-banner-badge ready-mode';
-    badge.textContent = 'READY';
+    badge.textContent = t('readyBadge') || 'READY';
   }
 }
 
@@ -2476,12 +2480,7 @@ modeToggle.addEventListener("change", () => {
 // Min Rounds value
 // minRoundsRow removed from UI — no warm-up concept
 
-function toggleRoundSettings() {
-  const body = document.getElementById('roundSettingsBody');
-  const isOpen = body.classList.toggle('open');
-  const gearBtn = document.querySelector('.action-card .action.mid.small:last-child');
-  if (gearBtn) gearBtn.classList.toggle('settings-active', isOpen);
-}
+
 
 function toggleMinRoundsVisibility() {
   // no-op: minRoundsRow removed
@@ -2492,8 +2491,7 @@ function updateModeLabel() {
   if (lbl) lbl.textContent = getPlayMode() === "competitive" ? "🏆" : "🎲";
 }
 
-// Patched toggleRoundSettings — no chevron ref
-var _origToggle = toggleRoundSettings;
+// toggleRoundSettings — unified version
 function toggleRoundSettings() {
   const body = document.getElementById('roundSettingsBody');
   const isOpen = body.classList.toggle('open');

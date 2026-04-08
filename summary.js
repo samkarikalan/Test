@@ -3,81 +3,72 @@
    File: summary.js
    ============================================================ */
 
-function renderRounds() {
-  const exportRoot = document.getElementById('export');
-  exportRoot.innerHTML = '';
+/* ── renderSummaryFromSession
+   Fetches the current session from Supabase and renders using
+   the viewer's existing _vRenderSummary + _vBuildRound renderers.
+   Falls back to in-memory allRounds if no session ID found.
+── */
+async function renderSummaryFromSession() {
+  const reportEl = document.getElementById('reportContainer');
+  const exportEl = document.getElementById('export');
+  if (reportEl) reportEl.innerHTML = '';
+  if (exportEl)  exportEl.innerHTML = '';
 
-  const debugDiv = document.createElement('div');
-  debugDiv.style.cssText = 'font-size:0.75rem;color:var(--muted);padding:6px 4px;';
-  debugDiv.textContent = `allRounds: ${allRounds.length} total, ${allRounds.slice(0,-1).length} completed`;
-  exportRoot.appendChild(debugDiv);
+  // Show loading state
+  if (reportEl) reportEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted)"><div class="help-spinner"></div></div>';
 
-  allRounds.slice(0, -1).forEach((data) => {
-    /* ───────── Round Container ───────── */
-    const roundDiv = document.createElement('div');
-    roundDiv.className = 'export-round';
+  try {
+    // Try to get session data from Supabase
+    const sessionId = (typeof getMySessionId === 'function') ? getMySessionId() : null;
+    let roundsData = null;
+    let meta = {};
 
-    /* ───────── Round Title ───────── */
-    const title = document.createElement('div');
-    title.className = 'export-round-title';
-    title.textContent = data.round;
-    roundDiv.appendChild(title);
-
-    /* ───────── Matches ───────── */
-    data.games.forEach(game => {
-      const match = document.createElement('div');
-      match.className = 'export-match';
-
-      const leftTeam = document.createElement('div');
-      leftTeam.className = 'export-team';
-      leftTeam.innerHTML = game.pair1.join('<br>');
-
-      const vs = document.createElement('div');
-      vs.className = 'export-vs';
-      vs.textContent = 'VS';
-
-      const rightTeam = document.createElement('div');
-      rightTeam.className = 'export-team';
-      rightTeam.innerHTML = game.pair2.join('<br>');
-
-      // ✅ Add 🏆 to the winning team
-      if (game.winners && Array.isArray(game.winners)) {
-        const leftWins = game.pair1.filter(p => game.winners.includes(p)).length;
-        const rightWins = game.pair2.filter(p => game.winners.includes(p)).length;
-
-       if (leftWins > rightWins) {
-          leftTeam.classList.add('winner');
-        } else if (rightWins > leftWins) {
-          rightTeam.classList.add('winner');
-        } else if (leftWins > 0 && leftWins === rightWins) {
-          leftTeam.classList.add('winner');
-          rightTeam.classList.add('winner');
-        }
+    if (sessionId) {
+      const rows = await sbGet('sessions',
+        `id=eq.${sessionId}&select=id,rounds_data,started_by,created_at,updated_at,status`
+      );
+      if (rows && rows.length) {
+        roundsData = rows[0].rounds_data || [];
+        meta = {
+          started_by: rows[0].started_by,
+          created_at: rows[0].created_at,
+          club_name:  (typeof getMyClub === 'function') ? getMyClub().name : '',
+          status:     rows[0].status
+        };
       }
-
-      match.append(leftTeam, vs, rightTeam);
-      roundDiv.appendChild(match);
-    });
-
-    /* ───────── Sitting Out Section ───────── */
-    const restTitle = document.createElement('div');
-    restTitle.className = 'export-rest-title';
-    restTitle.textContent = t('sittingOut');
-    roundDiv.appendChild(restTitle);
-
-    const restBox = document.createElement('div');
-    restBox.className = 'export-rest-box';
-
-    if (!data.resting || data.resting.length === 0) {
-      restBox.textContent = t('none');
-    } else {
-      restBox.innerHTML = data.resting.join(', ');
     }
 
-    roundDiv.appendChild(restBox);
-    exportRoot.appendChild(roundDiv);
-  });
+    // Fallback to in-memory allRounds
+    if (!roundsData || !roundsData.length) {
+      if (Array.isArray(allRounds) && allRounds.length > 0) {
+        roundsData = allRounds;
+      }
+    }
+
+    if (!roundsData || !roundsData.length) {
+      if (reportEl) reportEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:0.9rem;">' + t('noSessionDataAvail') + '</div>';
+      return;
+    }
+
+    // Store in viewer state so _vRenderSummary can use it
+    window._vRoundsData = roundsData;
+    window._vMeta = meta;
+
+    // Render using viewer's summary renderer into reportContainer + export
+    if (reportEl) {
+      reportEl.innerHTML = '';
+      if (typeof _vRenderSummary === 'function') {
+        _vRenderSummary(reportEl);
+      }
+    }
+
+  } catch(e) {
+    if (reportEl) reportEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:0.9rem;">' + t('couldNotLoadSession') + '</div>';
+  }
 }
+
+// Keep renderRounds as a no-op so existing calls don't crash
+function renderRounds() {}
 
 
 // ExportCSS.js

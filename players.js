@@ -90,7 +90,7 @@ function fpRenderDropdown(n) {
   const wrap = document.createElement("div");
   wrap.className = "fp-dropdown-inner";
   if (!available.length) {
-    wrap.innerHTML = '<div class="fp-option-empty">No players available</div>';
+    wrap.innerHTML = '<div class="fp-option-empty">' + t('noPlayersAvailable') + '</div>';
   }
   available.forEach(name => {
     const row = document.createElement("div");
@@ -145,7 +145,7 @@ function fpResetPickers() {
       oldAv.replaceWith(ph);
     }
     const label = document.getElementById("fpLabel" + n);
-    if (label) { label.textContent = "Player " + n; label.classList.remove("fp-label-chosen"); }
+    if (label) { label.textContent = t('playerPrefix') + n; label.classList.remove("fp-label-chosen"); }
     const dd = document.getElementById("fpDropdown" + n);
     if (dd) dd.style.display = "none";
   });
@@ -241,7 +241,7 @@ function fcRenderDropdown(key, n) {
   inner.className = 'fp-dropdown-inner';
 
   if (!available.length) {
-    inner.innerHTML = '<div class="fp-option-empty">No players available</div>';
+    inner.innerHTML = '<div class="fp-option-empty">' + t('noPlayersAvailable') + '</div>';
   } else {
     available.forEach(name => {
       const row = document.createElement('div');
@@ -418,16 +418,13 @@ function hideImportModal() {
 }
 
 // OK button — moves selectedPlayers into scheduler
-function addPlayersFromInputUI() {
+function addPlayersFromInputUI(replace) {
   const importPlayers = newImportState.selectedPlayers;
-  if (!importPlayers || importPlayers.length === 0) { alert('No players to add!'); return; }
+  if (!importPlayers || importPlayers.length === 0) { alert('No players selected!'); return; }
 
-  // If existing players, ask replace or add
-  if (schedulerState.allPlayers.length > 0) {
-    const replace = confirm("Replace current players?\nOK = Replace  /  Cancel = Add to existing");
-    if (replace) {
-      schedulerState.allPlayers.splice(0, schedulerState.allPlayers.length);
-    }
+  // Replace clears existing list first
+  if (replace) {
+    schedulerState.allPlayers.splice(0, schedulerState.allPlayers.length);
   }
 
   importPlayers.forEach(p => {
@@ -443,8 +440,7 @@ function addPlayersFromInputUI() {
 
   hideImportModal();
   newImportState.selectedPlayers = [];
-  const playersBtn = document.querySelector('.tab-btn[onclick*="playersPage"]');
-  showPage('playersPage', playersBtn);
+  showPage('playersPage', null);
   updatePlayerList();
   syncRatings();
 
@@ -580,6 +576,9 @@ function createPlayerCard(player, index) {
     <div class="pec-col pec-rating">
       <span class="rating-badge" data-player="${player.name}">${(typeof getActiveRating === 'function' ? getActiveRating(player.name) : getRating(player.name)).toFixed(1)}</span>
     </div>
+    <div class="pec-col pec-delete">
+      <button class="pec-delete-btn" onclick="deletePlayer(${index})" title="Remove player">🗑</button>
+    </div>
   `;
   return card;
 }
@@ -625,6 +624,8 @@ function updatePlayerList() {
   updateFixedPairSelectors();
   updateCourtButtons();
   updateRoundsPageAccess();
+  // Refresh home tiles to reflect updated player count
+  if (typeof homeRefreshTiles === 'function') homeRefreshTiles();
 }
 
 /* =========================

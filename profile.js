@@ -22,53 +22,111 @@ function clearMyPlayer() {
 
 /* ── Tier label from rating ── */
 function ratingTierLabel(r) {
-  if (r < 2.0) return { label: 'Rookie',       color: '#9e9e9e' };
+  if (r < 2.0) return { label: t('rookie'),       color: '#9e9e9e' };
   if (r < 3.0) return { label: 'Club',          color: '#4a9eff' };
-  if (r < 4.0) return { label: 'Competitive',   color: '#2dce89' };
-  if (r < 4.5) return { label: 'Advanced',      color: '#f5a623' };
-  return             { label: 'Elite',           color: '#e63757' };
+  if (r < 4.0) return { label: t('competitiveLevel'),   color: '#2dce89' };
+  if (r < 4.5) return { label: t('advancedLevel'),      color: '#f5a623' };
+  return             { label: t('eliteLevel'),           color: '#e63757' };
 }
 
 /* ── Update header profile button appearance ── */
-function updateProfileBtn() {
+async function updateProfileBtn() {
   const player = getMyPlayer();
-  const avatarEl = document.getElementById('profileBtnAvatar');
-  const iconEl   = document.getElementById('profileBtnIcon');
-  if (!avatarEl || !iconEl) return;
+  const src = player ? (player.gender === 'Female' ? 'female.png' : 'male.png') : null;
 
-  if (player) {
-    avatarEl.src = player.gender === 'Female' ? 'female.png' : 'male.png';
-    avatarEl.style.display = 'block';
-    iconEl.style.display   = 'none';
-  } else {
-    avatarEl.style.display = 'none';
-    iconEl.style.display   = 'block';
+  // Update profile buttons (main top bar + home overlay)
+  [
+    { avatar: 'profileBtnAvatar',  icon: 'profileBtnIcon'  },
+    { avatar: 'homeProfileAvatar', icon: 'homeProfileIcon' },
+  ].forEach(function(ids) {
+    const avatarEl = document.getElementById(ids.avatar);
+    const iconEl   = document.getElementById(ids.icon);
+    if (!avatarEl || !iconEl) return;
+    if (player) {
+      avatarEl.src           = src;
+      avatarEl.style.display = 'block';
+      iconEl.style.display   = 'none';
+    } else {
+      avatarEl.style.display = 'none';
+      iconEl.style.display   = 'block';
+    }
+  });
+
+  // Update home profile tile
+  const tileAvatar = document.getElementById('homeTileAvatar');
+  const tileIcon   = document.getElementById('homeTileIcon');
+  const tileName   = document.getElementById('homeTileName');
+  const tileRating = document.getElementById('homeTileRating');
+
+  if (!player) {
+    if (tileAvatar) tileAvatar.style.display = 'none';
+    if (tileIcon)   { tileIcon.style.display = ''; tileIcon.textContent = '👤'; }
+    if (tileName)   tileName.textContent = t('myProfile');
+    if (tileRating) tileRating.textContent = t('notSelectedProfile');
+    return;
   }
-}
 
-/* ── End Session from profile drawer ── */
-async function profileEndSession() {
-  const btn     = document.getElementById('profileEndBtn');
-  const btnText = document.getElementById('profileEndBtnText');
-
-  // Show busy state — drawer stays open
-  btn.disabled      = true;
-  btnText.textContent = 'Saving...';
-  btn.style.opacity = '0.7';
+  if (tileAvatar) { tileAvatar.src = src; tileAvatar.style.display = 'block'; }
+  if (tileIcon)   tileIcon.style.display = 'none';
+  if (tileName)   tileName.textContent = player.name;
+  if (tileRating) tileRating.textContent = t('loading');
 
   try {
-    await endSession(true);
-    // Close profile drawer after session ended
-    const overlay = document.getElementById('profileOverlay');
-    const drawer  = document.getElementById('profileDrawer');
-    if (overlay) overlay.style.display = 'none';
-    if (drawer)  drawer.classList.remove('open');
+    let bestRating = null;
+    let wins = 0, losses = 0;
+
+    // Auto-fetch from all memberships (works across multiple clubs, no live session needed)
+    const user = (typeof authGetUser === 'function') ? authGetUser() : null;
+    let bestClubName = null;
+    if (user) {
+      const mems = await sbGet('memberships',
+        'user_account_id=eq.' + user.id + '&select=club_id,club_rating,player_id,clubs(name)').catch(function(){ return []; });
+      if (mems && mems.length) {
+        // Use the ACTIVE club specifically
+        const activeClub = (typeof getMyClub === 'function') ? getMyClub() : null;
+        const activeMem = activeClub && activeClub.id
+          ? mems.find(function(m){ return m.club_id === activeClub.id; })
+          : null;
+        const bestMem = activeMem || mems.reduce(function(best, m) {
+          return (!best || parseFloat(m.club_rating) > parseFloat(best.club_rating)) ? m : best;
+        }, null);
+        bestRating = parseFloat(bestMem.club_rating) || 1.0;
+        if (bestMem.clubs && bestMem.clubs.name) bestClubName = bestMem.clubs.name;
+        const pid = bestMem.player_id;
+        if (pid) {
+          const prows = await sbGet('players', 'id=eq.' + pid + '&select=wins,losses').catch(function(){ return []; });
+          if (prows && prows[0]) {
+            wins   = prows[0].wins   || 0;
+            losses = prows[0].losses || 0;
+          }
+        }
+      }
+    }
+
+    // Fallback to local cache
+    if (bestRating === null) {
+      const master = JSON.parse(localStorage.getItem('newImportHistory') || '[]');
+      const hp = master.find(function(h) {
+        return h.displayName && h.displayName.trim().toLowerCase() === player.name.trim().toLowerCase();
+      });
+      bestRating = parseFloat(hp && hp.clubRating) || 1.0;
+    }
+
+    const baseLabel = bestClubName ? bestClubName + '  ·  ' + bestRating.toFixed(1) : 'Club ' + bestRating.toFixed(1);
+    const label = wins || losses ? baseLabel + '  ·  W:' + wins + ' L:' + losses : baseLabel;
+    if (tileRating) tileRating.textContent = label;
+
   } catch(e) {
-    btn.disabled        = false;
-    btnText.textContent = 'End Session';
-    btn.style.opacity   = '1';
+    const master = JSON.parse(localStorage.getItem('newImportHistory') || '[]');
+    const hp = master.find(function(h) {
+      return h.displayName && h.displayName.trim().toLowerCase() === player.name.trim().toLowerCase();
+    });
+    const clubRating = parseFloat(hp && hp.clubRating) || 1.0;
+    if (tileRating) tileRating.textContent = 'Club ' + clubRating.toFixed(1);
   }
 }
+
+
 
 /* ── Open drawer ── */
 async function openProfileDrawer() {
@@ -76,43 +134,6 @@ async function openProfileDrawer() {
   const drawer  = document.getElementById('profileDrawer');
   overlay.classList.remove('hidden');
   drawer.classList.add('open');
-
-  // Determine if End Session button should be visible:
-  // — Admin: always
-  // — The player who started the rounds (started_by in live_sessions): always
-  // — Anyone else: hidden
-  const endBtn = document.getElementById('profileEndBtn');
-  if (endBtn) {
-    const isAdmin = (typeof isAdminMode === 'function') && isAdminMode();
-    if (isAdmin) {
-      endBtn.style.display = '';
-    } else {
-      // Check live_sessions for today to see who started rounds
-      try {
-        const club  = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
-        const today = new Date().toISOString().split('T')[0];
-        const myPlayer = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
-        let canEnd = false;
-
-        if (club.id && myPlayer) {
-          const rows = await sbGet('live_sessions',
-            `club_id=eq.${club.id}&date=eq.${today}&order=updated_at.desc&limit=1`);
-          if (rows && rows.length) {
-            const startedBy = rows[0].started_by;
-            // Allow if: name matches started_by, OR started_by not set, OR has local active rounds
-            const nameMatch  = startedBy &&
-              startedBy.trim().toLowerCase() === myPlayer.name.trim().toLowerCase();
-            const hasRounds  = typeof allRounds !== 'undefined' &&
-              allRounds.some(r => (r.games || r).some(g => g.winner));
-            canEnd = nameMatch || hasRounds;
-          }
-        }
-        endBtn.style.display = canEnd ? '' : 'none';
-      } catch(e) {
-        endBtn.style.display = 'none';
-      }
-    }
-  }
 
   const player = getMyPlayer();
   if (player) {
@@ -151,21 +172,22 @@ function showProfilePicker() {
   document.getElementById('pinScreenView').style.display    = 'none';
 
   const list = document.getElementById('profilePickerList');
-  list.innerHTML = '<div class="profile-sessions-loading">Loading players...</div>';
+  list.innerHTML = '<div class="profile-sessions-loading">' + t('loadingPlayers') + '</div>';
 
   // Clear search box
   const searchEl = document.getElementById('profileSearch');
   if (searchEl) searchEl.value = '';
 
   // Load ALL players from server (no club filter)
-  sbGet('players', 'order=name.asc&select=id,name,gender,rating,club_ratings,pin,recovery_word').then(players => {
-    _pickerAllPlayers = (players || []).map(p => ({
-      name:          p.name,
-      gender:        p.gender || 'Male',
-      rating:        p.rating || 1.0,
-      club_ratings:  p.club_ratings || {},
-      pin:           p.pin || null,
-      recovery_word: p.recovery_word || null
+  const _club = (getMyClub && getMyClub()) || {};
+  sbGet('memberships', `club_id=eq.${_club.id||''}&order=nickname.asc&select=nickname,club_rating,is_playing,player_id,players(id,gender,global_rating)`).then(members => {
+    _pickerAllPlayers = (members || []).map(m => ({
+      name:          m.nickname,
+      gender:        m.players?.gender || 'Male',
+      rating:        parseFloat(m.players?.global_rating) || 1.0,
+      club_rating:   parseFloat(m.club_rating) || 1.0,
+      pin:           null,
+      recovery_word: null
     }));
     renderPickerList(_pickerAllPlayers);
   }).catch(() => {
@@ -182,7 +204,7 @@ function renderPickerList(players) {
   list.innerHTML = '';
 
   if (!players.length) {
-    list.innerHTML = '<div class="profile-picker-empty">No players found in your club.</div>';
+    list.innerHTML = '<div class="profile-picker-empty">' + t('noPlayersInClub') + '</div>';
     return;
   }
 
@@ -238,11 +260,11 @@ function showPinSetup(p) {
     <div class="pin-name">${p.name}</div>
     <p class="pin-hint">First time? Set a 4-digit PIN and a recovery word.</p>
     <input id="pinSetupPin" type="password" inputmode="numeric" maxlength="4"
-      class="pin-input" placeholder="Set PIN (4 digits)">
+      class="pin-input" placeholder=t("setPinTitle")>
     <input id="pinSetupConfirm" type="password" inputmode="numeric" maxlength="4"
-      class="pin-input" placeholder="Confirm PIN">
+      class="pin-input" placeholder=t("confirmPin")>
     <input id="pinSetupRecovery" type="text" class="pin-input"
-      placeholder="Recovery word (secret)">
+      placeholder="${t('recoveryWordSecret')}">
     <div id="pinSetupError" class="pin-error"></div>
     <button class="pin-btn" onclick="confirmPinSetup('${p.name.replace(/'/g,"\\'")}')">Save & Continue</button>
   `);
@@ -254,21 +276,21 @@ async function confirmPinSetup(name) {
   const recovery = document.getElementById('pinSetupRecovery').value.trim().toLowerCase();
   const err     = document.getElementById('pinSetupError');
 
-  if (!/^\d{4}$/.test(pin))       { err.textContent = 'PIN must be exactly 4 digits.'; return; }
-  if (pin !== confirm)             { err.textContent = 'PINs do not match.'; return; }
-  if (recovery.length < 3)        { err.textContent = 'Recovery word too short.'; return; }
+  if (!/^\d{4}$/.test(pin))       { err.textContent = t('pinMustBe4'); return; }
+  if (pin !== confirm)             { err.textContent = t('pinsNotMatch'); return; }
+  if (recovery.length < 3)        { err.textContent = t('recoveryTooShort'); return; }
 
-  err.textContent = '⏳ Saving...';
+  err.textContent = t('savingPin');
   try {
-    await sbPatch('players', `name=ilike.${encodeURIComponent(name)}`, {
-      pin, recovery_word: recovery
-    });
+    // PIN/recovery stored in user_accounts via auth system — no DB patch needed here
+    // Just update local cache
+    
     const p = _pickerAllPlayers.find(x => x.name === name);
     if (p) { p.pin = pin; p.recovery_word = recovery; }
     err.textContent = '';
     _completeProfileSelection(name);
   } catch(e) {
-    err.textContent = 'Failed to save. Try again.';
+    err.textContent = t('failedSave');
   }
 }
 
@@ -278,7 +300,7 @@ function showPinLogin(p) {
     <div class="pin-name">${p.name}</div>
     <p class="pin-hint">Enter your PIN to continue.</p>
     <input id="pinLoginPin" type="password" inputmode="numeric" maxlength="4"
-      class="pin-input" placeholder="Enter PIN">
+      class="pin-input" placeholder=t("enterPin")>
     <div id="pinLoginError" class="pin-error"></div>
     <button class="pin-btn" onclick="confirmPinLogin('${p.name.replace(/'/g,"\\'")}')">Continue</button>
     <button class="pin-btn-secondary" onclick="showPinRecovery('${p.name.replace(/'/g,"\\'")}')">Forgot PIN?</button>
@@ -296,8 +318,8 @@ function confirmPinLogin(name) {
   const entered = document.getElementById('pinLoginPin').value.trim();
   const err     = document.getElementById('pinLoginError');
   const p       = _pickerAllPlayers.find(x => x.name === name);
-  if (!p) { err.textContent = 'Player not found.'; return; }
-  if (entered !== p.pin) { err.textContent = '❌ Wrong PIN. Try again.'; return; }
+  if (!p) { err.textContent = t('playerNotFoundPin'); return; }
+  if (entered !== p.pin) { err.textContent = t('wrongPin'); return; }
   _completeProfileSelection(name);
 }
 
@@ -306,11 +328,11 @@ function showPinRecovery(name) {
   _showPinScreen(`
     <div class="pin-name">${name}</div>
     <p class="pin-hint">Enter your recovery word to reset your PIN.</p>
-    <input id="pinRecoveryWord" type="text" class="pin-input" placeholder="Recovery word">
+    <input id="pinRecoveryWord" type="text" class="pin-input" placeholder=t("recoveryWord")>
     <input id="pinRecoveryNew" type="password" inputmode="numeric" maxlength="4"
-      class="pin-input" placeholder="New PIN (4 digits)">
+      class="pin-input" placeholder=t("newPin")>
     <input id="pinRecoveryConfirm" type="password" inputmode="numeric" maxlength="4"
-      class="pin-input" placeholder="Confirm new PIN">
+      class="pin-input" placeholder=t("confirmNewPin")>
     <div id="pinRecoveryError" class="pin-error"></div>
     <button class="pin-btn" onclick="confirmPinRecovery('${name.replace(/'/g,"\\'")}')">Reset PIN</button>
     <button class="pin-btn-secondary" onclick="showProfilePicker()">Back</button>
@@ -324,21 +346,21 @@ async function confirmPinRecovery(name) {
   const err     = document.getElementById('pinRecoveryError');
   const p       = _pickerAllPlayers.find(x => x.name === name);
 
-  if (!p) { err.textContent = 'Player not found.'; return; }
+  if (!p) { err.textContent = t('playerNotFoundPin'); return; }
   if (word !== (p.recovery_word || '').toLowerCase()) {
-    err.textContent = '❌ Wrong recovery word.'; return;
+    err.textContent = t('wrongRecovery'); return;
   }
-  if (!/^\d{4}$/.test(newPin))    { err.textContent = 'PIN must be 4 digits.'; return; }
-  if (newPin !== confirm)          { err.textContent = 'PINs do not match.'; return; }
+  if (!/^\d{4}$/.test(newPin))    { err.textContent = t('pinMust4'); return; }
+  if (newPin !== confirm)          { err.textContent = t('pinsNotMatch'); return; }
 
-  err.textContent = '⏳ Saving...';
+  err.textContent = t('savingPin');
   try {
-    await sbPatch('players', `name=ilike.${encodeURIComponent(name)}`, { pin: newPin });
+    // PIN stored in user_accounts — no direct players patch needed
     p.pin = newPin;
     err.textContent = '';
     _completeProfileSelection(name);
   } catch(e) {
-    err.textContent = 'Failed to save. Try again.';
+    err.textContent = t('failedSave');
   }
 }
 
@@ -406,52 +428,30 @@ async function showProfileCard(player) {
   document.getElementById('pcTier').style.background  = tier.color + '22';
   document.getElementById('pcTier').style.color       = tier.color;
 
-  // Current session stats now computed inside renderSessions
-  document.getElementById('pcWins').textContent    = '…';
-  document.getElementById('pcLosses').textContent  = '…';
-  document.getElementById('pcSessions').innerHTML  =
-    '<div class="profile-sessions-loading">Loading...</div>';
-
-  // Fetch players.sessions + live_sessions in parallel
+  // Fetch wins/losses only
+  document.getElementById('pcWins').textContent   = '…';
+  document.getElementById('pcLosses').textContent = '…';
   try {
-    const club  = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
-    const today = new Date().toISOString().split('T')[0];
-
-    const [playerRows, liveRows] = await Promise.all([
-      sbGet('players', `name=ilike.${encodeURIComponent(player.name)}&select=wins,losses,sessions`),
-      club.id
-        ? sbGet('live_sessions',
-            `player_name=ilike.${encodeURIComponent(player.name)}&club_id=eq.${club.id}&date=eq.${today}`)
-        : Promise.resolve([])
-    ]);
-
-    const lsKey         = `kbrr_sessions_${player.name.toLowerCase().replace(/\s+/g, '_')}`;
-    const localSessions = JSON.parse(localStorage.getItem(lsKey) || '[]');
-
-    // Live session row from DB (visible from any device)
-    const liveRow     = liveRows && liveRows.length ? liveRows[0] : null;
-    const liveMatches = liveRow
-      ? (typeof liveRow.matches === 'string' ? JSON.parse(liveRow.matches) : (liveRow.matches || []))
-      : null;
-
-    if (playerRows && playerRows.length) {
-      const data           = playerRows[0];
-      const remoteSessions = data.sessions || [];
-      const merged         = mergeSessions(localSessions, remoteSessions);
-      document.getElementById('pcWins').textContent   = (data.wins   || 0);
-      document.getElementById('pcLosses').textContent = (data.losses || 0);
-      renderSessions(merged, player.name, liveMatches);
+    // Look up via memberships → player_id → players
+    const _club = (getMyClub && getMyClub()) || {};
+    const _mrows = await sbGet('memberships',
+      `club_id=eq.${_club.id||''}&nickname=ilike.${encodeURIComponent(player.name)}&select=player_id`);
+    if (_mrows && _mrows.length) {
+      const _prows = await sbGet('players', `id=eq.${_mrows[0].player_id}&select=wins,losses`);
+      if (_prows && _prows.length) {
+        document.getElementById('pcWins').textContent   = (_prows[0].wins   || 0);
+        document.getElementById('pcLosses').textContent = (_prows[0].losses || 0);
+      } else {
+        document.getElementById('pcWins').textContent   = '—';
+        document.getElementById('pcLosses').textContent = '—';
+      }
     } else {
       document.getElementById('pcWins').textContent   = '—';
       document.getElementById('pcLosses').textContent = '—';
-      renderSessions(localSessions, player.name, liveMatches);
     }
-  } catch (e) {
-    const lsKey         = `kbrr_sessions_${player.name.toLowerCase().replace(/\s+/g, '_')}`;
-    const localSessions = JSON.parse(localStorage.getItem(lsKey) || '[]');
+  } catch(e) {
     document.getElementById('pcWins').textContent   = '—';
     document.getElementById('pcLosses').textContent = '—';
-    renderSessions(localSessions, player.name, null);
   }
 }
 
@@ -474,25 +474,231 @@ function renderMatchRow(m, playerName) {
   const opponents      = m.opponents      || [];
   const oppGenders     = m.opponentGenders || opponents.map(() => 'Male');
   const myGender       = m.myGender || 'Male';
+  const date           = m.date || '';
 
-  const makeChip = (name, gender) =>
-    `<div class="match-player-chip">
-      <img src="${gender === 'Female' ? 'female.png' : 'male.png'}" class="match-avatar">
-      <span class="match-player-name">${name}</span>
+  const makePlayer = (name, gender) =>
+    `<div class="mc-match-player">
+      <img src="${gender === 'Female' ? 'female.png' : 'male.png'}" class="mc-match-avatar">
+      <span class="mc-match-name">${name}</span>
     </div>`;
 
-  const myPair  = [makeChip(playerName, myGender), ...partner.map((n, i) => makeChip(n, partnerGenders[i]))].join('');
-  const oppPair = opponents.map((n, i) => makeChip(n, oppGenders[i])).join('');
+  const myTeam  = [makePlayer(playerName, myGender), ...partner.map((n, i) => makePlayer(n, partnerGenders[i]))].join('');
+  const oppTeam = opponents.map((n, i) => makePlayer(n, oppGenders[i])).join('');
 
   return `
-    <div class="match-row ${isWin ? 'win' : 'loss'}">
-      <div class="match-pair">${myPair}</div>
-      <div class="match-vs-col">
-        <span class="match-vs">vs</span>
-        <span class="match-result-pill ${isWin ? 'win' : 'loss'}">${isWin ? 'WIN' : 'LOSS'}</span>
+    <div class="mc-match-card ${isWin ? 'mc-win' : 'mc-loss'}">
+      <div class="mc-match-team mc-match-top">
+        <div class="mc-match-players">${myTeam}</div>
+        ${isWin ? '<div class="mc-match-cup">🏆</div>' : ''}
       </div>
-      <div class="match-pair">${oppPair}</div>
+      <div class="mc-match-divider">
+        <div class="mc-match-divider-line"></div>
+        <span class="mc-match-result-badge ${isWin ? 'mc-badge-win' : 'mc-badge-loss'}">${isWin ? 'WIN' : 'LOSS'}</span>
+        <div class="mc-match-divider-line"></div>
+      </div>
+      <div class="mc-match-team mc-match-bottom">
+        <div class="mc-match-players">${oppTeam}</div>
+        ${!isWin ? '<div class="mc-match-cup">🏆</div>' : ''}
+      </div>
+      ${date ? `<div class="mc-match-date">${date}</div>` : ''}
     </div>`;
+}
+
+/* ── My Card Page ── */
+async function renderMyCard() {
+  const player = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
+
+  const emptyEl   = document.getElementById('myCardEmpty');
+  const contentEl = document.getElementById('myCardContent');
+
+  // Show empty/login state if not logged in via auth
+  const authUser = (typeof authGetUser === 'function') ? authGetUser() : null;
+  if (!player || !authUser) {
+    if (emptyEl)   emptyEl.style.display   = '';
+    if (contentEl) contentEl.style.display = 'none';
+    return;
+  }
+
+  if (emptyEl)   emptyEl.style.display   = 'none';
+  if (contentEl) contentEl.style.display = '';
+
+  // Avatar + Name
+  const avatar = document.getElementById('mcAvatar');
+  if (avatar) avatar.src = player.gender === 'Female' ? 'female.png' : 'male.png';
+  const nameEl = document.getElementById('mcName');
+  if (nameEl) nameEl.textContent = player.displayName || player.name || '';
+
+  // Logout button — only show if logged in via auth
+  const logoutBtn = document.getElementById('mcLogoutBtn');
+  if (logoutBtn) {
+    logoutBtn.style.display = authUser ? '' : 'none';
+  }
+
+  const sessEl = document.getElementById('mcSessions');
+  if (sessEl) sessEl.innerHTML = '<div class="profile-sessions-loading">Loading...</div>';
+
+  try {
+    const club = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+
+    // Find player via membership — nickname lookup using logged-in user's nickname
+    const myNickname = player.displayName || player.name || player.nickname || '';
+    let globalRating = 1.0, globalPoints = 0, totalWins = 0, totalLosses = 0;
+    let clubRating = 1.0, clubPoints = 0;
+    let sessions = [];
+    let playerDbId = null;
+
+    if (club.id && myNickname) {
+      // Get membership by club + nickname
+      const mrows = await sbGet('memberships',
+        `club_id=eq.${club.id}&nickname=ilike.${encodeURIComponent(myNickname)}&select=player_id,club_rating,club_points`
+      ).catch(() => []);
+
+      if (mrows.length) {
+        playerDbId = mrows[0].player_id;
+        clubRating = parseFloat(mrows[0].club_rating) || 1.0;
+        clubPoints = parseFloat(mrows[0].club_points) || 0;
+
+        // Get global data from players table using player_id
+        const prows = await sbGet('players',
+          `id=eq.${playerDbId}&select=global_rating,global_points,wins,losses,sessions`
+        ).catch(() => []);
+
+        if (prows.length) {
+          globalRating = parseFloat(prows[0].global_rating) || 1.0;
+          globalPoints = parseFloat(prows[0].global_points) || 0;
+          totalWins    = prows[0].wins    || 0;
+          totalLosses  = prows[0].losses  || 0;
+          sessions     = prows[0].sessions || [];
+        }
+      }
+    }
+
+    // 3. Tier
+    const tier = ratingTierLabel(clubRating || globalRating);
+
+    // 4. Update ratings + points
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('mcGlobalRating', globalRating.toFixed(1));
+    setEl('mcClubRating',   clubRating.toFixed(1));
+    setEl('mcGlobalPoints', globalPoints.toFixed(1));
+    setEl('mcClubPoints',   clubPoints.toFixed(1));
+    setEl('mcWins',         totalWins);
+    setEl('mcLosses',       totalLosses);
+
+    const tierEl = document.getElementById('mcTier');
+    if (tierEl) { tierEl.textContent = tier.label; tierEl.style.background = tier.color + '22'; tierEl.style.color = tier.color; }
+
+    // 5. Period stats from sessions jsonb
+    const now       = new Date();
+    // Use date strings for comparison to avoid timezone issues
+    const todayStr  = now.toISOString().split('T')[0];
+    const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); 
+    const weekStr   = weekStart.toISOString().split('T')[0];
+    const monthStr  = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
+    const yearStr   = now.getFullYear() + '-01-01';
+
+    let wW=0,lW=0,pW=0,cW=0, wM=0,lM=0,pM=0,cM=0, wY=0,lY=0,pY=0,cY=0;
+    (sessions || []).forEach(s => {
+      const d = s.date;
+      if (!d) return;
+      const w = s.wins || 0, l = s.losses || 0;
+      const p = parseFloat(s.points_earned) || 0;
+      const c = parseFloat(s.cost_per_player) || 0;
+      if (d >= yearStr)  { wY += w; lY += l; pY += p; cY += c; }
+      if (d >= monthStr) { wM += w; lM += l; pM += p; cM += c; }
+      if (d >= weekStr)  { wW += w; lW += l; pW += p; cW += c; }
+    });
+
+    setEl('mcWeekWins',    wW); setEl('mcWeekLosses',    lW); setEl('mcWeekPoints',    pW.toFixed(1)); setEl('mcWeekCost',  cW > 0 ? '¥'+Math.round(cW).toLocaleString() : '—');
+    setEl('mcMonthWins',   wM); setEl('mcMonthLosses',   lM); setEl('mcMonthPoints',   pM.toFixed(1)); setEl('mcMonthCost', cM > 0 ? '¥'+Math.round(cM).toLocaleString() : '—');
+    setEl('mcYearWins',    wY); setEl('mcYearLosses',    lY); setEl('mcYearPoints',    pY.toFixed(1)); setEl('mcYearCost',  cY > 0 ? '¥'+Math.round(cY).toLocaleString() : '—');
+
+    // 6. Render sessions list
+    if (sessEl) {
+      if (sessions.length) {
+        sessEl.innerHTML = sessions.slice(0, 10).map(s => {
+          const d    = new Date(s.date).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+          const w    = s.wins   || 0;
+          const l    = s.losses || 0;
+          const pts  = parseFloat(s.points_earned || 0).toFixed(1);
+          const cost = s.cost_per_player ? `<span class="mc-session-stat cost">¥${Math.round(s.cost_per_player).toLocaleString()}</span>` : '';
+          return `<div class="mc-session-row">
+            <span class="mc-session-date">${d}</span>
+            <span class="mc-session-stat wins">${w}W</span>
+            <span class="mc-session-stat losses">${l}L</span>
+            <span class="mc-session-stat points">${pts}pts</span>
+            ${cost}
+          </div>`;
+        }).join('');
+      } else {
+        sessEl.innerHTML = '<div class="profile-sessions-empty">No sessions yet.</div>';
+      }
+    }
+
+    // 7. Render recent matches from matches table
+    const matchEl = document.getElementById('mcMatches');
+    if (matchEl && playerDbId && club.id) {
+      matchEl.innerHTML = '<div class="profile-sessions-loading">Loading matches...</div>';
+      try {
+        // Fetch all club memberships for UUID→nickname resolution
+        const allMembers = await sbGet('memberships',
+          `club_id=eq.${club.id}&select=player_id,nickname`
+        ).catch(() => []);
+        const uuidToNick = {};
+        (allMembers || []).forEach(m => { uuidToNick[m.player_id] = m.nickname; });
+
+        // Query matches where player appears in any slot
+        const matches = await sbGet('matches',
+          `club_id=eq.${club.id}&or=(pair1_player1.eq.${playerDbId},pair1_player2.eq.${playerDbId},pair2_player1.eq.${playerDbId},pair2_player2.eq.${playerDbId})&order=played_at.desc&limit=20`
+        ).catch(() => []);
+
+        if (!matches || !matches.length) {
+          matchEl.innerHTML = '<div class="profile-sessions-empty">No matches yet.</div>';
+        } else {
+          matchEl.innerHTML = matches.map(m => {
+            // Determine which pair I'm in
+            const inPair1 = m.pair1_player1 === playerDbId || m.pair1_player2 === playerDbId;
+            const myPair  = inPair1 ? [m.pair1_player1, m.pair1_player2] : [m.pair2_player1, m.pair2_player2];
+            const oppPair = inPair1 ? [m.pair2_player1, m.pair2_player2] : [m.pair1_player1, m.pair1_player2];
+            const won     = (inPair1 && m.winner_pair === 'pair1') || (!inPair1 && m.winner_pair === 'pair2');
+
+            const partner   = myPair.filter(id => id && id !== playerDbId).map(id => uuidToNick[id] || '?');
+            const opponents = oppPair.filter(id => id).map(id => uuidToNick[id] || '?');
+            const delta     = m.rating_delta ? (won ? '+' : '-') + parseFloat(m.rating_delta).toFixed(1) : '';
+            const date      = m.played_at ? new Date(m.played_at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : '';
+
+            const myNames  = [myNickname, ...partner].filter(Boolean).join(' & ');
+            const oppNames = opponents.join(' & ');
+
+            return `<div class="mc-match-row ${won ? 'mc-match-win' : 'mc-match-loss'}">
+              <div class="mc-match-left-bar"></div>
+              <div class="mc-match-content">
+                <div class="mc-match-teams">
+                  <div class="mc-match-pair">${myNames}</div>
+                  <div class="mc-match-vs">vs</div>
+                  <div class="mc-match-pair opp">${oppNames}</div>
+                </div>
+                <div class="mc-match-result">
+                  <span class="mc-match-badge ${won ? 'win' : 'loss'}">${won ? 'WIN' : 'LOSS'}</span>
+                  ${delta ? `<span class="mc-match-delta ${won ? 'win' : 'loss'}">${delta}</span>` : ''}
+                  ${date ? `<span class="mc-match-date">${date}</span>` : ''}
+                </div>
+              </div>
+            </div>`;
+          }).join('');
+        }
+      } catch(e) {
+        matchEl.innerHTML = '<div class="profile-sessions-empty">Could not load matches.</div>';
+      }
+    }
+
+  } catch(e) {
+    console.error('renderMyCard error:', e);
+    ['mcWins','mcLosses','mcGlobalRating','mcClubRating','mcGlobalPoints','mcClubPoints'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.textContent = '—';
+    });
+    if (sessEl) sessEl.innerHTML = '<div class="profile-sessions-empty">Could not load data.</div>';
+  }
 }
 
 /* ── Render sessions with PDF-style match history ── */

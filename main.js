@@ -8,350 +8,38 @@ var appMode = null; // 'viewer' | 'organiser'
 function selectMode(mode) {
   appMode = mode;
   sessionStorage.setItem('appMode', mode);
+  localStorage.setItem('kbrr_app_mode', mode);
   // Hide mode select overlay
-  const overlay = document.getElementById('modeSelectOverlay');
+  var overlay = document.getElementById('modeSelectOverlay');
   if (overlay) overlay.style.display = 'none';
-  // Apply tab visibility / mode classes (safe — all refs guarded)
+  // Apply viewer/organiser body classes
   applyMode(mode);
-  // Show home screen
+  // Show home screen (defined in HomeScreen.js)
   showHomeScreen();
-}
-
-/* ══════════════════════════════════════════════
-   HOME SCREEN
-══════════════════════════════════════════════ */
-
-
-/* ══════════════════════════════════════════════
-   SESSION STEPPER
-   Steps: 0=Players, 1=Fixed Pairs, 2=Courts, 3=Rounds
-══════════════════════════════════════════════ */
-
-const STEPS = [
-  {
-    id: 'step-players',
-    icon: '👥',
-    title: 'Select Players',
-    sub: 'Add at least 4 players to begin',
-    doneSub: () => {
-      const n = schedulerState.activeplayers.length;
-      return `${n} player${n !== 1 ? 's' : ''} selected`;
-    },
-    isComplete: () => schedulerState.activeplayers.length >= 4,
-    action: () => homeNavigate('playersPage', 'tabBtnPlayers'),
-  },
-  {
-    id: 'step-pairs',
-    icon: '🤝',
-    title: 'Fixed Pairs',
-    sub: 'Optional — pair players who always play together',
-    doneSub: () => {
-      const n = schedulerState.fixedPairs.length;
-      return n ? `${n} pair${n !== 1 ? 's' : ''} set` : 'No fixed pairs (optional)';
-    },
-    isComplete: () => true, // always optional — tapping "Skip / Done" marks it
-    action: () => homeNavigate('playersPage', 'tabBtnPlayers'),
-  },
-  {
-    id: 'step-courts',
-    icon: '🏟️',
-    title: 'Court Settings',
-    sub: 'Set number of courts and play mode',
-    doneSub: () => {
-      const c = parseInt(document.getElementById('stepNumCourts')?.textContent || document.getElementById('num-courts')?.textContent || 1);
-      const mode = document.getElementById('stepModeToggle')?.checked ? 'Competitive' : 'Random';
-      return `${c} court${c !== 1 ? 's' : ''} · ${mode}`;
-    },
-    isComplete: () => stepCourtsConfigured,
-    action: () => homeShowCourts(),
-  },
-  {
-    id: 'step-rounds',
-    icon: '🏸',
-    title: 'Start Rounds',
-    sub: "Everything is set — let's play!",
-    doneSub: () => 'Session in progress',
-    isComplete: () => Array.isArray(allRounds) && allRounds.length > 0,
-    action: () => homeNavigate('roundsPage', 'tabBtnRounds'),
-  },
-];
-
-let stepCourtsConfigured = false;
-let currentStep = 0;
-
-function homeRefreshStepper() {
-  if (appMode !== 'organiser') return;
-
-  // Determine which steps are done
-  const done = STEPS.map(s => s.isComplete());
-
-  // Current step = first incomplete, or last if all done
-  currentStep = done.indexOf(false);
-  if (currentStep === -1) currentStep = STEPS.length - 1;
-
-  // Special: step 1 (fixed pairs) auto-completes once players are done
-  // We mark it done after user has visited players page
-  if (done[0] && !stepPairsVisited) currentStep = Math.max(currentStep, 1);
-
-  // Update stepper dots
-  STEPS.forEach((step, i) => {
-    const el = document.getElementById(step.id);
-    if (!el) return;
-    el.classList.remove('active', 'done', 'locked');
-    if (i < currentStep && done[i]) {
-      el.classList.add('done');
-      const check = el.querySelector('.stepper-check');
-      const num   = el.querySelector('.stepper-num');
-      if (check) check.style.display = '';
-      if (num)   num.style.display   = 'none';
-    } else if (i === currentStep) {
-      el.classList.add('active');
-      const check = el.querySelector('.stepper-check');
-      const num   = el.querySelector('.stepper-num');
-      if (check) check.style.display = 'none';
-      if (num)   num.style.display   = '';
-    } else {
-      el.classList.add(done[i] ? 'done' : 'locked');
-      const check = el.querySelector('.stepper-check');
-      const num   = el.querySelector('.stepper-num');
-      if (check) check.style.display = done[i] ? '' : 'none';
-      if (num)   num.style.display   = done[i] ? 'none' : '';
-    }
-
-    // Lines
-    const line = document.getElementById('stepline-' + (i + 1));
-    if (line) line.classList.toggle('done', i < currentStep && done[i]);
-  });
-
-  // Update step card
-  const step = STEPS[currentStep];
-  const isLastDone = currentStep === STEPS.length - 1 && done[currentStep];
-
-  const iconEl  = document.getElementById('stepCardIcon');
-  const titleEl = document.getElementById('stepCardTitle');
-  const subEl   = document.getElementById('stepCardSub');
-  const btnEl   = document.getElementById('stepCardBtn');
-
-  if (iconEl)  iconEl.textContent  = step.icon;
-  if (titleEl) titleEl.textContent = isLastDone ? '🎉 Session Active' : step.title;
-  if (subEl)   subEl.textContent   = (done[currentStep] && step.doneSub) ? step.doneSub() : step.sub;
-
-  if (btnEl) {
-    if (currentStep === 2 && !stepCourtsConfigured) {
-      btnEl.textContent = 'Set Up →';
-    } else if (currentStep === 1) {
-      btnEl.textContent = done[0] ? (stepPairsVisited ? 'Done ✓' : 'Set Pairs →') : 'Go →';
-    } else if (isLastDone) {
-      btnEl.textContent = 'View Rounds →';
-    } else {
-      btnEl.textContent = 'Go →';
-    }
-  }
-
-  // Courts panel — hide when not on step 2
-  const courtsPanel = document.getElementById('stepCourtsPanel');
-  if (courtsPanel) courtsPanel.style.display = 'none';
-}
-
-let stepPairsVisited = false;
-
-function homeStepGo(stepIndex) {
-  // Only allow tapping done or current step
-  const done = STEPS.map(s => s.isComplete());
-  if (stepIndex > currentStep && !done[stepIndex]) return;
-  currentStep = stepIndex;
-  STEPS[stepIndex].action();
-}
-
-function homeStepAction() {
-  const step = STEPS[currentStep];
-  if (currentStep === 1) stepPairsVisited = true;
-  if (currentStep === 2) {
-    homeShowCourts();
-    return;
-  }
-  step.action();
-}
-
-function homeShowCourts() {
-  const panel = document.getElementById('stepCourtsPanel');
-  const card  = document.getElementById('sessionStepCard');
-  if (!panel || !card) return;
-
-  // Sync courts count from rounds page
-  const courtsDisplay = document.getElementById('num-courts');
-  const stepCourtsEl  = document.getElementById('stepNumCourts');
-  if (courtsDisplay && stepCourtsEl) stepCourtsEl.textContent = courtsDisplay.textContent;
-
-  // Sync mode toggle
-  const mainToggle = document.getElementById('modeToggle');
-  const stepToggle = document.getElementById('stepModeToggle');
-  if (mainToggle && stepToggle) stepToggle.checked = mainToggle.checked;
-
-  panel.style.display = 'block';
-  card.style.display  = 'none';
-}
-
-function stepCourtPlus() {
-  const el = document.getElementById('stepNumCourts');
-  if (!el) return;
-  const max = Math.floor(schedulerState.activeplayers.length / 4);
-  let val = parseInt(el.textContent) || 1;
-  if (val < max) { val++; el.textContent = val; }
-  // Mirror to actual rounds page counter
-  const main = document.getElementById('num-courts');
-  if (main) main.textContent = val;
-}
-
-function stepCourtMinus() {
-  const el = document.getElementById('stepNumCourts');
-  if (!el) return;
-  let val = parseInt(el.textContent) || 1;
-  if (val > 1) { val--; el.textContent = val; }
-  const main = document.getElementById('num-courts');
-  if (main) main.textContent = val;
-}
-
-function stepSyncMode() {
-  const stepToggle = document.getElementById('stepModeToggle');
-  const mainToggle = document.getElementById('modeToggle');
-  if (stepToggle && mainToggle) {
-    mainToggle.checked = stepToggle.checked;
-    mainToggle.dispatchEvent(new Event('change'));
-  }
-}
-
-function homeStepCourtsDone() {
-  stepCourtsConfigured = true;
-  const panel = document.getElementById('stepCourtsPanel');
-  const card  = document.getElementById('sessionStepCard');
-  if (panel) panel.style.display = 'none';
-  if (card)  card.style.display  = '';
-  homeNavigate('roundsPage', 'tabBtnRounds');
-}
-
-function showHomeScreen() {
-  const homeEl = document.getElementById('homePageOverlay');
-  if (!homeEl) return;
-  homeEl.style.display = 'flex';
-
-
-  // Sync flag display
-  const mainFlag = document.getElementById('currentFlag');
-  const homeFlag = document.getElementById('homeFlagDisplay');
-  if (mainFlag && homeFlag) homeFlag.textContent = mainFlag.textContent;
-
-  // Sync profile avatar
-  const mainAvatar = document.getElementById('profileBtnAvatar');
-  const homeAvatar = document.getElementById('homeProfileAvatar');
-  const mainIcon   = document.getElementById('profileBtnIcon');
-  const homeIcon   = document.getElementById('homeProfileIcon');
-  if (homeAvatar && mainAvatar) {
-    homeAvatar.src = mainAvatar.src;
-    homeAvatar.style.display = mainAvatar.style.display;
-  }
-  if (homeIcon && mainIcon) homeIcon.style.display = mainIcon.style.display;
-
-  // Status bar
-  const statusBar  = document.getElementById('homeStatusBar');
-  const statusName = document.getElementById('homeStatusName');
-  const statusRole = document.getElementById('homeStatusRole');
-  const isOrganiser = appMode === 'organiser';
-
-  const club   = (typeof getMyClub   === 'function') ? getMyClub()   : null;
-  const player = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
-  const isAdmin = (typeof isClubAdmin === 'function') ? isClubAdmin() : false;
-
-  if (club && club.name) {
-    if (statusName) statusName.textContent = club.name;
-    if (statusRole) statusRole.textContent = isAdmin ? 'ADMIN' : (isOrganiser ? 'ORGANISER' : 'VIEWER');
-    if (statusBar) statusBar.classList.remove('disconnected');
-    if (statusBar) statusBar.classList.toggle('viewer-bar', !isOrganiser);
-  } else if (player && player.displayName) {
-    if (statusName) statusName.textContent = player.displayName;
-    if (statusRole) statusRole.textContent = isOrganiser ? 'ORGANISER' : 'VIEWER';
-    if (statusBar) statusBar.classList.remove('disconnected');
-  } else {
-    if (statusName) statusName.textContent = 'Not logged in';
-    if (statusRole) statusRole.textContent = '';
-    if (statusBar) statusBar.classList.add('disconnected');
-  }
-
-  // Show organiser flow or viewer flow
-  const orgFlow  = document.getElementById('homeOrganizerFlow');
-  const viewFlow = document.getElementById('homeViewerFlow');
-  if (orgFlow)  orgFlow.style.display  = isOrganiser ? '' : 'none';
-  if (viewFlow) viewFlow.style.display = isOrganiser ? 'none' : '';
-
-  // Hide vault tile for viewer
-  document.querySelectorAll('.home-tile').forEach(tile => {
-    tile.style.display = '';
-    const name = tile.querySelector('.home-tile-name');
-    if (!isOrganiser && name && name.textContent === 'Vault') {
-      tile.style.display = 'none';
-    }
-  });
-
-  // Refresh stepper state
-  if (isOrganiser) homeRefreshStepper();
-}
-
-// Called from page back buttons — refresh stepper on return
-function homeReturnRefresh() {
-  showHomeScreen();
-}
-
-function homeHideScreen() {
-  const homeEl = document.getElementById('homePageOverlay');
-  if (homeEl) homeEl.style.display = 'none';
-
-}
-
-function homeNavigate(pageId, tabId) {
-  homeHideScreen();
-  const tabEl = tabId ? document.getElementById(tabId) : null;
-  showPage(pageId, tabEl);
-}
-
-function homeStartSession() {
-  if (appMode === 'organiser') {
-    homeNavigate('playersPage', 'tabBtnPlayers');
-  } else {
-    homeNavigate('dashboardPage', 'tabBtnDashboard');
-  }
-}
-
-function homeOpenProfile() {
-  if (typeof openProfileDrawer === 'function') openProfileDrawer();
-}
-
-function homeLangSelect(el) {
-  const mainFlag = document.getElementById('currentFlag');
-  if (mainFlag) mainFlag.textContent = el.dataset.flag;
-  const homeFlag = document.getElementById('homeFlagDisplay');
-  if (homeFlag) homeFlag.textContent = el.dataset.flag;
-  if (typeof setLanguage === 'function') setLanguage(el.dataset.lang);
 }
 
 function applyMode(mode) {
   appMode = mode;
 
-  // Toggle scrollable tabs body class
+  // Body class for organiser scrollable tabs (kept for any CSS that uses it)
   document.body.classList.toggle('organiser-tabs', mode === 'organiser');
+  document.body.classList.toggle('vault-mode',     mode === 'vault');
 
-  // Update Settings mode switch card
-  const cardViewer    = document.getElementById('modeCardViewer');
-  const cardOrganiser = document.getElementById('modeCardOrganiser');
-  if (cardViewer)    cardViewer.classList.toggle('active',    mode === 'viewer');
-  if (cardOrganiser) cardOrganiser.classList.toggle('active', mode === 'organiser');
+  // Sync home mode pill buttons (3 modes)
+  var hpv  = document.getElementById('homePillViewer');
+  var hpo  = document.getElementById('homePillOrganiser');
+  var hpvm = document.getElementById('homePillVault');
+  if (hpv)  hpv.classList.toggle('active',  mode === 'viewer');
+  if (hpo)  hpo.classList.toggle('active',  mode === 'organiser');
+  if (hpvm) hpvm.classList.toggle('active', mode === 'vault');
 
-  // Set viewer/organiser body classes and restrictions
+  // Apply viewer restrictions
   if (mode === 'viewer') {
     setViewerMode(true);
   } else {
     if (window._vSessionTabPinned) {
       if (typeof viewerStopPoll === 'function') viewerStopPoll();
-      if (typeof _vHidePage === 'function') _vHidePage();
+      if (typeof _vHidePage     === 'function') _vHidePage();
     }
     setViewerMode(false);
   }
@@ -362,7 +50,7 @@ function setViewerMode(isViewer) {
   if (isViewer) {
     document.body.classList.add('viewer-mode');
     // Ensure we're on the club tab by default
-    if (typeof settingsShowTab === 'function') settingsShowTab('club');
+    // settings no longer has tabs
   } else {
     document.body.classList.remove('viewer-mode');
   }
@@ -388,65 +76,176 @@ function setViewerMode(isViewer) {
   });
 }
 
+function closeModeSheet() {
+  var o = document.getElementById('modeSheetOverlay');
+  if (o) o.remove();
+}
+
 function openModeSwitcher() {
-  // Remove existing sheet if any
+  // Remove existing if any
   const existing = document.getElementById('modeSheetOverlay');
   if (existing) { existing.remove(); return; }
 
   const overlay = document.createElement('div');
-  overlay.className = 'mode-sheet-overlay';
+  overlay.className = 'mode-launcher-fullscreen';
   overlay.id = 'modeSheetOverlay';
-  overlay.onclick = () => overlay.remove();
 
-  const sheet = document.createElement('div');
-  sheet.className = 'mode-switch-sheet';
-  const isViewer = appMode === 'viewer';
-  sheet.innerHTML = `
-    <div class="mode-sheet-handle"></div>
-    <div class="mode-sheet-title">Switch Mode</div>
-    <div class="mode-sheet-options">
-      <button class="mode-sheet-btn viewer ${isViewer ? 'active-viewer' : ''}"
-              onclick="switchMode('viewer')">
-        <div class="mode-sheet-icon">👁</div>
-        <div class="mode-sheet-info">
-          <div class="mode-sheet-name">Viewer</div>
-          <div class="mode-sheet-desc">Watch live rounds &amp; scores</div>
-        </div>
-        ${isViewer ? '<span class="mode-sheet-check">✅</span>' : ''}
-      </button>
-      <button class="mode-sheet-btn organiser ${!isViewer ? 'active-organiser' : ''}"
-              onclick="switchMode('organiser')">
-        <div class="mode-sheet-icon"><img src="win-cup.png" style="width:32px;height:32px;object-fit:contain;filter:drop-shadow(0 1px 4px rgba(0,0,0,0.25))"></div>
-        <div class="mode-sheet-info">
-          <div class="mode-sheet-name">Organiser</div>
-          <div class="mode-sheet-desc">Run session, score games, manage players</div>
-        </div>
-        ${!isViewer ? '<span class="mode-sheet-check">✅</span>' : ''}
-      </button>
+  const cancelBtn = appMode ? `<button class="ml-cancel" onclick="closeModeSheet()">${t('cancel')}</button>` : '';
+
+  overlay.innerHTML = `
+    <div class="ml-inner">
+      <div class="ml-logo">🏸</div>
+      <div class="ml-title">${t('appTitle')}</div>
+      <div class="ml-sub">${t('howUsingApp')}</div>
+      <div class="ml-modes">
+        <button class="ml-mode viewer ${appMode === 'viewer' ? 'ml-active' : ''}"
+                onclick="switchMode('viewer')">
+          <div class="ml-mode-icon">👁</div>
+          <div class="ml-mode-info">
+            <div class="ml-mode-name">${t('viewer')}</div>
+            <div class="ml-mode-desc">${t('watchLiveDesc')}</div>
+          </div>
+          <span class="ml-arr">›</span>
+        </button>
+        <button class="ml-mode organiser ${appMode === 'organiser' ? 'ml-active' : ''}"
+                onclick="switchMode('organiser')">
+          <div class="ml-mode-icon">🏆</div>
+          <div class="ml-mode-info">
+            <div class="ml-mode-name">${t('roundOrganiser')}</div>
+            <div class="ml-mode-desc">${t('roundOrganiserDesc')}</div>
+          </div>
+          <span class="ml-arr">›</span>
+        </button>
+        <button class="ml-mode vault ${appMode === 'vault' ? 'ml-active' : ''}"
+                onclick="requestVaultMode()">
+          <div class="ml-mode-icon">🔑</div>
+          <div class="ml-mode-info">
+            <div class="ml-mode-name">${t('vaultManager')}</div>
+            <div class="ml-mode-desc">${t('vaultManagerDesc')}</div>
+          </div>
+          <span class="ml-arr">›</span>
+        </button>
+      </div>
+      <div class="ml-footer">
+        <button class="ml-settings-btn" onclick="closeModeSheet();homeGo('settingsPage',null)">⚙️ ${t('settings')}</button>
+      </div>
+      ${cancelBtn ? `<div class="ml-footer" style="margin-top:8px">${cancelBtn}</div>` : ''}
     </div>
   `;
-  overlay.appendChild(sheet);
+
   document.body.appendChild(overlay);
-  // Prevent sheet clicks from closing overlay
-  sheet.onclick = e => e.stopPropagation();
 }
 
 function switchMode(mode) {
   const overlay = document.getElementById('modeSheetOverlay');
   if (overlay) overlay.remove();
+
+  // Viewer needs no club
+  if (mode === 'viewer') {
+    appMode = mode;
+    sessionStorage.setItem('appMode', mode);
+    localStorage.setItem('kbrr_app_mode', mode);
+    applyMode(mode);
+    updateModePill(mode);
+    if (typeof showHomeScreen === 'function') showHomeScreen();
+    return;
+  }
+
+  // Organiser / Vault — check club first
+  var club = (typeof getMyClub === 'function') ? getMyClub() : null;
+  if (!club || !club.id) {
+    _showClubSetupSheet(mode);
+    return;
+  }
+
+  // Vault — also needs admin auth
+  if (mode === 'vault') {
+    requestVaultMode();
+    return;
+  }
+
   appMode = mode;
   sessionStorage.setItem('appMode', mode);
+  localStorage.setItem('kbrr_app_mode', mode);
   applyMode(mode);
-  showHomeScreen();
+  updateModePill(mode);
+  if (typeof showHomeScreen === 'function') showHomeScreen();
+}
+
+function updateModePill(mode) {
+  const icons  = { viewer: '👁', organiser: '🏸', vault: '🔒' };
+  const labels = { viewer: 'Viewer', organiser: 'Organiser', vault: 'Vault' };
+  const colors = { viewer: '#6c8cff', organiser: '#2dce89', vault: '#f5a623' };
+  const icon  = icons[mode]  || '🏸';
+  const label = labels[mode] || 'Mode';
+  const color = colors[mode] || '#6c8cff';
+  ['', '2'].forEach(suffix => {
+    const iconEl  = document.getElementById('modePillIcon'  + suffix);
+    const labelEl = document.getElementById('modePillLabel' + suffix);
+    const btnEl   = document.getElementById('modePillBtn'   + suffix);
+    if (iconEl)  iconEl.textContent  = icon;
+    if (labelEl) labelEl.textContent = label;
+    if (btnEl)   { btnEl.style.color = color; btnEl.style.borderColor = color + '44'; btnEl.style.background = color + '11'; }
+  });
+  // Update Settings page mode value
+  const settingsModeEl = document.getElementById('settingsModeValue');
+  if (settingsModeEl) { settingsModeEl.textContent = icon + ' ' + label; settingsModeEl.style.color = color; }
 }
 
 function initModeOnLoad() {
-  // Make sure home overlay is hidden until mode is chosen
-  const homeEl = document.getElementById('homePageOverlay');
+  // Keep home hidden
+  var homeEl = document.getElementById('homePageOverlay');
   if (homeEl) homeEl.style.display = 'none';
-  // Show the mode select overlay
-  const overlay = document.getElementById('modeSelectOverlay');
+  // Apply saved home style
+  loadHomeStyle();
+  // Update mode pill to reflect saved mode
+  const savedMode = localStorage.getItem('kbrr_app_mode') || 'organiser';
+  updateModePill(savedMode);
+  // Run smart startup flow
+  initAppFlow();
+}
+
+async function initAppFlow() {
+  // ── Step 1: Check auth ──
+  if (typeof authIsLoggedIn === 'function' && !authIsLoggedIn()) {
+    authShowScreen('welcome');
+    return;
+  }
+
+  // ── Step 2: Always show mode select on load ──
+  var overlay = document.getElementById('modeSelectOverlay');
   if (overlay) overlay.style.display = 'flex';
+}
+
+function showOnboardingOverlay(reason) {
+  var overlay = document.getElementById('onboardingOverlay');
+  var title   = document.getElementById('onboardingTitle');
+  var msg     = document.getElementById('onboardingMsg');
+  var btn     = document.getElementById('onboardingBtn');
+  if (!overlay) return;
+
+  var goToVault = function() {
+    overlay.style.display = 'none';
+    // Hide home overlay if visible
+    var homeEl = document.getElementById('homePageOverlay');
+    if (homeEl) homeEl.style.display = 'none';
+    // Hide mode select if visible
+    var modeEl = document.getElementById('modeSelectOverlay');
+    if (modeEl) modeEl.style.display = 'none';
+    // Show vault page
+    showPage('vaultPage', null);
+  };
+
+  if (reason === 'notLoggedIn') {
+    if (title) title.textContent = t('welcomeToApp');
+    if (msg)   msg.textContent = t('connectClubToStart');
+    if (btn)   { btn.textContent = 'Connect to Club'; btn.onclick = goToVault; }
+  } else if (reason === 'noPlayers') {
+    if (title) title.textContent = t('noPlayersFoundWarn');
+    if (msg)   msg.textContent   = t('noPlayersYetVault');
+    if (btn)   { btn.textContent = t('goToVault'); btn.onclick = goToVault; }
+  }
+  overlay.style.display = 'flex';
 }
 
 /* ============================================================
@@ -667,7 +466,7 @@ function updateRoundsPageAccess() {
   roundsTab.setAttribute('aria-disabled', block);
 
   if (block && isPageVisible('roundsPage')) {
-    showPage('playersPage', document.getElementById('tabBtnPlayers'));
+    showPage('playersPage', null);
   }
 }
 
@@ -684,7 +483,7 @@ function updateSummaryPageAccess() {
   summaryTab.setAttribute('aria-disabled', block);
 
   if (block && isPageVisible('summaryPage')) {
-    showPage('playersPage', document.getElementById('tabBtnPlayers'));
+    showPage('playersPage', null);
   }
 }
 
@@ -712,17 +511,15 @@ function showPage(pageID, el) {
   // Sync all rating badges on the newly visible page
   syncRatings();
 
-  // ── Move shared player slot to the active page ──
-  const slot = document.getElementById('sharedPlayerSlot');
+  // Players page — update list on open
   if (pageID === 'playersPage') {
-    const anchor = document.getElementById('playersSlotAnchor');
-    if (slot && anchor) { anchor.appendChild(slot); slot.style.display = 'block'; }
-  } else if (pageID === 'roundsPage') {
-    const anchor = document.getElementById('roundsSlotAnchor');
-    if (slot && anchor) { anchor.appendChild(slot); slot.style.display = 'block'; }
-  } else {
-    // Hide slot when on any other page (settings, summary, help)
-    if (slot) slot.style.display = 'none';
+    if (typeof updatePlayerList === 'function') updatePlayerList();
+  }
+
+  // Fixed Pairs page — refresh selectors on open
+  if (pageID === 'fixedPairsPage') {
+    if (typeof updateFixedPairSelectors === 'function') updateFixedPairSelectors();
+    if (typeof renderFixedPairs === 'function') renderFixedPairs();
   }
 
   // ➜ Additional action when roundsPage is opened
@@ -735,15 +532,28 @@ function showPage(pageID, el) {
     if (allRounds.length <= 1) {
       resetRounds();
     } else {
-      if (lastPage === "playersPage") {
-        goToRounds();
-      }
+      // Session in progress — just re-render current round, never regenerate
+      if (typeof showRound === 'function') showRound(currentRoundIndex);
     }
+    updateSessionLiveBar();
   }
 
   if (pageID === "summaryPage") {
-    report();
-    renderRounds();
+    if (typeof renderSummaryFromSession === 'function') renderSummaryFromSession();
+  }
+
+  if (pageID === "myCardPage") {
+    if (typeof renderMyCard === 'function') renderMyCard();
+  }
+
+  if (pageID === "joinClubPage") {
+    if (typeof joinClubPageOpen === 'function') joinClubPageOpen();
+  }
+
+  if (pageID === "settingsPage") {
+    if (typeof subShowTrialBanner === 'function') subShowTrialBanner();
+    updateModePill(localStorage.getItem('kbrr_app_mode') || 'organiser');
+    loadHomeStyle();
   }
 
   if (pageID === "helpPage") {
@@ -761,6 +571,36 @@ function showPage(pageID, el) {
     if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
     if (typeof viewerLoadClubs === 'function') viewerLoadClubs();
     if (typeof sbPopulateDeleteDropdown === 'function') sbPopulateDeleteDropdown();
+  }
+
+  if (pageID === "vaultPlayingPage") {
+    if (typeof playerPlayingRenderList === 'function') playerPlayingRenderList();
+  }
+
+  if (pageID === "vaultRegisterPage") {
+    if (typeof vaultRenderRegister === 'function') vaultRenderRegister();
+  }
+
+  if (pageID === "vaultModifyPage") {
+    if (typeof vaultRenderModify === 'function') vaultRenderModify();
+  }
+
+  if (pageID === "vaultRequestsPage") {
+    if (typeof vaultLoadRequests === 'function') vaultLoadRequests();
+  }
+
+  if (pageID === "vaultClubMgmtPage") {
+    if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
+    // All panels hidden on open — user taps a tile to open one
+    ['Connect','Create','Delete'].forEach(function(p) {
+      var el = document.getElementById('clubMgmt' + p + 'Panel');
+      if (el) el.style.display = 'none';
+    });
+  }
+
+  if (pageID === "orgClubMgmtPage") {
+    if (typeof orgClubLoginRefresh === 'function') orgClubLoginRefresh();
+    if (typeof orgLoadClubs === 'function') orgLoadClubs();
   }
 
   // Update last visited page
@@ -827,10 +667,10 @@ function initPage() {
 ============================================================ */
 async function syncToLocal() {
   const club = (typeof getMyClub === "function") ? getMyClub() : { id: null };
-  setSyncIndicator("🔄 Syncing...", "#aaa");
+  setSyncIndicator(t("syncing"), "#aaa");
 
   if (!club.id) {
-    setSyncIndicator("⚠️ No club selected", "#e6a817");
+    setSyncIndicator(t("noClubSelectedWarn"), "#e6a817");
     return;
   }
 
@@ -840,22 +680,19 @@ async function syncToLocal() {
 
     const players = await dbGetPlayers(true);
     if (!players || !players.length) {
-      setSyncIndicator("⚠️ No players found", "#e6a817");
+      setSyncIndicator(t("noPlayersFoundWarn"), "#e6a817");
       return;
     }
 
-    // kbrr_rating_field set at login — single decision point for READ
-    const ratingField = localStorage.getItem("kbrr_rating_field") || "club_ratings";
+    // Always use clubRating (club_rating column) as the active rating
     const synced = players.map(gp => {
-      const activeRating = ratingField === "club_ratings"
-        ? (parseFloat(gp.clubRating) || 1.0)
-        : (parseFloat(gp.rating)     || 1.0);
+      const activeRating = parseFloat(gp.clubRating) || parseFloat(gp.rating) || 1.0;
       return {
         displayName:  gp.name.trim(),
         gender:       gp.gender || "Male",
-        rating:       parseFloat(gp.rating)     || 1.0,  // raw global — for profile display only
-        clubRating:   parseFloat(gp.clubRating) || 1.0,  // raw club   — for profile display only
-        activeRating,                                     // what everything else reads
+        rating:       parseFloat(gp.rating)     || 1.0,
+        clubRating:   parseFloat(gp.clubRating) || 1.0,
+        activeRating,
         id:           gp.id
       };
     });
@@ -882,13 +719,13 @@ async function syncToLocal() {
     syncRatings();
 
     const count = synced.length;
-    const msg   = `✅ ${count} player${count !== 1 ? "s" : ""} synced · ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+    const msg   = `✅ ${count} ${t("playerPlural")} synced · ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
     localStorage.setItem("kbrr_last_sync", JSON.stringify({ msg, color: "#2dce89" }));
     setSyncIndicator(msg, "#2dce89");
 
   } catch (e) {
     console.warn("syncToLocal failed:", e.message);
-    const msg = "⚠️ Offline — using cache";
+    const msg = t("offlineCache");
     localStorage.setItem("kbrr_last_sync", JSON.stringify({ msg, color: "#e6a817" }));
     setSyncIndicator(msg, "#e6a817");
   }
@@ -910,14 +747,482 @@ function restoreSyncIndicator() {
 }
 
 
+
+/* =============================================================
+   SESSION LIVE BAR
+============================================================= */
+function updateSessionLiveBar() {
+  const bar = document.getElementById('sessionLiveBar');
+  if (!bar) return;
+  const sessionId = (typeof getMySessionId === 'function') ? getMySessionId() : null;
+  const hasRounds = typeof allRounds !== 'undefined' && allRounds.length > 0;
+  bar.style.display = (sessionId || hasRounds) ? 'flex' : 'none';
+}
+
+/* =============================================================
+   VAULT MODE — Admin password gate
+============================================================= */
+function requestVaultMode() {
+  const overlay = document.getElementById('modeSheetOverlay');
+  if (overlay) overlay.remove();
+
+  if (appMode === 'vault') { switchMode('vault'); return; }
+
+  // Check club first
+  var club = (typeof getMyClub === 'function') ? getMyClub() : null;
+  if (!club || !club.id) {
+    _showClubSetupSheet('vault');
+    return;
+  }
+
+  // Already authenticated as admin this session
+  if (localStorage.getItem('kbrr_club_mode') === 'admin') {
+    appMode = 'vault';
+    sessionStorage.setItem('appMode', 'vault');
+    localStorage.setItem('kbrr_app_mode', 'vault');
+    applyMode('vault');
+    updateModePill('vault');
+    if (typeof showHomeScreen === 'function') showHomeScreen();
+    return;
+  }
+  _showVaultPasswordPrompt();
+}
+
+/* =============================================================
+   CLUB SETUP SHEET — shown when entering Organiser or Vault without a club
+   Provides: Join existing club | Create new club
+============================================================= */
+var _clubSetupTargetMode = null; // mode to enter after club is set up
+var _clubSetupCreateEmail = '';  // email during create-club OTP flow
+
+function _showClubSetupSheet(targetMode) {
+  _clubSetupTargetMode = targetMode;
+  const existing = document.getElementById('clubSetupSheetOverlay');
+  if (existing) existing.remove();
+
+  const modeLabel = targetMode === 'vault' ? t('vaultManager') : t('roundOrganiser');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'clubSetupSheetOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)';
+  overlay.innerHTML = `
+    <div class="club-setup-sheet" id="clubSetupSheet">
+      <div class="mode-sheet-handle"></div>
+      <div class="mode-sheet-title">${modeLabel}</div>
+      <p style="font-size:0.84rem;color:var(--text-dim);margin-bottom:16px;line-height:1.5">
+        You need to be connected to a club. Join an existing club or create a new one.
+      </p>
+
+      <!-- TAB SWITCHER -->
+      <div class="club-setup-tabs" id="clubSetupTabs">
+        <button class="club-setup-tab active" id="clubSetupTabJoin" onclick="_clubSetupShowTab('join')">Join Club</button>
+        <button class="club-setup-tab" id="clubSetupTabCreate" onclick="_clubSetupShowTab('create')">Create Club</button>
+      </div>
+
+      <!-- JOIN PANEL -->
+      <div id="clubSetupPanelJoin" style="margin-top:14px">
+        <select id="csJoinClubSelect" class="auth-input" style="margin-bottom:10px">
+          <option value="">— Loading clubs… —</option>
+        </select>
+        <input type="password" id="csJoinPassword" class="auth-input" placeholder="${t('clubPasswordPh')}" style="margin-bottom:10px">
+        <div id="csJoinFeedback" style="font-size:0.82rem;color:var(--red);min-height:18px;margin-bottom:10px"></div>
+        <div style="display:flex;gap:10px">
+          <button class="admin-modal-cancel" style="flex:1" onclick="document.getElementById('clubSetupSheetOverlay').remove()">Cancel</button>
+          <button class="admin-modal-ok" style="flex:1" onclick="_clubSetupJoin()">Join</button>
+        </div>
+      </div>
+
+      <!-- CREATE PANEL -->
+      <div id="clubSetupPanelCreate" style="display:none;margin-top:14px">
+        <div id="clubSetupPanelCreateForm">
+          <input type="text"     id="csCreateName"    class="auth-input" placeholder="${t('clubNamePh')}"      style="margin-bottom:8px">
+          <input type="password" id="csCreateUserPw"  class="auth-input" placeholder="${t('memberPasswordPh')}" style="margin-bottom:8px">
+          <input type="password" id="csCreateAdminPw" class="auth-input" placeholder="${t('enterAdminPasswordPh')}"  style="margin-bottom:10px">
+          <div id="csCreateFeedback" style="font-size:0.82rem;min-height:18px;margin-bottom:10px"></div>
+          <div style="display:flex;gap:10px">
+            <button class="admin-modal-cancel" style="flex:1" onclick="document.getElementById('clubSetupSheetOverlay').remove()">Cancel</button>
+            <button class="admin-modal-ok" style="flex:1" onclick="_clubSetupCreateDirect()">Create Club</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  document.getElementById('clubSetupSheet').addEventListener('click', e => e.stopPropagation());
+
+  // Load clubs for join dropdown
+  _clubSetupLoadClubs();
+}
+
+function _clubSetupShowTab(tab) {
+  document.getElementById('clubSetupTabJoin').classList.toggle('active', tab === 'join');
+  document.getElementById('clubSetupTabCreate').classList.toggle('active', tab === 'create');
+  document.getElementById('clubSetupPanelJoin').style.display   = tab === 'join'   ? '' : 'none';
+  document.getElementById('clubSetupPanelCreate').style.display = tab === 'create' ? '' : 'none';
+  // Reset create form
+  if (tab === 'create') {
+    _clubSetupCreateEmail = '';
+  }
+}
+
+async function _clubSetupLoadClubs() {
+  const select = document.getElementById('csJoinClubSelect');
+  if (!select) return;
+  try {
+    const clubs = await sbGet('clubs', 'select=id,name&order=name.asc');
+    select.innerHTML = '<option value="">— Select club —</option>';
+    clubs.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.name;
+      select.appendChild(opt);
+    });
+  } catch(e) {
+    select.innerHTML = '<option value="">— Could not load clubs —</option>';
+  }
+}
+
+async function _clubSetupJoin() {
+  const select = document.getElementById('csJoinClubSelect');
+  const pwInput = document.getElementById('csJoinPassword');
+  const fb = document.getElementById('csJoinFeedback');
+  const setFb = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
+
+  if (!select || !select.value) { setFb(t('pleaseSelectClubDot'), false); return; }
+  const pw = pwInput ? pwInput.value.trim() : '';
+  if (!pw) { setFb(t('enterClubPassword'), false); return; }
+
+  setFb(t('checkingDot'), true);
+  try {
+    // Use server-side filter — avoids RLS blocking password column reads
+    const encodedPw = encodeURIComponent(pw);
+    const asAdmin = await sbGet('clubs', `id=eq.${select.value}&admin_password=eq.${encodedPw}&select=id,name`);
+    const asUser  = await sbGet('clubs', `id=eq.${select.value}&select_password=eq.${encodedPw}&select=id,name`);
+
+    if (!asAdmin.length && !asUser.length) throw new Error(t('wrongPasswordDot'));
+
+    let role = asAdmin.length ? 'admin' : 'user';
+    const clubs = asAdmin.length ? asAdmin : asUser;
+
+    if (typeof setMyClub === 'function') setMyClub(clubs[0].id, clubs[0].name);
+    localStorage.setItem('kbrr_club_mode', role);
+    localStorage.setItem('kbrr_rating_field', 'club_rating');
+    if (pwInput) pwInput.value = '';
+
+    setFb(role === 'admin' ? t('joinedAsAdmin') : t('joinedSuccessfully'), true);
+
+    // Small delay so user sees success, then enter the mode
+    setTimeout(() => {
+      const ov = document.getElementById('clubSetupSheetOverlay');
+      if (ov) ov.remove();
+      if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
+      if (typeof syncToLocal === 'function') syncToLocal();
+
+      const mode = _clubSetupTargetMode;
+      if (mode === 'vault') {
+        // Vault: if admin just joined as admin, go straight in; else ask for admin pw
+        if (role === 'admin') {
+          appMode = 'vault';
+          sessionStorage.setItem('appMode', 'vault');
+          localStorage.setItem('kbrr_app_mode', 'vault');
+          applyMode('vault');
+          updateModePill('vault');
+          if (typeof showHomeScreen === 'function') showHomeScreen();
+        } else {
+          _showVaultPasswordPrompt();
+        }
+      } else {
+        appMode = mode;
+        sessionStorage.setItem('appMode', mode);
+        localStorage.setItem('kbrr_app_mode', mode);
+        applyMode(mode);
+        updateModePill(mode);
+        if (typeof showHomeScreen === 'function') showHomeScreen();
+      }
+    }, 700);
+  } catch(e) { setFb('❌ ' + e.message, false); }
+}
+
+async function _clubSetupCreateSendOtp() { _clubSetupCreateDirect(); } // legacy alias
+async function _clubSetupCreateResend()  { } // no longer needed
+
+async function _clubSetupCreateVerify() { _clubSetupCreateDirect(); } // legacy alias
+
+async function _clubSetupCreateDirect() {
+  const name    = document.getElementById('csCreateName')?.value.trim();
+  const userPw  = document.getElementById('csCreateUserPw')?.value.trim();
+  const adminPw = document.getElementById('csCreateAdminPw')?.value.trim();
+  const fb      = document.getElementById('csCreateFeedback');
+  const setFb   = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
+
+  if (!name)    { setFb(t('enterClubName'), false); return; }
+  if (!userPw)  { setFb(t('enterMemberPw'), false); return; }
+  if (!adminPw) { setFb(t('enterAdminPw'), false); return; }
+  if (userPw === adminPw) { setFb(t('memberAdminDiff'), false); return; }
+
+  setFb(t('creatingClubDot'), true);
+  try {
+    const club = await dbAddClub(name, userPw, adminPw);
+    if (typeof setMyClub === 'function') setMyClub(club.id, club.name);
+    localStorage.setItem('kbrr_club_mode', 'admin');
+    localStorage.setItem('kbrr_rating_field', 'club_rating');
+    setFb('✅ ' + club.name + ' ' + t('clubCreatedAdmin'), true);
+
+    setTimeout(() => {
+      const ov = document.getElementById('clubSetupSheetOverlay');
+      if (ov) ov.remove();
+      if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
+      if (typeof syncToLocal === 'function') syncToLocal();
+
+      const mode = _clubSetupTargetMode;
+      // Creator is always admin — go straight into requested mode
+      appMode = mode;
+      sessionStorage.setItem('appMode', mode);
+      localStorage.setItem('kbrr_app_mode', mode);
+      applyMode(mode);
+      if (typeof showHomeScreen === 'function') showHomeScreen();
+    }, 1000);
+  } catch(e) { setFb('❌ ' + e.message, false); }
+}
+
+function _showVaultPasswordPrompt() {
+  const existing = document.getElementById('vaultPromptOverlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'vaultPromptOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px)';
+  overlay.innerHTML = `
+    <div class="vault-pw-sheet" id="vaultPwSheet">
+      <div class="mode-sheet-handle"></div>
+      <div class="mode-sheet-title">🔑 Vault Manager</div>
+      <p style="font-size:0.84rem;color:var(--text-dim);margin-bottom:16px;line-height:1.5">
+        Enter the club admin password to access Vault Manager.
+      </p>
+      <input type="password" id="vaultPwInput" class="admin-password-input"
+             placeholder="${t('enterAdminPasswordPh')}"
+             onkeydown="if(event.key==='Enter')verifyVaultPassword()"
+             style="margin-bottom:12px;width:100%">
+      <div id="vaultPwError" style="font-size:0.82rem;color:var(--red);min-height:18px;margin-bottom:12px"></div>
+      <div style="display:flex;gap:10px">
+        <button class="admin-modal-cancel" style="flex:1"
+                onclick="document.getElementById('vaultPromptOverlay').remove()">Cancel</button>
+        <button class="admin-modal-ok" style="flex:1"
+                onclick="verifyVaultPassword()">Enter Vault</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  document.getElementById('vaultPwSheet').addEventListener('click', e => e.stopPropagation());
+  setTimeout(() => document.getElementById('vaultPwInput')?.focus(), 100);
+}
+
+async function verifyVaultPassword() {
+  const input = document.getElementById('vaultPwInput');
+  const errEl = document.getElementById('vaultPwError');
+  const pw    = (input ? input.value : '').trim();
+  if (!pw) { if (errEl) errEl.textContent = t('enterAdminPasswordHint'); return; }
+
+  const club = (typeof getMyClub === 'function') ? getMyClub() : null;
+  if (!club || !club.id) { if (errEl) errEl.textContent = t('noClubSelected'); return; }
+
+  if (errEl) errEl.textContent = t('checkingDotDot');
+  try {
+    const rows = await sbGet('clubs', `id=eq.${club.id}&admin_password=eq.${encodeURIComponent(pw)}&select=id`);
+    if (!rows || !rows.length) {
+      if (errEl) errEl.textContent = t('wrongAdminPw');
+      if (input) input.value = '';
+      return;
+    }
+    localStorage.setItem('kbrr_club_mode', 'admin');
+    const ov = document.getElementById('vaultPromptOverlay');
+    if (ov) ov.remove();
+    switchMode('vault');
+  } catch(e) {
+    if (errEl) errEl.textContent = t('errorPrefix') + e.message;
+  }
+}
+
 /* =============================================================
    POWER BUTTON — End Session
 ============================================================= */
 async function endSession(fromProfile = false) {
-  if (!confirm('End session?')) return;
+  // Show shuttle cost sheet instead of plain confirm
+  showShuttleSheet();
+}
+
+function showShuttleSheet() {
+  const existing = document.getElementById('shuttleSheetOverlay');
+  if (existing) existing.remove();
+
+  const playerCount = (typeof schedulerState !== 'undefined') ? schedulerState.allPlayers.length : 0;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'shuttleSheetOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-end;';
+  overlay.innerHTML = `
+    <div class="shuttle-sheet" id="shuttleSheet">
+      <div class="shuttle-handle"></div>
+      <div class="shuttle-title">💰 Session Cost</div>
+
+      <div class="shuttle-mode-toggle">
+        <button class="shuttle-mode-btn active" id="shuttleModeA" onclick="shuttleSwitchMode('itemized')">📋 Itemized</button>
+        <button class="shuttle-mode-btn" id="shuttleModeB" onclick="shuttleSwitchMode('flat')">💴 Flat Fee</button>
+      </div>
+
+      <!-- Itemized mode -->
+      <div id="shuttleModeItemized">
+        <div class="shuttle-2col">
+          <div class="shuttle-input-group">
+            <div class="shuttle-input-label">🪶 Price/tube</div>
+            <input type="number" id="shuttleTubePrice" class="shuttle-input" placeholder="e.g. 6000" oninput="shuttleCalc()">
+          </div>
+          <div class="shuttle-input-group">
+            <div class="shuttle-input-label">Shuttles used</div>
+            <input type="number" id="shuttleCount" class="shuttle-input" placeholder="e.g. 16" oninput="shuttleCalc()">
+          </div>
+        </div>
+        <div class="shuttle-divider"><div class="shuttle-div-line"></div><span class="shuttle-div-txt">optional</span><div class="shuttle-div-line"></div></div>
+        <div class="shuttle-input-group">
+          <div class="shuttle-input-label">🏟 Court fee (total)</div>
+          <input type="number" id="shuttleCourtFee" class="shuttle-input" placeholder="¥0" oninput="shuttleCalc()">
+        </div>
+        <div class="shuttle-input-group" style="margin-top:8px">
+          <div class="shuttle-input-label">📦 Misc fee (total)</div>
+          <input type="number" id="shuttleMiscFee" class="shuttle-input" placeholder="¥0" oninput="shuttleCalc()">
+        </div>
+      </div>
+
+      <!-- Flat fee mode -->
+      <div id="shuttleModeFlat" style="display:none">
+        <div class="shuttle-input-group" style="margin-top:4px">
+          <div class="shuttle-input-label">💴 Amount per player</div>
+          <input type="number" id="shuttleFlatFee" class="shuttle-input shuttle-input-lg" placeholder="¥0" oninput="shuttleCalc()">
+        </div>
+      </div>
+
+      <!-- Calc result -->
+      <div class="shuttle-calc-box" id="shuttleCalcBox" style="display:none">
+        <div class="shuttle-calc-row" id="shuttleCalcShuttles" style="display:none">
+          <span class="shuttle-calc-label">🪶 Shuttles</span>
+          <span class="shuttle-calc-val" id="shuttleCostShuttles">—</span>
+        </div>
+        <div class="shuttle-calc-row" id="shuttleCalcCourt" style="display:none">
+          <span class="shuttle-calc-label">🏟 Court</span>
+          <span class="shuttle-calc-val" id="shuttleCostCourt">—</span>
+        </div>
+        <div class="shuttle-calc-row" id="shuttleCalcMisc" style="display:none">
+          <span class="shuttle-calc-label">📦 Misc</span>
+          <span class="shuttle-calc-val" id="shuttleCostMisc">—</span>
+        </div>
+        <div class="shuttle-calc-row shuttle-calc-total">
+          <span class="shuttle-calc-label">Per player (${playerCount})</span>
+          <span class="shuttle-calc-val shuttle-calc-big" id="shuttleCostPerPlayer">—</span>
+        </div>
+      </div>
+
+      <button class="shuttle-btn-end" onclick="confirmEndSession()">⏹ End Session</button>
+      <button class="shuttle-btn-skip" onclick="skipShuttleAndEnd()">Skip — end without recording</button>
+    </div>`;
+
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  document.getElementById('shuttleSheet').addEventListener('click', e => e.stopPropagation());
+}
+
+function shuttleSwitchMode(mode) {
+  const isItemized = mode === 'itemized';
+  document.getElementById('shuttleModeItemized').style.display = isItemized ? '' : 'none';
+  document.getElementById('shuttleModeFlat').style.display     = isItemized ? 'none' : '';
+  document.getElementById('shuttleModeA').classList.toggle('active', isItemized);
+  document.getElementById('shuttleModeB').classList.toggle('active', !isItemized);
+  document.getElementById('shuttleCalcBox').style.display = 'none';
+}
+
+function shuttleCalc() {
+  const players = (typeof schedulerState !== 'undefined') ? schedulerState.allPlayers.length : 0;
+  const isFlat  = document.getElementById('shuttleModeFlat')?.style.display !== 'none';
+
+  if (isFlat) {
+    const flat = parseFloat(document.getElementById('shuttleFlatFee')?.value) || 0;
+    if (!flat) { document.getElementById('shuttleCalcBox').style.display = 'none'; return; }
+    document.getElementById('shuttleCalcBox').style.display = '';
+    document.getElementById('shuttleCalcShuttles').style.display = 'none';
+    document.getElementById('shuttleCalcCourt').style.display    = 'none';
+    document.getElementById('shuttleCalcMisc').style.display     = 'none';
+    document.getElementById('shuttleCostPerPlayer').textContent  = '¥' + Math.round(flat).toLocaleString();
+    return;
+  }
+
+  // Itemized
+  const tubePrice  = parseFloat(document.getElementById('shuttleTubePrice')?.value) || 0;
+  const count      = parseFloat(document.getElementById('shuttleCount')?.value) || 0;
+  const courtFee   = parseFloat(document.getElementById('shuttleCourtFee')?.value) || 0;
+  const miscFee    = parseFloat(document.getElementById('shuttleMiscFee')?.value) || 0;
+
+  const shuttleCost = tubePrice && count ? (tubePrice / 12) * count : 0;
+  const total       = shuttleCost + courtFee + miscFee;
+  const perPlayer   = players > 0 ? total / players : 0;
+
+  if (!total) { document.getElementById('shuttleCalcBox').style.display = 'none'; return; }
+
+  document.getElementById('shuttleCalcBox').style.display = '';
+
+  const showRow = (rowId, valId, val) => {
+    document.getElementById(rowId).style.display = val > 0 ? '' : 'none';
+    if (val > 0) document.getElementById(valId).textContent = '¥' + Math.round(val / players).toLocaleString() + '/player';
+  };
+  showRow('shuttleCalcShuttles', 'shuttleCostShuttles', shuttleCost);
+  showRow('shuttleCalcCourt',    'shuttleCostCourt',    courtFee);
+  showRow('shuttleCalcMisc',     'shuttleCostMisc',     miscFee);
+  document.getElementById('shuttleCostPerPlayer').textContent = '¥' + Math.round(perPlayer).toLocaleString();
+}
+
+async function confirmEndSession() {
+  const players  = (typeof schedulerState !== 'undefined') ? schedulerState.allPlayers.length : 0;
+  const isFlat   = document.getElementById('shuttleModeFlat')?.style.display !== 'none';
+  let shuttleData = null;
+
+  if (isFlat) {
+    const flat = parseFloat(document.getElementById('shuttleFlatFee')?.value) || 0;
+    if (flat) shuttleData = { mode: 'flat', cost_per_player: Math.round(flat), player_count: players };
+  } else {
+    const tubePrice = parseFloat(document.getElementById('shuttleTubePrice')?.value) || 0;
+    const count     = parseFloat(document.getElementById('shuttleCount')?.value) || 0;
+    const courtFee  = parseFloat(document.getElementById('shuttleCourtFee')?.value) || 0;
+    const miscFee   = parseFloat(document.getElementById('shuttleMiscFee')?.value) || 0;
+    const shuttleCost = tubePrice && count ? (tubePrice / 12) * count : 0;
+    const total       = shuttleCost + courtFee + miscFee;
+    const perPlayer   = players > 0 ? Math.round(total / players) : 0;
+    if (total) shuttleData = {
+      mode: 'itemized',
+      tube_price: tubePrice, shuttles_used: count,
+      court_fee: courtFee,   misc_fee: miscFee,
+      total_cost: Math.round(total),
+      cost_per_player: perPlayer,
+      player_count: players
+    };
+  }
+
+  document.getElementById('shuttleSheetOverlay')?.remove();
+  await _doEndSession(shuttleData);
+}
+
+async function skipShuttleAndEnd() {
+  document.getElementById('shuttleSheetOverlay')?.remove();
+  await _doEndSession(null);
+}
+
+async function _doEndSession(shuttleData) {
+  // Show ending feedback
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a2e;color:#fff;padding:16px 24px;border-radius:14px;font-size:0.9rem;font-weight:700;z-index:99999;text-align:center;';
+  toast.textContent = t('endingSession');
+  document.body.appendChild(toast);
 
   // Mark session completed in sessions table
-  if (typeof dbCompleteSession === 'function') await dbCompleteSession();
+  if (typeof dbCompleteSession === 'function') await dbCompleteSession(shuttleData);
 
   // Flush live_sessions → players.sessions, then delete temp rows
   if (typeof flushLiveSession === 'function') await flushLiveSession();
@@ -940,6 +1245,16 @@ async function endSession(fromProfile = false) {
     if (schedulerState.PlayedCount) schedulerState.PlayedCount.clear();
     if (schedulerState.restCount)   schedulerState.restCount.clear();
   }
+
+  // Stop heartbeat
+  if (typeof stopSessionHeartbeat === 'function') stopSessionHeartbeat();
+
+  // Hide live bar
+  updateSessionLiveBar();
+
+  // Remove toast
+  toast.textContent = t('sessionEnded');
+  setTimeout(() => toast.remove(), 1500);
 
   // Stay on dashboard and refresh it
   if (typeof showPage === 'function') {
@@ -966,3 +1281,30 @@ document.addEventListener("click", function(e) {
   }
 });
 
+
+/* ── Tile Style System ── */
+function setTileStyle(style) {
+  document.body.classList.remove('tile-style-glow','tile-style-color');
+  if (style === 'glow')  document.body.classList.add('tile-style-glow');
+  if (style === 'color') document.body.classList.add('tile-style-color');
+  localStorage.setItem('kbrr_tile_style', style);
+
+  // Update buttons
+  ['flat','glow','color'].forEach(function(s, i) {
+    var btn = document.getElementById('styleBtn'+(i+1));
+    if (btn) btn.classList.toggle('active', s === style);
+  });
+
+  // Update preview box class instantly
+  var box = document.getElementById('stylePreviewBox');
+  if (box) {
+    box.classList.remove('glow','color');
+    if (style === 'glow')  box.classList.add('glow');
+    if (style === 'color') box.classList.add('color');
+  }
+}
+
+function loadHomeStyle() {
+  var style = localStorage.getItem('kbrr_tile_style') || 'flat';
+  setTileStyle(style);
+}

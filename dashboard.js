@@ -70,8 +70,8 @@ async function renderDashboard() {
     container.innerHTML = `
       <div class="dash-empty">
         <div class="dash-empty-icon">👤</div>
-        <p>Set up your profile first.</p>
-        <p style="font-size:0.78rem;color:var(--text-dim);margin-top:4px">Tap the profile icon to select your name.</p>
+        <p>${t("setupProfileFirst")}</p>
+        <p style="font-size:0.78rem;color:var(--text-dim);margin-top:4px">${t("tapProfileIcon")}</p>
       </div>`;
     return;
   }
@@ -79,8 +79,8 @@ async function renderDashboard() {
     container.innerHTML = `
       <div class="dash-empty">
         <div class="dash-empty-icon">🏟️</div>
-        <p>No club selected.</p>
-        <p style="font-size:0.78rem;color:var(--text-dim);margin-top:4px">Go to Club tab to join a club.</p>
+        <p>${t("noClubSelectedDash")}</p>
+        <p style="font-size:0.78rem;color:var(--text-dim);margin-top:4px">${t("goToClubTab")}</p>
       </div>`;
     return;
   }
@@ -121,12 +121,13 @@ async function renderDashboard() {
     // ── Live Section ──
     const liveSection = document.createElement('div');
     liveSection.className = 'dash-section';
-    liveSection.innerHTML = `<div class="dash-section-title"><span class="dash-live-dot"></span> Live Now</div>`;
+    liveSection.innerHTML = `<div class="dash-section-title"><span class="dash-live-dot"></span> ${t("liveNowTitle")}</div>`;
 
     if (liveSessions.length) {
       liveSessions.forEach(sess => {
-        const players     = _extractPlayersFromRounds(sess.rounds_data || []);
-        const totalRounds = (sess.rounds_data || []).length;
+        // live_sessions are grouped by club — players array is from per-player rows
+        const players     = (sess.players && sess.players.length) ? sess.players : _extractPlayersFromRounds(sess.rounds_data || []);
+        const totalRounds = (sess.rounds_data || []).length || null;
         const cardClubName = isViewer ? (sess.club_name || sess.club_id || '') : (club ? club.name : '');
         const card = _buildSessionCard({
           clubName:   cardClubName,
@@ -140,14 +141,14 @@ async function renderDashboard() {
         liveSection.appendChild(card);
       });
     } else {
-      liveSection.innerHTML += `<div class="dash-empty-inline">No active sessions right now</div>`;
+      liveSection.innerHTML += `<div class="dash-empty-inline">${t("noActiveSessions")}</div>`;
     }
     container.appendChild(liveSection);
 
     // ── Past Sessions ──
     const pastSection = document.createElement('div');
     pastSection.className = 'dash-section';
-    pastSection.innerHTML = `<div class="dash-section-title">📅 Recent Sessions</div>`;
+    pastSection.innerHTML = `<div class="dash-section-title">📅 ${t("recentSessions")}</div>`;
 
     if (pastSessions.length) {
       pastSessions.forEach(sess => {
@@ -160,12 +161,13 @@ async function renderDashboard() {
           isLive:      false,
           sessionId:   sess.id,
           date:        sess.date,
-          updatedAt:   sess.updated_at
+          updatedAt:   sess.updated_at,
+          shuttleData: sess.shuttle_data || null
         });
         pastSection.appendChild(card);
       });
     } else {
-      pastSection.innerHTML += `<div class="dash-empty-inline">No recent sessions found</div>`;
+      pastSection.innerHTML += `<div class="dash-empty-inline">${t("noRecentSessions")}</div>`;
     }
     container.appendChild(pastSection);
 
@@ -176,9 +178,9 @@ async function renderDashboard() {
     container.innerHTML = `
       <div class="dash-empty">
         <div class="dash-empty-icon">📡</div>
-        <p>Could not load sessions.</p>
-        <p style="font-size:0.78rem;color:var(--text-dim);margin-top:4px">Check your connection.</p>
-        <button class="help-retry-btn" onclick="renderDashboard()" style="margin-top:12px">↺ Retry</button>
+        <p>${t("couldNotLoadSessions")}</p>
+        <p style="font-size:0.78rem;color:var(--text-dim);margin-top:4px">${t("checkConnection")}</p>
+        <button class="help-retry-btn" onclick="renderDashboard()" style="margin-top:12px">${t("retryBtn")}</button>
       </div>`;
   }
 }
@@ -198,13 +200,13 @@ function _extractPlayersFromRounds(roundsData) {
 }
 
 /* ── Build a session card ── */
-function _buildSessionCard({ clubName, starter, players, totalRounds, isLive, sessionId, date, updatedAt }) {
+function _buildSessionCard({ clubName, starter, players, totalRounds, isLive, sessionId, date, updatedAt, shuttleData }) {
   const card = document.createElement('div');
   card.className = 'dash-session-card' + (isLive ? ' live' : '');
 
   const myPlayer = (typeof getMyPlayer === 'function') ? getMyPlayer() : null;
   const myName   = myPlayer ? myPlayer.name.toLowerCase() : '';
-  const dateLabel = isLive ? 'Today' : _formatDate(date || updatedAt);
+  const dateLabel = isLive ? t('today') : _formatDate(date || updatedAt);
   // Show club name on card (useful when viewer sees multiple clubs)
   const displayClub = clubName || '';
 
@@ -212,7 +214,7 @@ function _buildSessionCard({ clubName, starter, players, totalRounds, isLive, se
   const top = document.createElement('div');
   top.className = 'dash-card-top';
   top.innerHTML = `
-    <div class="dash-card-club">${clubName || 'Club'}</div>
+    <div class="dash-card-club">${clubName || t('clubLabel')}</div>
     ${isLive
       ? `<div class="dash-live-badge"><div class="dash-live-dot-sm"></div>LIVE</div>`
       : `<div class="dash-past-badge">${dateLabel}</div>`}
@@ -223,8 +225,8 @@ function _buildSessionCard({ clubName, starter, players, totalRounds, isLive, se
   const meta = document.createElement('div');
   meta.className = 'dash-card-meta';
   meta.innerHTML = `
-    <span>👥 ${players.length} players</span>
-    ${totalRounds ? `<span>🔄 ${totalRounds} rounds</span>` : ''}
+    <span>👥 ${players.length} ${t("playersCount")}</span>
+    ${totalRounds ? `<span>🔄 ${totalRounds} ${t("roundsCount")}</span>` : ''}
     ${starter ? `<span>▶ ${starter}</span>` : ''}
   `;
   card.appendChild(meta);
@@ -256,45 +258,57 @@ function _buildSessionCard({ clubName, starter, players, totalRounds, isLive, se
     card.addEventListener('click', () => _openSessionRounds(sessionId));
   }
 
-  // End Session button — admin only, live cards only
-  if (isLive && typeof isAdminMode === 'function' && isAdminMode()) {
-    const endBtn = document.createElement('button');
-    endBtn.style.cssText = 'width:100%;margin-top:10px;padding:8px;background:#e63757;color:#fff;border:none;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;';
-    endBtn.textContent = '⏹ End Session';
-    endBtn.onclick = async (e) => {
+  // Shuttle cost row — past sessions only
+  if (!isLive && shuttleData) {
+    const shuttleRow = document.createElement('div');
+    shuttleRow.className = 'dash-shuttle-row';
+    let info = '';
+    if (shuttleData.mode === 'flat') {
+      info = `<span class="dash-shuttle-info">💴 Flat fee</span>`;
+    } else {
+      const parts = [];
+      if (shuttleData.shuttles_used) parts.push(`🪶 ${shuttleData.shuttles_used} shuttles`);
+      if (shuttleData.court_fee)     parts.push(`🏟 ¥${shuttleData.court_fee.toLocaleString()}`);
+      if (shuttleData.misc_fee)      parts.push(`📦 ¥${shuttleData.misc_fee.toLocaleString()}`);
+      info = `<span class="dash-shuttle-info">${parts.join(' · ')}</span>`;
+    }
+    shuttleRow.innerHTML = `
+      ${info}
+      <span class="dash-shuttle-cost">¥${(shuttleData.cost_per_player||0).toLocaleString()}/player</span>
+    `;
+    card.appendChild(shuttleRow);
+  }
+
+  // Force End button — admin only, live sessions only
+  const isAdmin = (typeof isAdminMode === 'function') ? isAdminMode() : localStorage.getItem('kbrr_club_mode') === 'admin';
+  if (isLive && isAdmin) {
+    const footer = document.createElement('div');
+    footer.className = 'dash-card-footer';
+    const forceEndBtn = document.createElement('button');
+    forceEndBtn.className = 'dash-force-end-btn';
+    forceEndBtn.textContent = t('forceEndSession');
+    forceEndBtn.onclick = async (e) => {
       e.stopPropagation();
-      if (!confirm('End this session?')) return;
-      endBtn.disabled = true;
-      endBtn.textContent = 'Ending...';
+      if (!confirm(t('forceEndConfirm'))) return;
+      forceEndBtn.textContent = t('ending');
+      forceEndBtn.disabled = true;
       try {
         await dbForceCompleteSession(sessionId);
-        // If this is our local session, clean up local state too
-        const localId = (typeof getMySessionId === 'function') ? getMySessionId() : null;
-        if (localId === sessionId) {
-          if (typeof flushLiveSession === 'function') await flushLiveSession();
-          if (typeof dbReleaseMySession === 'function') await dbReleaseMySession();
-          localStorage.removeItem('schedulerState');
-          localStorage.removeItem('allRounds');
-          localStorage.removeItem('currentRoundIndex');
-          sessionStorage.removeItem('kbrr_session_db_id');
-          // Reload to fully reset all in-memory state and prevent auto-restart
-          location.reload();
-          return;
-        }
-        if (typeof renderDashboard === 'function') renderDashboard();
-      } catch(e) {
-        endBtn.disabled = false;
-        endBtn.textContent = '⏹ End Session';
-        alert('Failed to end session.');
+        renderDashboard();
+      } catch(err) {
+        forceEndBtn.textContent = t('forceEndSession');
+        forceEndBtn.disabled = false;
+        alert('Failed: ' + err.message);
       }
     };
-    card.appendChild(endBtn);
+    footer.appendChild(forceEndBtn);
+    card.appendChild(footer);
   }
 
   return card;
 }
 
-/* ── Open rounds view — delegates entirely to viewer.js ── */
+/* ── Open rounds view — navigates to viewerPage ── */
 function _openSessionRounds(sessionId) {
   if (typeof viewerOpen === 'function') viewerOpen(sessionId);
 }
@@ -305,8 +319,8 @@ function _formatDate(dateStr) {
   const d     = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
   const today = new Date();
   const diff  = Math.floor((today - d) / (1000*60*60*24));
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Yesterday';
+  if (diff === 0) return t('today');
+  if (diff === 1) return t('yesterday');
   if (diff < 7)  return `${diff} days ago`;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }

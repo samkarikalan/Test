@@ -163,15 +163,8 @@ function goToRounds() {
     allRounds.push(AischedulerNextRound(schedulerState));
     currentRoundIndex = 0;
     showRound(0);
-    // Start session in DB only if not already started
-    const existingSessionId = (typeof getMySessionId === 'function') ? getMySessionId() : null;
-    if (!existingSessionId && typeof dbStartSession === 'function') {
-      dbStartSession().then(() => {
-        if (typeof saveRoundsToDb === 'function') saveRoundsToDb();
-      });
-    } else {
-      if (typeof saveRoundsToDb === 'function') saveRoundsToDb();
-    }
+    // Ensure live session is registered — retries silently if it fails
+    ensureLiveSession();
   } else {   
       schedulerState.numCourts = numCourts;      
       schedulerState.fixedMap = new Map();
@@ -199,8 +192,30 @@ function goBack() {
   btn.disabled = false;
 }
 
+/* ── Ensure live session exists — retries silently until success ── */
+async function ensureLiveSession() {
+  try {
+    const existingId = (typeof getMySessionId === 'function') ? getMySessionId() : null;
+    if (existingId) return; // already registered
+
+    const club = (typeof getMyClub === 'function') ? getMyClub() : null;
+    if (!club || !club.id) return; // no club yet — will retry next round
+
+    if (typeof dbStartSession === 'function') {
+      await dbStartSession();
+      if (typeof saveRoundsToDb       === 'function') saveRoundsToDb();
+      if (typeof updateSessionLiveBar === 'function') updateSessionLiveBar();
+      if (typeof startSessionHeartbeat === 'function') startSessionHeartbeat();
+    }
+  } catch(e) {
+    console.warn('ensureLiveSession failed — will retry next round:', e.message);
+  }
+}
+
 function nextRound() {
-  
+  // Retry live session registration in case it failed earlier
+  ensureLiveSession();
+
   if (currentRoundIndex + 1 < allRounds.length) {
     currentRoundIndex++;
     showRound(currentRoundIndex);
@@ -213,7 +228,6 @@ function nextRound() {
     if (typeof saveRoundsToDb === 'function') saveRoundsToDb();
   }
   updateSummaryPageAccess();
-  // Sync ratings to Supabase silently after every round (called from updSchedule with wins/losses)
 }
 function endRounds() {  
 	sessionFinished = true;
@@ -559,17 +573,9 @@ if ( resetRest === true &&
 }
 
 function createRestQueue() {
-  // Sort players weak-to-strong by active rating once at session start.
-  // FIFO rotation then takes over naturally from here.
-  // This ensures rest groups are rating-spread rather than clustered,
-  // giving every round a balanced playing pool.
-  const players = [...schedulerState.activeplayers];
-  players.sort((a, b) => {
-    const ra = (typeof getActiveRating === 'function') ? getActiveRating(a) : 1.0;
-    const rb = (typeof getActiveRating === 'function') ? getActiveRating(b) : 1.0;
-    return ra - rb; // ascending: weakest first
-  });
-  return players;
+  // Return active players in their input order.
+  // FIFO rotation handles fair rest distribution from here.
+  return [...schedulerState.activeplayers];
 }
 
 function rebuildRestQueue(restQueue) {
@@ -624,7 +630,14 @@ function ratingToColor(r) {
 
 function report() {
   const container = document.getElementById("reportContainer");
+  if (!container) return;
   container.innerHTML = "";
+
+  // Guard: nothing to show if no players in session
+  if (!schedulerState.allPlayers || schedulerState.allPlayers.length === 0) {
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:0.9rem;">' + t('noSessionData') + '</div>';
+    return;
+  }
 
   const playMode = getPlayMode(); // "competitive" | "random"
 

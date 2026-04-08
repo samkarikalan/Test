@@ -40,33 +40,23 @@ function closeConfirm() {
 
 let currentLang = "en";
 
-function toggleLangMenu() {
-  const menu = document.getElementById('langMenu');
-  const isOpen = menu.style.display === 'block';
-  menu.style.display = isOpen ? 'none' : 'block';
-  // Close on outside click
-  if (!isOpen) {
-    setTimeout(() => {
-      document.addEventListener('click', _closeLangMenu, { once: true, capture: true });
-    }, 10);
-  }
+/* Language picker in Settings */
+function settingsToggleLangPicker() {
+  const picker = document.getElementById('settingsLangPicker');
+  if (picker) picker.style.display = picker.style.display === 'none' ? '' : 'none';
 }
 
-function _closeLangMenu(e) {
-  const wrapper = document.querySelector('.lang-wrapper');
-  if (wrapper && wrapper.contains(e.target)) return;
-  document.getElementById('langMenu').style.display = 'none';
+function settingsSelectLang(lang, flag, name) {
+  const val = document.getElementById('settingsLangValue');
+  if (val) val.textContent = flag + ' ' + name;
+  const picker = document.getElementById('settingsLangPicker');
+  if (picker) picker.style.display = 'none';
+  setLanguage(lang);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.lang-menu div').forEach(item => {
-    item.addEventListener('click', () => {
-      document.getElementById('currentFlag').textContent = item.dataset.flag;
-      setLanguage(item.dataset.lang);
-      document.getElementById('langMenu').style.display = 'none';
-    });
-  });
-});
+/* Keep toggleLangMenu as no-op for any remaining refs */
+function toggleLangMenu() {}
+function _closeLangMenu() {}
 
 
 
@@ -81,31 +71,25 @@ const langFlagMap = {
 /* ===== Theme ===== */
 
 function initLanguage() {
-const savedLang = localStorage.getItem("appLanguage");
-const supportedLangs = ["en", "jp", "kr", "vi"];
- // 2. update flag
-  document.getElementById("currentFlag").textContent =
-    langFlagMap[savedLang] || "🌐";
-  
-if (supportedLangs.includes(savedLang)) {
-setLanguage(savedLang);
-//updateHelpLanguage(savedLang);
-} else {
-const browserLang = navigator.language.toLowerCase();
-if (browserLang.startsWith("ja")) {
-setLanguage("jp");
-//updateHelpLanguage("jp");
-} else if (browserLang.startsWith("ko")) {
-setLanguage("kr");
-//updateHelpLanguage("kr");
-} else if (browserLang.startsWith("vi")) {
-setLanguage("vi");
-//updateHelpLanguage("vi");
-} else {
-setLanguage("en");
-//updateHelpLanguage("en");
-}
-}
+  const savedLang = localStorage.getItem("appLanguage");
+  const supportedLangs = ["en", "jp", "kr", "vi", "zh"];
+  const langNames = { en: "English", jp: "日本語", kr: "한국어", zh: "中文", vi: "Tiếng Việt" };
+
+  const lang = supportedLangs.includes(savedLang) ? savedLang : (() => {
+    const b = navigator.language.toLowerCase();
+    if (b.startsWith("ja")) return "jp";
+    if (b.startsWith("ko")) return "kr";
+    if (b.startsWith("vi")) return "vi";
+    if (b.startsWith("zh")) return "zh";
+    return "en";
+  })();
+
+  // Update settings label
+  const flag = langFlagMap[lang] || "🌐";
+  const val = document.getElementById("settingsLangValue");
+  if (val) val.textContent = flag + " " + (langNames[lang] || lang);
+
+  setLanguage(lang);
 }
 
 function initTheme() {
@@ -152,9 +136,6 @@ document.addEventListener("DOMContentLoaded", () => {
 function setLanguage(lang) {
   currentLang = lang;
   localStorage.setItem("appLanguage", lang);
-  // Always close the language menu when a language is selected
-  const langMenu = document.getElementById('langMenu');
-  if (langMenu) langMenu.style.display = 'none';
 
   document.querySelectorAll("[id^='lang_']").forEach(btn => {
     btn.classList.remove("active");
@@ -171,7 +152,13 @@ function setLanguage(lang) {
     el.placeholder = translations[lang][key] || "";
   });
   
-   loadHelp(currentHelpSection);
+   if (typeof loadHelp === "function") loadHelp(currentHelpSection);
+  // Refresh all dynamic content after language change
+  if (typeof homeUpdateStepper    === "function") homeUpdateStepper();
+  if (typeof homeRefreshTiles     === "function") homeRefreshTiles();
+  if (typeof updateModePill       === "function") updateModePill(localStorage.getItem('kbrr_app_mode') || 'viewer');
+  if (typeof subShowTrialBanner   === "function") subShowTrialBanner();
+  if (typeof clubLoginRefresh     === "function") clubLoginRefresh();
 }
 
 function updateRoundTitle(round) {
@@ -242,7 +229,7 @@ function adminGetPassword() {
 // ── Change password flow ──
 function playerMgmtChangePwd() {
   adminModalMode = "changepwd";
-  document.getElementById("adminModalTitle").textContent = "🔑 Change Password";
+  document.getElementById("adminModalTitle").textContent = t("changePassword");
   document.getElementById("adminPasswordConfirmRow").style.display = "block";
   document.getElementById("adminModalError").textContent = "";
   document.getElementById("adminPasswordInput").value = "";
@@ -266,17 +253,17 @@ function adminVerifyPassword() {
       document.getElementById("playerMgmtUnlocked").style.display = "block";
       playerMgmtRenderList();
     } else {
-      err.textContent = "Wrong password. Try again.";
+      err.textContent = t("wrongPassword");
       document.getElementById("adminPasswordInput").value = "";
     }
 
   } else if (adminModalMode === "changepwd") {
     const confirm = document.getElementById("adminPasswordConfirm").value;
     if (input.length < 4) {
-      err.textContent = "Password must be at least 4 characters."; return;
+      err.textContent = t("passwordMin4"); return;
     }
     if (input !== confirm) {
-      err.textContent = "Passwords do not match."; return;
+      err.textContent = t("passwordsNotMatchDot"); return;
     }
     localStorage.setItem("adminPassword", input);
     adminCloseModal();
@@ -296,7 +283,7 @@ function playerSubtabShow(tab) {
 
 async function playerPlayingRenderList() {
   const container = document.getElementById('playerPlayingList');
-  container.innerHTML = '<p style="color:#aaa;font-size:0.85rem">Loading...</p>';
+  container.innerHTML = '<p style="color:#aaa;font-size:0.85rem">' + t('loading') + '</p>';
   const admin = isAdminMode();
 
   try {
@@ -304,24 +291,17 @@ async function playerPlayingRenderList() {
 
     let rows;
     if (club.id) {
-      // Get only players belonging to this club
-      const members = await sbGet('club_members', `club_id=eq.${club.id}&select=player_id`);
-      if (!members || !members.length) {
-        container.innerHTML = '<p class="player-mgmt-empty">No players currently locked.</p>';
-        return;
-      }
-      const idList = '(' + members.map(m => m.player_id).join(',') + ')';
-      rows = await sbGet('players',
-        `id=in.${idList}&is_playing=eq.true&select=name,gender,session_id,session_started_at&order=name.asc`
+      rows = await sbGet('memberships',
+        `club_id=eq.${club.id}&is_playing=eq.true&select=nickname,players(gender)&order=nickname.asc`
       );
+      rows = (rows || []).map(m => ({ name: m.nickname, gender: m.players?.gender || 'Male' }));
     } else {
-      // No club logged in — show nothing
-      container.innerHTML = '<p class="player-mgmt-empty">Join a club to view playing players.</p>';
+      container.innerHTML = '<p class="player-mgmt-empty">' + t('joinClubToPlay') + '</p>';
       return;
     }
 
     if (!rows || !rows.length) {
-      container.innerHTML = '<p class="player-mgmt-empty">No players currently locked.</p>';
+      container.innerHTML = '<p class="player-mgmt-empty">' + t('noPlayersLocked') + '</p>';
       return;
     }
 
@@ -334,7 +314,7 @@ async function playerPlayingRenderList() {
       const releaseAllBtn = document.createElement('button');
       releaseAllBtn.className = 'player-mgmt-add-btn';
       releaseAllBtn.style.background = '#e63757';
-      releaseAllBtn.textContent = '🔓 Release All (' + rows.length + ')';
+      releaseAllBtn.textContent = t('releaseAll') + ' (' + rows.length + ')';
       releaseAllBtn.onclick = playerPlayingReleaseAll;
       bar.appendChild(releaseAllBtn);
       container.appendChild(bar);
@@ -358,7 +338,7 @@ async function playerPlayingRenderList() {
 
       const timeSpan = document.createElement('span');
       timeSpan.style.cssText = 'font-size:0.75rem;color:var(--muted);margin-right:8px';
-      timeSpan.textContent = 'since ' + started;
+      timeSpan.textContent = '';  // no session time in new schema
 
       row.appendChild(img);
       row.appendChild(nameSpan);
@@ -377,32 +357,28 @@ async function playerPlayingRenderList() {
     });
 
   } catch(e) {
-    container.innerHTML = '<p class="player-mgmt-empty">Failed to load. Check connection.</p>';
+    container.innerHTML = '<p class="player-mgmt-empty">' + t('failedLoadConnection') + '</p>';
     console.error('playerPlayingRenderList error:', e);
   }
 }
 
 async function playerPlayingRelease(name) {
-  if (!confirm('Release "' + name + '" from active session?')) return;
+  if (!confirm('"' + name + '" ' + t('releaseFromSession'))) return;
   try {
-    await sbPatch('players', 'name=ilike.' + encodeURIComponent(name), {
-      is_playing: false, session_id: null, session_started_at: null
+    const _rc = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+    await sbPatch('memberships', `club_id=eq.${_rc.id}&nickname=ilike.${encodeURIComponent(name)}`, {
+      is_playing: false
     });
     playerPlayingRenderList();
   } catch(e) { alert('Failed to release: ' + e.message); }
 }
 
 async function playerPlayingReleaseAll() {
-  if (!confirm('Release ALL locked players?')) return;
+  if (!confirm(t('releaseAllConfirm'))) return;
   try {
     const club = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
     if (!club.id) { alert('No club logged in.'); return; }
-    const members = await sbGet('club_members', `club_id=eq.${club.id}&select=player_id`);
-    if (!members || !members.length) return;
-    const idList = '(' + members.map(m => m.player_id).join(',') + ')';
-    await sbPatch('players', `id=in.${idList}&is_playing=eq.true`, {
-      is_playing: false, session_id: null, session_started_at: null
-    });
+    await sbPatch('memberships', `club_id=eq.${club.id}&is_playing=eq.true`, { is_playing: false });
     playerPlayingRenderList();
   } catch(e) { alert('Failed: ' + e.message); }
 }
@@ -410,7 +386,7 @@ async function playerPlayingReleaseAll() {
 // ── Render master player list ──
 async function playerMgmtRenderList() {
   const container = document.getElementById("playerMgmtList");
-  container.innerHTML = "<p style='color:#aaa;font-size:0.85rem'>Loading...</p>";
+  container.innerHTML = "<p style='color:#aaa;font-size:0.85rem'>" + t('loading') + "</p>";
 
   // Always use syncToLocal as single source of truth — never fetch directly
   if (!newImportState.historyPlayers || !newImportState.historyPlayers.length) {
@@ -421,7 +397,7 @@ async function playerMgmtRenderList() {
   container.innerHTML = "";
 
   if (players.length === 0) {
-    container.innerHTML = '<p class="player-mgmt-empty">No players in database yet.</p>';
+    container.innerHTML = '<p class="player-mgmt-empty">' + t('noPlayersInDb') + '</p>';
     return;
   }
 
@@ -467,7 +443,12 @@ async function playerMgmtToggleGender(displayName) {
   localStorage.setItem("newImportHistory", JSON.stringify(newImportState.historyPlayers));
   // Sync gender to Supabase
   try {
-    await sbPatch("players", `name=ilike.${encodeURIComponent(displayName.trim())}`, { gender: hp.gender });
+    // gender is on players table — find player_id via membership
+    const _gc = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+    if (_gc.id) {
+      const _mrows = await sbGet('memberships', `club_id=eq.${_gc.id}&nickname=ilike.${encodeURIComponent(displayName.trim())}&select=player_id`).catch(()=>[]);
+      if (_mrows.length) await sbPatch('players', `id=eq.${_mrows[0].player_id}`, { gender: hp.gender });
+    }
   } catch(e) { /* silent */ }
   syncPlayersFromMaster();
   updatePlayerList();
@@ -476,15 +457,14 @@ async function playerMgmtToggleGender(displayName) {
 
 // ── Delete from master DB ──
 async function playerMgmtDelete(displayName) {
-  if (!confirm(`Remove "${displayName}" from this club?`)) return;
+  if (!confirm(`${t('removePlayer')} "${displayName}"?`)) return;
   const key = displayName.trim().toLowerCase();
 
   // Remove from Supabase club_members
   try {
-    const players = await sbGet("players", `name=ilike.${encodeURIComponent(displayName.trim())}&select=id`);
-    if (players.length) {
-      const club = getMyClub();
-      await sbDelete("club_members", `player_id=eq.${players[0].id}&club_id=eq.${club.id}`);
+    const club = getMyClub();
+    if (club.id) {
+      await sbDelete('memberships', `club_id=eq.${club.id}&nickname=ilike.${encodeURIComponent(displayName.trim())}`);
     }
   } catch(e) { /* silent */ }
 
@@ -549,16 +529,16 @@ function sbRenderClubStatus() {
   const el    = document.getElementById("sbClubStatus");
   const badge = document.getElementById("sbModeBadge");
 
-  if (el) el.textContent = club.name ? club.name : "No club selected";
+  if (el) el.textContent = club.name ? club.name : t("noClubSelected");
 
   if (badge) {
     if (mode === "admin") {
-      badge.textContent = "🔑 Admin";
+      badge.textContent = t('adminBadgeFull');
       badge.style.background = "#2dce89";
       badge.style.color = "#fff";
       badge.style.display = "inline-block";
     } else if (mode === "user") {
-      badge.textContent = "👤 User";
+      badge.textContent = t("userBadgeFull");
       badge.style.background = "#5e72e4";
       badge.style.color = "#fff";
       badge.style.display = "inline-block";
@@ -586,136 +566,220 @@ function sbRenderClubStatus() {
 /* ── Vault tab functions ── */
 function vaultShowTab(tab, btn) {
   document.querySelectorAll('.vault-inner-content').forEach(c => c.classList.remove('active'));
-  document.querySelectorAll('.vault-inner-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.vault-inner-tab, .vault-tab').forEach(b => b.classList.remove('active'));
   const content = document.getElementById('vaultTab' + tab.charAt(0).toUpperCase() + tab.slice(1));
   if (content) content.classList.add('active');
   if (btn) btn.classList.add('active');
   if (tab === 'players')  playerPlayingRenderList();
   if (tab === 'register') vaultRenderRegister();
   if (tab === 'modify')   vaultRenderModify();
+  if (tab === 'requests') { if (typeof vaultLoadRequests === 'function') vaultLoadRequests(); }
 }
 
 /* ── Vault Modify tab — admin-only player edits ── */
+/* ── Vault Modify — SCS-style player list ── */
+
+var _vmAllPlayers = []; // full loaded list for client-side filter
+
 async function vaultRenderModify() {
   const container = document.getElementById('vaultModifyList');
   if (!container) return;
 
   if (!(typeof isAdminMode === 'function' && isAdminMode())) {
-    container.innerHTML = '<p class="player-mgmt-empty">🔒 Admin access required.</p>';
+    container.innerHTML = '<p class="player-mgmt-empty">' + t('adminAccessRequired') + '</p>';
     return;
   }
 
   const club = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
   if (!club.id) {
-    container.innerHTML = '<p class="player-mgmt-empty">Join a club to manage players.</p>';
+    container.innerHTML = '<p class="player-mgmt-empty">' + t('joinClubToManage') + '</p>';
     return;
   }
 
-  container.innerHTML = '<p style="color:#aaa;font-size:0.85rem">Loading...</p>';
+  container.innerHTML = '<p class="player-mgmt-empty"><span class="vm-spinner"></span> ' + t('loading') + '</p>';
 
   try {
-    const clubPlayers = await dbGetPlayers(true); // force fresh from DB
-    const players = (clubPlayers || []).map(p => ({
-      displayName: p.name,
-      gender: p.gender || 'Male',
-      rating: parseFloat(p.rating) || 1.0
+    const clubPlayers = await dbGetPlayers(true);
+
+    // Fetch memberships to get user_account_id for each player
+    const mems = await sbGet('memberships',
+      'club_id=eq.' + club.id + '&select=nickname,user_account_id'
+    ).catch(() => []);
+    const memMap = {};
+    (mems || []).forEach(m => { if (m.nickname) memMap[m.nickname.toLowerCase()] = m.user_account_id; });
+
+    _vmAllPlayers = (clubPlayers || []).map(p => ({
+      id:            p.membershipId || p.id,
+      playerId:      p.id,
+      displayName:   p.name,
+      gender:        p.gender || 'Male',
+      rating:        parseFloat(p.clubRating) || parseFloat(p.rating) || 1.0,
+      wins:          p.wins   || 0,
+      losses:        p.losses || 0,
+      userId:        memMap[(p.name || '').toLowerCase()] || null,
     })).sort((a, b) => a.displayName.localeCompare(b.displayName));
 
-    if (!players.length) {
-      container.innerHTML = '<p class="player-mgmt-empty">No players in club yet.</p>';
-      return;
-    }
-
-    container.innerHTML = '';
-    players.forEach(p => {
-      const row = document.createElement('div');
-      row.className = 'player-mgmt-row';
-      const safeName = p.displayName.replace(/'/g, "\\'");
-      const genderImg = p.gender === 'Female' ? 'female.png' : 'male.png';
-      const currentRating = (typeof getActiveRating === 'function' ? getActiveRating(p.displayName) : getRating(p.displayName)).toFixed(1);
-      row.innerHTML = `
-        <img src="${genderImg}" class="player-mgmt-avatar vault-gender-toggle"
-             onclick="vaultToggleGender('${safeName}', this)"
-             title="Tap to toggle gender">
-        <span class="player-mgmt-name vault-name-edit"
-              onclick="vaultEditName('${safeName}')"
-              title="Tap to edit name">${p.displayName}</span>
-        <input type="number" class="rating-edit-input vault-rating-input"
-               value="${currentRating}" min="1.0" max="5.0" step="0.1"
-               onchange="vaultSaveRating('${safeName}', this.value)"
-               title="Edit rating">
-        <button class="player-mgmt-del-btn"
-                onclick="vaultDeletePlayer('${safeName}')">🗑</button>
-      `;
-      container.appendChild(row);
-    });
+    vaultModifyFilter();
   } catch(e) {
-    container.innerHTML = '<p class="player-mgmt-empty">Failed to load players.</p>';
+    container.innerHTML = '<p class="player-mgmt-empty">' + t('failedLoadPlayers') + '</p>';
+    console.error('vaultRenderModify error:', e);
   }
 }
 
-function vaultSaveRating(displayName, value) {
-  const rating = parseFloat(value);
-  if (isNaN(rating) || rating < 1.0 || rating > 5.0) return;
-  if (typeof setRating === 'function') setRating(displayName, rating);
-  if (typeof syncRatings === 'function') syncRatings();
-  if (typeof updatePlayerList === 'function') updatePlayerList();
+function vaultModifyFilter() {
+  const search = (document.getElementById('vmSearchInput')?.value || '').toLowerCase();
+  const gender = document.getElementById('vmFilterGender')?.value || '';
+  const container = document.getElementById('vaultModifyList');
+  const countEl   = document.getElementById('vmPlayerCount');
+  if (!container) return;
+
+  let filtered = _vmAllPlayers;
+  if (search) filtered = filtered.filter(p => p.displayName.toLowerCase().includes(search));
+  if (gender) filtered = filtered.filter(p => (p.gender || 'Male') === gender);
+
+  if (countEl) countEl.textContent = filtered.length + ' ' + (filtered.length !== 1 ? t('playerPlural') : t('playerSingular'));
+
+  if (!filtered.length) {
+    container.innerHTML = '<p class="player-mgmt-empty">' + t('noPlayersMatch') + '</p>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(p => {
+    const g   = p.gender === 'Female' ? 'female' : 'male';
+    const ini = (p.displayName || '?')[0].toUpperCase();
+    const rating = p.rating.toFixed(1);
+    const userIdTag = p.userId
+      ? `<span class="vm-userid-chip">${t("registeredBadge")}</span>`
+      : `<span class="vm-userid-chip vm-unlinked">${t("noAccountBadge")}</span>`;
+    const safeId = _vmEsc(p.id);
+    return `<div class="vm-player-row ${g}">
+      <div class="vm-avatar ${g}">${ini}</div>
+      <div class="vm-player-info">
+        <div class="vm-player-name-row">
+          <span class="vm-player-name">${_vmEsc(p.displayName)}</span>
+          ${userIdTag}
+        </div>
+        <div class="vm-player-meta">${(p.gender||'Male')==="Female"?t("genderFemale"):t("genderMale")} · ★${rating} · ${p.wins}${t("winsShort")} ${p.losses}${t("lossesShort")}</div>
+      </div>
+      <div class="vm-row-actions">
+        <button class="vm-edit-btn" onclick="vmOpenEditModal('${safeId}')" title="Edit">✎</button>
+        <button class="vm-delete-btn" onclick="vmDeletePlayer('${safeId}','${_vmEsc(p.displayName)}')" title="Delete">✕</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-async function vaultEditName(displayName) {
-  const newName = prompt('Edit player name:', displayName);
-  if (!newName || !newName.trim() || newName.trim() === displayName) return;
-  const trimmed = newName.trim();
-  const dup = (newImportState.historyPlayers || []).some(
-    p => p.displayName.trim().toLowerCase() === trimmed.toLowerCase() &&
-         p.displayName.trim().toLowerCase() !== displayName.trim().toLowerCase()
-  );
-  if (dup) { alert('Name already exists!'); return; }
-  try {
-    await sbPatch('players', `name=ilike.${encodeURIComponent(displayName.trim())}`, { name: trimmed });
-    const hp = (newImportState.historyPlayers || []).find(
-      p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase()
-    );
-    if (hp) hp.displayName = trimmed;
-    localStorage.setItem('newImportHistory', JSON.stringify(newImportState.historyPlayers));
-    syncPlayersFromMaster();
-    updatePlayerList();
-    vaultRenderModify();
-  } catch(e) { alert('Failed to save. Check connection.'); }
+function _vmEsc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-async function vaultToggleGender(displayName, imgEl) {
-  const hp = (newImportState.historyPlayers || []).find(
-    p => p.displayName.trim().toLowerCase() === displayName.trim().toLowerCase()
-  );
-  if (!hp) return;
-  hp.gender = hp.gender === 'Female' ? 'Male' : 'Female';
-  imgEl.src = hp.gender === 'Female' ? 'female.png' : 'male.png';
-  localStorage.setItem('newImportHistory', JSON.stringify(newImportState.historyPlayers));
-  try {
-    await sbPatch('players', `name=ilike.${encodeURIComponent(displayName.trim())}`, { gender: hp.gender });
-    syncPlayersFromMaster();
-    updatePlayerList();
-  } catch(e) { /* silent — local already updated */ }
+function vmOpenEditModal(playerId) {
+  const p = _vmAllPlayers.find(x => x.id === playerId);
+  if (!p) return;
+  document.getElementById('vmEditPlayerId').value    = p.id;
+  document.getElementById('vmEditUserAccountId').value = p.userAccountId || '';
+  document.getElementById('vmEditName').value        = p.displayName;
+  document.getElementById('vmEditGender').value      = p.gender || 'Male';
+  document.getElementById('vmEditRating').value      = p.rating.toFixed(1);
+  document.getElementById('vmEditWins').value        = p.wins;
+  document.getElementById('vmEditLosses').value      = p.losses;
+  document.getElementById('vmEditUserId').value      = p.userId || '';
+  document.getElementById('vmEditPassword').value    = '';
+  const fb = document.getElementById('vmEditFeedback');
+  if (fb) { fb.textContent = ''; fb.style.color = ''; }
+  document.getElementById('vmEditModal').classList.add('open');
 }
 
-async function vaultDeletePlayer(displayName) {
-  if (!confirm(`Remove "${displayName}" from this club?`)) return;
+function vmCloseEditModal(e) {
+  if (!e || e.target === document.getElementById('vmEditModal')) {
+    document.getElementById('vmEditModal').classList.remove('open');
+  }
+}
+
+async function vmSaveEdit() {
+  const playerId     = document.getElementById('vmEditPlayerId').value;
+  const userAcctId   = document.getElementById('vmEditUserAccountId').value;
+  const name         = document.getElementById('vmEditName').value.trim();
+  const gender       = document.getElementById('vmEditGender').value;
+  const rating       = parseFloat(document.getElementById('vmEditRating').value) || 1.0;
+  const wins         = parseInt(document.getElementById('vmEditWins').value)   || 0;
+  const losses       = parseInt(document.getElementById('vmEditLosses').value) || 0;
+  const newUserId    = document.getElementById('vmEditUserId').value.trim().toLowerCase();
+  const newPassword  = document.getElementById('vmEditPassword').value.trim();
+  const fb           = document.getElementById('vmEditFeedback');
+  const setFb = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? 'var(--green)' : 'var(--red)'; } };
+
+  if (!name) { setFb(t('nameCannotBeEmpty'), false); return; }
+
+  setFb(t('saving'), true);
   try {
-    const players = await sbGet('players', `name=ilike.${encodeURIComponent(displayName.trim())}&select=id`);
-    if (players.length) {
-      const club = getMyClub();
-      await sbDelete('club_members', `player_id=eq.${players[0].id}&club_id=eq.${club.id}`);
+    const club = (typeof getMyClub === 'function') ? getMyClub() : null;
+    const _vm  = _vmAllPlayers.find(x => x.id === playerId);
+
+    // 1. Update membership (nickname + club_rating)
+    if (club?.id) {
+      await sbPatch('memberships', `id=eq.${playerId}`, {
+        nickname:    name,
+        club_rating: Math.round(rating * 10) / 10
+      });
     }
-  } catch(e) { /* silent */ }
-  newImportState.historyPlayers = (newImportState.historyPlayers || []).filter(
-    p => p.displayName.trim().toLowerCase() !== displayName.trim().toLowerCase()
-  );
-  localStorage.setItem('newImportHistory', JSON.stringify(newImportState.historyPlayers));
-  syncPlayersFromMaster();
-  updatePlayerList();
-  vaultRenderModify();
+
+    // 2. Update player (gender)
+    if (_vm?.playerId) {
+      await sbPatch('players', `id=eq.${_vm.playerId}`, { name, gender });
+    }
+
+    // 3. Update local state
+    const hp = (newImportState.historyPlayers || []).find(
+      p => p.displayName && p.displayName.trim().toLowerCase() === _vmAllPlayers.find(x => x.id === playerId)?.displayName.trim().toLowerCase()
+    );
+    if (hp) {
+      hp.displayName = name;
+      hp.gender      = gender;
+      hp.activeRating = Math.round(rating * 10) / 10;
+      hp.clubRating   = Math.round(rating * 10) / 10;
+    }
+    localStorage.setItem('newImportHistory', JSON.stringify(newImportState.historyPlayers));
+    if (typeof syncPlayersFromMaster === 'function') syncPlayersFromMaster();
+    if (typeof updatePlayerList === 'function') updatePlayerList();
+
+    setFb(t('saved'), true);
+    setTimeout(() => {
+      document.getElementById('vmEditModal').classList.remove('open');
+      vaultRenderModify();
+    }, 600);
+  } catch(e) {
+    setFb('❌ ' + e.message, false);
+  }
 }
+
+async function vmDeletePlayer(playerId, displayName) {
+  if (!confirm(`${t('removePlayer')} "${displayName}"?`)) return;
+  try {
+    // Remove from club only — delete membership, keep global player
+    const _dclub = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+    await sbDelete('memberships', `id=eq.${playerId}&club_id=eq.${_dclub.id}`);
+    _vmAllPlayers = _vmAllPlayers.filter(x => x.id !== playerId);
+    // also update local history
+    if (newImportState && newImportState.historyPlayers) {
+      newImportState.historyPlayers = newImportState.historyPlayers.filter(
+        h => h.displayName?.trim().toLowerCase() !== displayName.trim().toLowerCase()
+      );
+      localStorage.setItem('newImportHistory', JSON.stringify(newImportState.historyPlayers));
+    }
+    if (typeof syncPlayersFromMaster === 'function') syncPlayersFromMaster();
+    if (typeof updatePlayerList === 'function') updatePlayerList();
+    vaultModifyFilter();
+  } catch(e) {
+    alert('Failed to remove player: ' + e.message);
+  }
+}
+
+// vaultToggleGender and vaultDeletePlayer replaced by vmSaveEdit / vmDeletePlayer above
+
+
 
 // ── Club Management — OTP-based create/delete ──
 
@@ -732,131 +796,65 @@ function toggleClubMgmt(forceOpen) {
   if (open) sbPopulateDeleteDropdown();
 }
 
-/* ── CREATE CLUB — Step 1: Send OTP ── */
+/* ── CREATE CLUB — Direct (no OTP needed) ── */
 async function clubCreateSendOtp() {
-  const name    = document.getElementById('sbNewClubName')?.value.trim();
-  const email   = document.getElementById('sbNewClubEmail')?.value.trim();
-  const selPw   = document.getElementById('sbNewClubSelectPw')?.value.trim();
-  const adminPw = document.getElementById('sbNewClubAdminPw')?.value.trim();
-  const fb      = document.getElementById('clubCreateFeedback');
-
-  const setFb = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
-
-  if (!name)    { setFb('Enter club name.', false); return; }
-  if (!email || !email.includes('@')) { setFb('Enter a valid email.', false); return; }
-  if (!selPw)   { setFb('Enter user password.', false); return; }
-  if (!adminPw) { setFb('Enter admin password.', false); return; }
-
-  setFb('Sending OTP...', true);
-  try {
-    await dbSendOtp(email);
-    _clubCreateEmail = email;
-    document.getElementById('clubCreateEmailMasked').textContent = maskEmail(email);
-    document.getElementById('clubCreateStep1').style.display = 'none';
-    document.getElementById('clubCreateStep2').style.display = '';
-    document.getElementById('sbNewClubOtp').value = '';
-    document.getElementById('sbNewClubOtp').focus();
-    setFb('OTP sent! Check your email.', true);
-  } catch (e) { setFb('❌ ' + e.message, false); }
-}
-
-async function clubCreateResend() {
-  if (!_clubCreateEmail) return;
-  try {
-    await dbSendOtp(_clubCreateEmail);
-    document.getElementById('clubCreateFeedback').textContent = 'OTP resent.';
-    document.getElementById('clubCreateFeedback').style.color = '#2dce89';
-  } catch (e) {}
-}
-
-/* ── CREATE CLUB — Step 2: Verify OTP & Create ── */
-async function clubCreateVerify() {
-  const otp     = document.getElementById('sbNewClubOtp')?.value.trim();
+  // Renamed but now creates directly without OTP
   const name    = document.getElementById('sbNewClubName')?.value.trim();
   const selPw   = document.getElementById('sbNewClubSelectPw')?.value.trim();
   const adminPw = document.getElementById('sbNewClubAdminPw')?.value.trim();
   const fb      = document.getElementById('clubCreateFeedback');
   const setFb   = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
 
-  if (!otp || otp.length < 8) { setFb('Enter the 8-digit OTP.', false); return; }
-  setFb('Verifying...', true);
+  if (!name)    { setFb(t('enterClubName'), false); return; }
+  if (!selPw)   { setFb(t('enterMemberPw'), false); return; }
+  if (!adminPw) { setFb(t('enterAdminPw'), false); return; }
+  if (selPw === adminPw) { setFb(t('memberAdminDiff'), false); return; }
+
+  setFb(t('creatingClubDot'), true);
   try {
-    await dbVerifyOtp(_clubCreateEmail, otp);
-    // OTP verified — create the club
-    const club = await dbAddClub(name, selPw, adminPw, _clubCreateEmail);
+    const club = await dbAddClub(name, selPw, adminPw);
     setMyClub(club.id, club.name);
     localStorage.setItem('kbrr_club_mode',    'admin');
-    localStorage.setItem('kbrr_rating_field', 'club_ratings');
-    // Reset form
-    ['sbNewClubName','sbNewClubEmail','sbNewClubSelectPw','sbNewClubAdminPw','sbNewClubOtp'].forEach(id => {
+    localStorage.setItem('kbrr_rating_field', 'club_rating');
+    ['sbNewClubName','sbNewClubSelectPw','sbNewClubAdminPw'].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = '';
     });
-    document.getElementById('clubCreateStep1').style.display = '';
-    document.getElementById('clubCreateStep2').style.display = 'none';
-    _clubCreateEmail = '';
-    setFb('✅ Club "' + club.name + '" created! You are now Admin.', true);
+    setFb('✅ ' + club.name + ' ' + (t('saved')||'created!'), true);
     sbRenderClubStatus();
     vaultSyncStatus();
     if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
     await syncToLocal();
-  } catch (e) { setFb('❌ ' + e.message, false); }
+  } catch(e) { setFb('❌ ' + e.message, false); }
 }
 
-/* ── DELETE CLUB — Step 1: Send OTP ── */
-async function clubDeleteSendOtp() {
-  const select = document.getElementById('sbDeleteClubSelect');
-  const fb     = document.getElementById('clubDeleteFeedback');
-  const setFb  = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
+async function clubCreateResend() { /* no longer needed */ }
+async function clubCreateVerify() { /* no longer needed */ }
 
-  if (!select || !select.value) { setFb('Select a club to delete.', false); return; }
+/* ── DELETE CLUB — Admin password check ── */
+async function clubDeleteWithPassword() {
+  const select  = document.getElementById('sbDeleteClubSelect');
+  const pwInput = document.getElementById('sbDeleteAdminPw');
+  const fb      = document.getElementById('clubDeleteFeedback');
+  const setFb   = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
 
-  setFb('Fetching club details...', true);
+  if (!select || !select.value) { setFb(t('selectClubToDelete'), false); return; }
+  const pw = pwInput?.value.trim();
+  if (!pw) { setFb(t('enterAdminPw'), false); return; }
+
+  setFb(t('verifyingDot'), true);
   try {
-    const regEmail = await dbGetClubRegEmail(select.value);
-    if (!regEmail) { setFb('This club has no registration email. Cannot delete via OTP.', false); return; }
-    await dbSendOtp(regEmail);
-    _clubDeleteEmail = regEmail;
-    _clubDeleteId    = select.value;
-    document.getElementById('clubDeleteEmailMasked').textContent = maskEmail(regEmail);
-    document.getElementById('clubDeleteStep1').style.display = 'none';
-    document.getElementById('clubDeleteStep2').style.display = '';
-    document.getElementById('sbDeleteOtp').value = '';
-    document.getElementById('sbDeleteOtp').focus();
-    setFb('OTP sent to club registration email.', true);
-  } catch (e) { setFb('❌ ' + e.message, false); }
-}
+    const clubs = await sbGet('clubs', `id=eq.${select.value}&select=id,name,admin_password`);
+    if (!clubs || !clubs.length) { setFb(t('clubNotFound'), false); return; }
+    if (clubs[0].admin_password !== pw) { setFb(t('wrongAdminPassword'), false); return; }
 
-async function clubDeleteResend() {
-  if (!_clubDeleteEmail) return;
-  try {
-    await dbSendOtp(_clubDeleteEmail);
-    document.getElementById('clubDeleteFeedback').textContent = 'OTP resent.';
-    document.getElementById('clubDeleteFeedback').style.color = '#2dce89';
-  } catch (e) {}
-}
+    const clubName = clubs[0].name || '';
+    await dbDeleteClub(select.value);
 
-/* ── DELETE CLUB — Step 2: Verify OTP & Delete ── */
-async function clubDeleteVerify() {
-  const otp   = document.getElementById('sbDeleteOtp')?.value.trim();
-  const fb    = document.getElementById('clubDeleteFeedback');
-  const setFb = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? '#2dce89' : '#e63757'; } };
-
-  if (!otp || otp.length < 8) { setFb('Enter the 8-digit OTP.', false); return; }
-  setFb('Verifying...', true);
-  try {
-    await dbVerifyOtp(_clubDeleteEmail, otp);
-    const clubName = document.getElementById('sbDeleteClubSelect')?.options[document.getElementById('sbDeleteClubSelect').selectedIndex]?.text || '';
-    await dbDeleteClub(_clubDeleteId);
-    // If deleted club was active, clear session
     const myClub = getMyClub();
-    if (myClub.id === _clubDeleteId) sbClearClub();
-    // Reset
-    document.getElementById('sbDeleteClubSelect').value = '';
-    document.getElementById('clubDeleteStep1').style.display = '';
-    document.getElementById('clubDeleteStep2').style.display = 'none';
-    document.getElementById('sbDeleteOtp').value = '';
-    _clubDeleteEmail = '';
-    _clubDeleteId    = '';
+    if (myClub.id === select.value) sbClearClub();
+
+    select.value = '';
+    if (pwInput) pwInput.value = '';
     await sbPopulateDeleteDropdown();
     setFb('✅ Club "' + clubName + '" deleted.', true);
   } catch (e) { setFb('❌ ' + e.message, false); }
@@ -866,14 +864,219 @@ function vaultRenderRegister() {
   const container = document.getElementById('vaultRegisterContainer');
   if (!container) return;
   const club = (typeof getMyClub === 'function') ? getMyClub() : { name: null };
-  if (typeof newImportRenderRegister === 'function') {
-    // Temporarily swap the render target so register renders into vault container
-    const original = document.getElementById('newImportSelectCards');
-    if (original) original.id = '_newImportSelectCards_hidden';
-    container.id = 'newImportSelectCards';
-    newImportRenderRegister();
-    container.id = 'vaultRegisterContainer';
-    if (original) original.id = 'newImportSelectCards';
+
+  if (!club.name) {
+    container.innerHTML = '<div class="register-club-label">' + t('noClubSelectedJoin') + '</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="register-form">
+      <div class="register-club-label">🏸 Registering for: <strong>${club.name}</strong></div>
+
+      <!-- Tabs -->
+      <div class="vault-inner-tabs">
+        <button id="vregTabIndividual" class="vault-inner-tab active" onclick="vaultRegisterShowTab('individual')">Individual</button>
+        <button id="vregTabBulk"       class="vault-inner-tab"        onclick="vaultRegisterShowTab('bulk')">Bulk Import</button>
+      </div>
+
+      <!-- Individual tab -->
+      <div id="vregPanelIndividual">
+        <div class="register-field">
+          <label class="register-label">Nickname</label>
+          <input type="text" id="vregNickname" class="register-input" placeholder="Player nickname">
+        </div>
+        <div class="register-field">
+          <label class="register-label">Gender</label>
+          <select id="vregGender" class="register-input">
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </select>
+        </div>
+        <div class="register-field">
+          <label class="register-label">Rating <span class="register-hint">default 1.0</span></label>
+          <input type="number" id="vregRating" class="register-input register-rating-input" value="1.0" min="1.0" max="5.0" step="0.1">
+        </div>
+        <div class="register-field">
+          <label class="register-label">Default Password <span class="register-hint">player uses this to claim account</span></label>
+          <input type="text" id="vregDefaultPassword" class="register-input" placeholder="e.g. club123">
+        </div>
+        <div id="vregFeedback" class="register-feedback" style="min-height:18px;margin-bottom:10px"></div>
+        <button class="register-save-btn" onclick="vaultDoRegisterPlayer()">✅ Register Player</button>
+      </div>
+
+      <!-- Bulk tab -->
+      <div id="vregPanelBulk" style="display:none">
+        <div class="auth-field" style="margin-bottom:10px">
+          <label class="register-label">Paste names (one per line)</label>
+          <textarea id="regNamesArea" class="register-textarea" rows="5"
+            placeholder="Raja&#10;Kari, Female&#10;Venkat"></textarea>
+        </div>
+        <div class="register-gender-row" style="margin-bottom:10px">
+          <span class="register-label" style="margin:0 8px 0 0">Default gender:</span>
+          <button id="regDefaultMale"   class="register-gender-img-btn active" onclick="regSetDefaultGender('Male')">
+            <img src="male.png" class="reg-gender-img"><span>Male</span>
+          </button>
+          <button id="regDefaultFemale" class="register-gender-img-btn" onclick="regSetDefaultGender('Female')">
+            <img src="female.png" class="reg-gender-img"><span>Female</span>
+          </button>
+        </div>
+        <div class="register-field">
+          <label class="register-label">Default Password for all <span class="register-hint">players use this to claim account</span></label>
+          <input type="text" id="vregBulkDefaultPassword" class="register-input" placeholder="e.g. club123">
+        </div>
+        <button class="register-add-btn" onclick="regAddToStaging()">Add to List</button>
+        <div id="regStagingContainer" class="reg-staging-container"></div>
+        <div id="registerFeedback" class="register-feedback"></div>
+        <button class="register-save-btn" id="regRegisterAllBtn" onclick="vaultRegisterAll()" style="display:none">
+          ✅ Register All
+        </button>
+      </div>
+    </div>`;
+
+  window._regDefaultGender = 'Male';
+  if (typeof _regStagingList !== 'undefined') _regStagingList = [];
+}
+
+function vaultRegisterShowTab(tab) {
+  document.getElementById('vregTabIndividual').classList.toggle('active', tab === 'individual');
+  document.getElementById('vregTabBulk').classList.toggle('active',       tab === 'bulk');
+  document.getElementById('vregPanelIndividual').style.display = tab === 'individual' ? '' : 'none';
+  document.getElementById('vregPanelBulk').style.display       = tab === 'bulk'       ? '' : 'none';
+  if (tab === 'bulk' && typeof _regStagingList !== 'undefined') {
+    _regStagingList = [];
+    if (typeof regRenderStaging === 'function') regRenderStaging();
+  }
+}
+
+async function vaultRegisterAll() {
+  // Same as regRegisterAll but uses bulk default password for all players
+  const defPw = document.getElementById('vregBulkDefaultPassword')?.value.trim();
+  const fb    = document.getElementById('registerFeedback');
+  const btn   = document.getElementById('regRegisterAllBtn');
+  const setFb = (msg, ok) => { if (fb) { fb.textContent = msg; fb.className = 'register-feedback ' + (ok ? 'success' : 'error'); } };
+
+  if (!defPw) { setFb(t('enterDefaultPwAll'), false); return; }
+
+  const club    = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+  if (!club.id) { setFb(t('noClubSelectedJoin'), false); return; }
+
+  const pending = _regStagingList.filter(p => p.status === 'pending' || p.status === 'error');
+  if (!pending.length) return;
+
+  btn.disabled = true;
+  setFb(t('registeringDot'), true);
+
+  let successCount = 0, failCount = 0;
+
+  for (let i = 0; i < _regStagingList.length; i++) {
+    const p = _regStagingList[i];
+    if (p.status === 'success') continue;
+    try {
+      // Check duplicate
+      const existing = await sbGet('memberships',
+        'club_id=eq.' + club.id + '&nickname=ilike.' + encodeURIComponent(p.name) + '&select=id');
+      if (existing && existing.length) { _regStagingList[i].status = 'duplicate'; failCount++; continue; }
+
+      // Create player row
+      const created = await sbPost('players', {
+        name:             p.name,
+        gender:           p.gender,
+        global_rating:    p.rating || 1.0,
+        global_points:    0,
+        default_password: defPw
+      });
+      const player = created[0];
+
+      // Auto-link user_account if exists with same nickname
+      const uaRows1 = await sbGet('user_accounts',
+        'nickname=ilike.' + encodeURIComponent(p.name) + '&select=id').catch(() => []);
+      const uaId1 = uaRows1.length ? uaRows1[0].id : null;
+
+      // Create membership
+      await sbPost('memberships', {
+        player_id:       player.id,
+        club_id:         club.id,
+        nickname:        p.name,
+        club_rating:     p.rating || 1.0,
+        club_points:     0,
+        user_account_id: uaId1 || undefined
+      });
+
+      _regStagingList[i].status = 'success';
+      successCount++;
+    } catch(e) {
+      _regStagingList[i].status = 'error';
+      failCount++;
+    }
+    if (typeof regRenderStaging === 'function') regRenderStaging();
+  }
+
+  btn.disabled = false;
+  const parts = [];
+  if (successCount) parts.push('✅ ' + successCount + ' ' + (t('registeredBadge')||'registered'));
+  if (failCount)    parts.push('⚠️ ' + failCount + ' skipped');
+  setFb(parts.join('  '), !failCount);
+
+  localStorage.removeItem('kbrr_cache_players');
+  localStorage.removeItem('kbrr_cache_ts');
+}
+
+async function vaultDoRegisterPlayer() {
+  const club     = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
+  const nickname = document.getElementById('vregNickname')?.value.trim();
+  const gender   = document.getElementById('vregGender')?.value || 'Male';
+  const rating   = parseFloat(document.getElementById('vregRating')?.value) || 1.0;
+  const defPw    = document.getElementById('vregDefaultPassword')?.value.trim();
+  const fb       = document.getElementById('vregFeedback');
+  const setFb    = (msg, ok) => { if (fb) { fb.textContent = msg; fb.style.color = ok ? 'var(--green,#2dce89)' : 'var(--red,#e63757)'; } };
+
+  if (!club.id)   { setFb(t('noClubSelectedJoin'), false); return; }
+  if (!nickname)  { setFb(t('enterNickname'), false); return; }
+  if (!defPw)     { setFb(t('enterDefaultPw'), false); return; }
+
+  setFb(t('registeringDot'), true);
+  try {
+    // Check nickname not already in this club
+    const existing = await sbGet('memberships',
+      'club_id=eq.' + club.id + '&nickname=ilike.' + encodeURIComponent(nickname) + '&select=id');
+    if (existing && existing.length) { setFb(t('nicknameExists'), false); return; }
+
+    // Create player row
+    const created = await sbPost('players', {
+      name:             nickname,
+      gender:           gender,
+      global_rating:    rating,
+      global_points:    0,
+      default_password: defPw
+    });
+    const player = created[0];
+
+    // Auto-link user_account if exists with same nickname
+    const uaRows2 = await sbGet('user_accounts',
+      'nickname=ilike.' + encodeURIComponent(nickname) + '&select=id').catch(() => []);
+    const uaId2 = uaRows2.length ? uaRows2[0].id : null;
+
+    // Create membership
+    await sbPost('memberships', {
+      player_id:       player.id,
+      club_id:         club.id,
+      nickname:        nickname,
+      club_rating:     rating,
+      club_points:     0,
+      user_account_id: uaId2 || undefined
+    });
+
+    setFb('✅ ' + nickname + ' ' + (t('registeredBadge')||'registered!'), true);
+    // Clear fields for next entry
+    document.getElementById('vregNickname').value = '';
+    document.getElementById('vregDefaultPassword').value = '';
+    document.getElementById('vregRating').value = '1.0';
+    // Invalidate player cache
+    localStorage.removeItem('kbrr_cache_players');
+    localStorage.removeItem('kbrr_cache_ts');
+  } catch(e) {
+    setFb('❌ ' + e.message, false);
   }
 }
 
@@ -894,14 +1097,14 @@ function vaultSyncStatus() {
     if (strip) strip.style.borderColor = 'rgba(45,206,137,0.2)';
     if (role) {
       role.style.display = 'inline-block';
-      if (mode === 'admin') { role.textContent = 'ADMIN'; role.style.background = '#2dce89'; role.style.color = '#000'; }
-      else                  { role.textContent = 'USER';  role.style.background = 'var(--accent)'; role.style.color = '#fff'; }
+      if (mode === 'admin') { role.textContent = t('adminBadge')||'ADMIN'; role.style.background = '#2dce89'; role.style.color = '#000'; }
+      else                  { role.textContent = t('userBadge')||'USER';  role.style.background = 'var(--accent)'; role.style.color = '#fff'; }
     }
     // Modify tab — admin only
     const modifyBtn = document.getElementById('vaultTabModifyBtn');
     if (modifyBtn) modifyBtn.style.display = mode === 'admin' ? '' : 'none';
   } else {
-    if (name)  name.textContent  = 'No club selected';
+    if (name)  name.textContent  = t('noClubSelected');
     if (dot)   { dot.style.background = 'var(--muted)'; dot.style.boxShadow = 'none'; }
     if (role)  role.style.display = 'none';
   }
@@ -957,6 +1160,13 @@ function sbClearClub() {
   vaultSyncStatus();
   if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
   updateRegisterTabVisibility();
+
+  // Reset app mode to viewer after club logout
+  localStorage.setItem('kbrr_app_mode', 'viewer');
+  sessionStorage.setItem('appMode', 'viewer');
+  if (typeof appMode !== 'undefined') appMode = 'viewer';
+  if (typeof updateModePill === 'function') updateModePill('viewer');
+  if (typeof showHomeScreen === 'function') showHomeScreen();
 }
 
 // sbDeleteClub replaced by clubDeleteSendOtp/clubDeleteVerify (OTP flow)
@@ -966,7 +1176,7 @@ async function sbPopulateDeleteDropdown() {
   if (!select) return;
   try {
     const clubs = await dbGetClubs();
-    select.innerHTML = '<option value="">— Select club to delete —</option>';
+    select.innerHTML = '<option value="">' + (t('selectClubDelete')||'— Select club to delete —') + '</option>';
     clubs.forEach(c => {
       const opt = document.createElement("option");
       opt.value = c.id;
@@ -1005,7 +1215,7 @@ async function showPlayerStats(name) {
   const content  = document.getElementById("playerStatsContent");
   if (!modal || !content) return;
 
-  content.innerHTML = "<div class='stats-loading'>Loading...</div>";
+  content.innerHTML = "<div class='stats-loading'>" + t('loading') + "</div>";
   modal.style.display = "flex";
 
   try {
@@ -1014,7 +1224,7 @@ async function showPlayerStats(name) {
       `name=ilike.${encodeURIComponent(name)}&select=name,gender,wins,losses,sessions`
     );
     if (!rows || !rows.length) {
-      content.innerHTML = "<div class='stats-loading'>Player not found.</div>";
+      content.innerHTML = "<div class='stats-loading'>" + t('playerNotFound') + "</div>";
       return;
     }
     const p      = rows[0];
