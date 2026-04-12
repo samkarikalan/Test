@@ -10,13 +10,13 @@
   "theme_color": "#6c63ff",
   "icons": [
     {
-      "src": "cs.PNG",
+      "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "cs.PNG",
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -26,5 +26,13 @@
     "sports",
     "utilities"
   ],
-  "lang": "en"
+  "lang": "en",
+  "screenshots": [
+    {
+      "src": "splash.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "label": "KariBRR Club Scheduler"
+    }
+  ]
 }

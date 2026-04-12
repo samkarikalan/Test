@@ -96,7 +96,7 @@ async function authLogin(email, password) {
   if (!email) return { error: t('enterEmail') };
   if (!password) return { error: t('enterPassword') };
 
-  // ── Real Supabase — filter by email + password server-side ──
+  // ── Real Supabase -- filter by email + password server-side ──
   try {
     var rows = await sbGet('user_accounts',
       'email=eq.' + encodeURIComponent(email) +
@@ -141,7 +141,7 @@ async function authResetPassword(email, recoveryWord, newPassword) {
   }
 }
 
-/* ── Claim Account — player already registered by admin ── */
+/* ── Claim Account -- player already registered by admin ── */
 async function authClaimAccount(clubId, nickname, defaultPassword, email, newPassword, recoveryWord) {
   try {
     // 1. Find membership by club + nickname
@@ -212,7 +212,7 @@ function authLogout() {
   if (typeof authShowScreen === 'function') authShowScreen('login');
 }
 
-/* ── Forgot password — send OTP ── */
+/* ── Forgot password -- send OTP ── */
 async function authForgotSendOtp(email) {
   email = email.trim().toLowerCase();
   if (!email || !email.includes('@')) return { error: t('emailInvalid') };
@@ -230,7 +230,7 @@ async function authForgotSendOtp(email) {
   return { error: 'Email service not configured yet' };
 }
 
-/* ── Forgot password — verify OTP and reset ── */
+/* ── Forgot password -- verify OTP and reset ── */
 async function authForgotVerify(email, otp, newPassword) {
   email = email.trim().toLowerCase();
   if (!newPassword || newPassword.length < 6)
@@ -273,7 +273,7 @@ async function authJoinClub(inviteCode) {
       return m.clubId === club.id && m.userId === user.id;
     });
     if (already) {
-      // Already member — just set as active club
+      // Already member -- just set as active club
       setMyClub(club.id, club.name);
       return { success: true, club: club };
     }
@@ -290,7 +290,7 @@ async function authJoinClub(inviteCode) {
     if (!clubRows || !clubRows.length) return { error: 'Invalid invite code.' };
     var club = clubRows[0];
 
-    // Club membership is tracked via players.club_id — no separate club_members insert needed
+    // Club membership is tracked via players.club_id -- no separate club_members insert needed
     setMyClub(club.id, club.name);
     return { success: true, club: { id: club.id, name: club.name } };
   } catch(e) {
@@ -358,7 +358,7 @@ async function authRequestJoin(clubId, chosenNickname) {
       var req = existing[0];
       if (req.status === 'pending') return { pending: true, nickname: req.nickname };
       if (req.status === 'rejected') return { error: 'Your request was rejected by the admin.' };
-      // Previously rejected — allow re-request with new nickname, delete old row
+      // Previously rejected -- allow re-request with new nickname, delete old row
       await sbDelete('club_join_requests', 'club_id=eq.' + clubId + '&user_account_id=eq.' + user.id);
     }
 
@@ -367,26 +367,18 @@ async function authRequestJoin(clubId, chosenNickname) {
       'club_id=eq.' + clubId + '&nickname=ilike.' + encodeURIComponent(nickname) + '&select=id,player_id,user_account_id');
     if (conflict && conflict.length) {
       var cm = conflict[0];
-      // If membership is unclaimed — this is the user's own account, auto-link it
+      // If unclaimed -- ask for default password to verify identity
       if (!cm.user_account_id) {
-        await sbPatch('memberships', 'id=eq.' + cm.id, { user_account_id: user.id }).catch(function(){});
-        // Also link any other clubs with same nickname
-        var others = await sbGet('memberships',
-          'nickname=ilike.' + encodeURIComponent(nickname) + '&user_account_id=is.null&select=id').catch(function(){ return []; });
-        for (var i = 0; i < others.length; i++) {
-          await sbPatch('memberships', 'id=eq.' + others[i].id, { user_account_id: user.id }).catch(function(){});
-        }
-        // Also update players table — mark as registered
-        await sbPatch('players',
-          'club_id=eq.' + clubId + '&name=ilike.' + encodeURIComponent(nickname),
-          { user_account_id: user.id }
-        ).catch(function(){});
-        // Get club name and auto-join
-        var clubInfo = await sbGet('clubs', 'id=eq.' + clubId + '&select=id,name').catch(function(){ return []; });
-        var cname = (clubInfo && clubInfo.length) ? clubInfo[0].name : '';
-        return { autoLinked: true, clubId: clubId, clubName: cname, nickname: nickname };
+        return { needsPassword: true, conflictNickname: nickname, membershipId: cm.id, playerId: cm.player_id };
       }
-      // Nickname taken by someone else
+      // Claimed by THIS user -- auto-join
+      if (String(cm.user_account_id) === String(user.id)) {
+        var clubInfo2 = await sbGet('clubs', 'id=eq.' + clubId + '&select=id,name').catch(function(){ return []; });
+        var cname2 = (clubInfo2 && clubInfo2.length) ? clubInfo2[0].name : '';
+        if (typeof setMyClub === 'function') setMyClub(clubId, cname2);
+        return { alreadyMember: true };
+      }
+      // Claimed by someone else -- truly taken
       return { nicknameConflict: true, conflictNickname: nickname };
     }
 
@@ -400,6 +392,59 @@ async function authRequestJoin(clubId, chosenNickname) {
     return { success: true, nickname: nickname };
   } catch(e) {
     return { error: e.message || t('failedSendRequest') };
+  }
+}
+
+/* ── Claim existing player record by verifying default password ── */
+async function authClaimAndJoin(clubId, nickname, defaultPassword) {
+  var user = authGetUser();
+  if (!user) return { error: t('pleaseLoginFirst') };
+
+  try {
+    // Find membership
+    var memberships = await sbGet('memberships',
+      'club_id=eq.' + clubId + '&nickname=ilike.' + encodeURIComponent(nickname) + '&select=id,player_id,user_account_id'
+    );
+    if (!memberships || !memberships.length)
+      return { error: t('nicknameNotFound') };
+
+    var membership = memberships[0];
+
+    // Already claimed by someone else?
+    if (membership.user_account_id && membership.user_account_id !== user.id)
+      return { error: t('alreadyClaimed') };
+
+    // Verify default password on player row
+    var players = await sbGet('players',
+      'id=eq.' + membership.player_id + '&default_password=eq.' + encodeURIComponent(defaultPassword) + '&select=id'
+    );
+    if (!players || !players.length)
+      return { error: t('defaultPwWrong') };
+
+    // Link membership to logged-in user
+    await sbPatch('memberships', 'id=eq.' + membership.id, { user_account_id: user.id });
+
+    // Also link any other clubs with same unclaimed nickname
+    var others = await sbGet('memberships',
+      'nickname=ilike.' + encodeURIComponent(nickname) + '&user_account_id=is.null&select=id'
+    ).catch(function(){ return []; });
+    for (var i = 0; i < others.length; i++) {
+      await sbPatch('memberships', 'id=eq.' + others[i].id, { user_account_id: user.id }).catch(function(){});
+    }
+
+    // Update players table
+    await sbPatch('players',
+      'club_id=eq.' + clubId + '&name=ilike.' + encodeURIComponent(nickname),
+      { user_account_id: user.id }
+    ).catch(function(){});
+
+    // Get club name
+    var clubInfo = await sbGet('clubs', 'id=eq.' + clubId + '&select=id,name').catch(function(){ return []; });
+    var cname = (clubInfo && clubInfo.length) ? clubInfo[0].name : '';
+    return { success: true, clubId: clubId, clubName: cname, nickname: nickname };
+
+  } catch(e) {
+    return { error: e.message || t('claimFailed') };
   }
 }
 
@@ -450,7 +495,7 @@ async function authAcceptRequest(requestId, clubId, userAccountId, nickname, gen
     if (memberships && memberships.length) {
       // Link existing membership to user account
       await sbPatch('memberships', 'id=eq.' + memberships[0].id, { user_account_id: userAccountId });
-      // Also update players table — mark as registered
+      // Also update players table -- mark as registered
       await sbPatch('players',
         'club_id=eq.' + clubId + '&name=ilike.' + encodeURIComponent(nickname),
         { user_account_id: userAccountId }
@@ -513,7 +558,7 @@ async function authCheckRequestStatus(clubId) {
 authHandleInviteLink();
 
 /* ============================================================
-   OTP VERIFICATION — via Supabase Edge Functions + Resend
+   OTP VERIFICATION -- via Supabase Edge Functions + Resend
    ============================================================ */
 
 const EDGE_BASE    = 'https://hplkoxdorbfjhwbvqatn.supabase.co/functions/v1';
@@ -559,7 +604,7 @@ async function authVerifyOtp(email, otp) {
   }
 }
 
-/* ── Silent background sync — link players rows on every login ──
+/* ── Silent background sync -- link players rows on every login ──
    Finds all memberships for this user → finds matching players rows
    where user_account_id is null → patches them
    Runs silently on every login so existing members get linked too */
@@ -574,7 +619,7 @@ async function authSyncPlayerLinks(user) {
 
     if (!memberships || !memberships.length) return;
 
-    // For each membership — find unlinked player row with matching name
+    // For each membership -- find unlinked player row with matching name
     for (var i = 0; i < memberships.length; i++) {
       var m = memberships[i];
       if (!m.club_id || !m.nickname) continue;
@@ -588,6 +633,6 @@ async function authSyncPlayerLinks(user) {
       ).catch(function(){});
     }
   } catch(e) {
-    // Silent — never block login
+    // Silent -- never block login
   }
 }

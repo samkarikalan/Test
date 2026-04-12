@@ -2,7 +2,7 @@
 
 <html lang="en">
 <head>
-  <link rel="apple-touch-icon" href="cs.PNG">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#6c63ff">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,6 +18,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
+  <script src="snapshot.js" defer></script>
   <script src="supabase.js" defer></script>
 
   <script src="auth.js" defer></script>
@@ -104,7 +105,7 @@
         <button class="ml-settings-btn" onclick="closeModeSheet();homeGo('settingsPage','tabBtnSettings')">⚙️ <span data-i18n="settings">Settings</span></button>
         <div class="ml-lang-row" id="mlLangRow">
           <span class="ml-lang-current" id="mlLangCurrent" onclick="mlToggleLang()">🇺🇸 English ▾</span>
-          <div class="ml-lang-picker" id="mlLangPicker" style="display:none;">
+          <div class="ml-lang-picker" id="mlLangPicker" style="display:none;" onclick="event.stopPropagation()">
             <div class="ml-lang-opt" onclick="mlSelectLang('en','🇺🇸','English')">🇺🇸 English</div>
             <div class="ml-lang-opt" onclick="mlSelectLang('jp','🇯🇵','日本語')">🇯🇵 日本語</div>
             <div class="ml-lang-opt" onclick="mlSelectLang('kr','🇰🇷','한국어')">🇰🇷 한국어</div>
@@ -124,7 +125,6 @@
 
   <div id="authOverlay" class="auth-overlay" style="display:none;">
 
-```
 <!-- WELCOME screen -->
 <div id="authWelcome" class="auth-screen">
   <div class="auth-logo">🏸</div>
@@ -294,7 +294,6 @@
     </div>
   </div>
 </div>
-```
 
   </div>
 
@@ -306,7 +305,6 @@
 
   <div id="homePageOverlay" class="home-overlay" style="display:none;">
 
-```
 <!-- Top bar -->
 <div class="home-topbar">
   <button class="mode-pill-btn" id="modePillBtn" onclick="openModeSwitcher()">
@@ -470,7 +468,7 @@
       <div class="vt-sub" data-i18n="pendingApproval">pending approval</div>
     </div>
 
-    <div class="vault-tile vt-report" onclick="homeGo('vaultReportPage',null)" style="background:linear-gradient(135deg,#1e0814,#3d1028);">
+    <div class="vault-tile vt-report" onclick="homeGo('vaultReportPage',null)">
       <div class="vt-icon">📊</div>
       <div class="vt-stat" id="vtStatReport">—</div>
       <div class="vt-name" data-i18n="report">Report</div>
@@ -516,7 +514,6 @@
 </div>
 
 <button class="home-help-btn" onclick="homeGo('helpPage',null)" data-i18n="helpGuide">❓ Help &amp; Guide</button>
-```
 
   </div>
 
@@ -559,12 +556,12 @@
   <!-- ============================= -->
 
   <div id="joinClubPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button>
-      <span class="page-back-title" data-i18n="myClubs">🏢 My Clubs</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="myClubs">🏢 My Clubs</span>
+      <div class="sheet-header-spacer"></div>
     </div>
 
-```
 <div style="padding:14px;">
 
   <!-- My Clubs list -->
@@ -619,7 +616,6 @@
   <div id="joinClubStatusCard" style="display:none;"></div>
   <div id="joinClubSearchSection" style="display:none;"></div>
 </div>
-```
 
   </div>
 
@@ -630,13 +626,13 @@
   <!-- ============================= -->
 
   <div id="settingsPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button>
-      <span class="page-back-title" data-i18n="settings">⚙️ Settings</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="settings">⚙️ Settings</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div class="pref-wrap">
 
-```
   <!-- SUBSCRIPTION -->
   <div class="pref-section-label" data-i18n="subscription">Subscription</div>
   <div class="pref-card" id="settingsTrialCard">
@@ -648,14 +644,14 @@
 
   <!-- APPEARANCE — Theme + Font + Tile Style merged -->
   <div class="pref-section-label" data-i18n="appearance">Appearance</div>
-  <div class="pref-card">
+  <div class="pref-card" id="appearanceCard">
 
     <!-- Theme -->
     <div class="pref-row">
       <span class="pref-row-label" data-i18n="theme">Theme</span>
-      <div class="pref-pill-group">
-        <button class="pref-pill active" id="theme_light" onclick="setTheme('light')" data-i18n="light">Light</button>
-        <button class="pref-pill" id="theme_dark" onclick="setTheme('dark')" data-i18n="dark">Dark</button>
+      <div class="pref-pill-group appear-pill-group" id="themePillGroup">
+        <button class="pref-pill" id="theme_light" onclick="appearSelect('theme','light',this)" data-i18n="light">Light</button>
+        <button class="pref-pill" id="theme_dark"  onclick="appearSelect('theme','dark',this)"  data-i18n="dark">Dark</button>
       </div>
     </div>
     <div class="pref-divider"></div>
@@ -663,10 +659,10 @@
     <!-- Font Size -->
     <div class="pref-row">
       <span class="pref-row-label" data-i18n="fontSize">Font Size</span>
-      <div class="pref-pill-group">
-        <button class="pref-pill active" id="font_small" onclick="setFontSize('small')" style="font-size:0.78rem" data-i18n="small">S</button>
-        <button class="pref-pill" id="font_medium" onclick="setFontSize('medium')" style="font-size:0.9rem" data-i18n="medium">M</button>
-        <button class="pref-pill" id="font_large" onclick="setFontSize('large')" style="font-size:1rem" data-i18n="large">L</button>
+      <div class="pref-pill-group appear-pill-group" id="fontPillGroup">
+        <button class="pref-pill" id="font_small"  onclick="appearSelect('font','small',this)"  data-i18n="small">Small</button>
+        <button class="pref-pill" id="font_medium" onclick="appearSelect('font','medium',this)" data-i18n="medium">Medium</button>
+        <button class="pref-pill" id="font_large"  onclick="appearSelect('font','large',this)"  data-i18n="large">Large</button>
       </div>
     </div>
     <div class="pref-divider"></div>
@@ -675,9 +671,9 @@
     <div class="pref-row" style="flex-direction:column;align-items:stretch;gap:10px;">
       <span class="pref-row-label" data-i18n="tileStyle">Tile Style</span>
       <div style="display:flex;gap:8px;">
-        <button id="styleBtn1" onclick="setTileStyle('flat')" class="tile-style-btn active" data-i18n="flat">Flat</button>
-        <button id="styleBtn2" onclick="setTileStyle('glow')" class="tile-style-btn" data-i18n="glow">Glow</button>
-        <button id="styleBtn3" onclick="setTileStyle('color')" class="tile-style-btn" data-i18n="color">Color</button>
+        <button id="styleBtn1" onclick="appearSelect('tile','flat',this)"  class="tile-style-btn" data-i18n="flat">Flat</button>
+        <button id="styleBtn2" onclick="appearSelect('tile','glow',this)"  class="tile-style-btn" data-i18n="glow">Glow</button>
+        <button id="styleBtn3" onclick="appearSelect('tile','color',this)" class="tile-style-btn" data-i18n="color">Color</button>
       </div>
       <!-- Live Preview -->
       <div class="style-preview-box" id="stylePreviewBox">
@@ -693,6 +689,20 @@
           <span class="spw-arr">›</span>
         </div>
       </div>
+    </div>
+
+    <!-- Live preview bar -->
+    <div class="pref-divider"></div>
+    <div class="appear-preview-bar" id="appearPreviewBar" style="display:none;">
+      <span class="appear-preview-label" id="appearPreviewLabel"></span>
+      <div id="appearFontPreview" style="display:none;margin-top:8px;padding:8px 10px;background:var(--surface2);border-radius:10px;color:var(--text);transition:font-size 0.3s ease;">Aa — Font Preview</div>
+    </div>
+
+    <!-- Apply Button -->
+    <div style="padding:14px 0 4px;">
+      <button class="appear-apply-btn" id="appearApplyBtn" onclick="appearApply()">
+        <span id="appearApplyIcon">✦</span> Apply Changes
+      </button>
     </div>
 
   </div>
@@ -712,7 +722,6 @@
   </div>
 
 </div>
-```
 
   </div>
 
@@ -776,9 +785,10 @@
   <!-- ================================ -->
 
   <div id="vaultPlayingPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button>
-      <span class="page-back-title" data-i18n="playingNow">🔴 Playing Now</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="playingNow">🔴 Playing Now</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div class="vault-wrap">
       <div class="vault-sync-row">
@@ -796,9 +806,10 @@
   <!-- ================================ -->
 
   <div id="vaultRegisterPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button>
-      <span class="page-back-title" data-i18n="registerPlayers">📋 Register Players</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="registerPlayers">📋 Register Players</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div class="vault-wrap">
       <div id="vaultRegisterContainer"></div>
@@ -812,9 +823,10 @@
   <!-- ================================ -->
 
   <div id="vaultModifyPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button>
-      <span class="page-back-title" data-i18n="modifyPlayers">✏️ Modify Players</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="modifyPlayers">✏️ Modify Players</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div class="vault-wrap">
       <!-- Filter row -->
@@ -901,9 +913,10 @@
   <!-- ================================ -->
 
   <div id="vaultRequestsPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button>
-      <span class="page-back-title" data-i18n="joinRequests">🔔 Join Requests</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="joinRequests">🔔 Join Requests</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div class="vault-wrap">
       <div class="vault-sync-row">
@@ -923,13 +936,13 @@
   <!-- ================================ -->
 
   <div id="vaultClubMgmtPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button>
-      <span class="page-back-title" data-i18n="clubManagement">🏢 Club Management</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="clubManagement">🏢 Club Management</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div class="vault-wrap">
 
-```
   <!-- 3 action tiles -->
   <div class="vault-tile-grid" style="margin-bottom:14px;">
     <div class="vault-tile vt-register" onclick="clubMgmtShowPanel('connect')" style="min-height:90px;">
@@ -1024,20 +1037,19 @@
   </div>
 
 </div>
-```
 
   </div>
 
   <!-- ── ORGANISER CLUB MANAGEMENT PAGE ── -->
 
   <div id="orgClubMgmtPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button>
-      <span class="page-back-title" data-i18n="roundOrganiser">🏆 Club — Round Organiser</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="roundOrganiser">🏆 Club — Round Organiser</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div class="vault-wrap">
 
-```
   <!-- Club status card -->
   <div class="vault-club-card" id="orgClubLoginCard">
     <div id="orgClubLoggedInState" style="display:none">
@@ -1070,16 +1082,16 @@
   </div>
 
 </div>
-```
 
   </div>
 
   <!-- vaultPage kept as minimal stub for organiser mode -->
 
   <div id="vaultPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" data-i18n="backHome" onclick="showHomeScreen()">&#8249; Home</button>
-      <span class="page-back-title">&#9889; Vault</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title">&#9889; Vault</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div class="vault-wrap">
       <div style="text-align:center;padding:40px 20px;color:var(--muted);font-size:0.9rem;">
@@ -1089,7 +1101,11 @@
   </div><!-- vaultPage -->
 
  <div id="playersPage" class="page">
-  <div class="page-back-bar"><button class="page-back-btn" id="playersBackBtn" onclick="navBack()" data-i18n="backHome">‹ Home</button><span class="page-back-title" data-i18n="players">👥 Players</span></div>
+  <div class="sheet-header">
+      <button class="sheet-close-btn" id="playersBackBtn" onclick="navBack()">✕</button>
+      <span class="sheet-title" data-i18n="players">👥 Players</span>
+      <div class="sheet-header-spacer"></div>
+    </div>
 
   <div class="card browse-card" onclick="newImportShowModal()">
     <div class="browse-left">
@@ -1108,12 +1124,15 @@
 <!-- FIXED PAIRS PAGE -->
 
 <div id="fixedPairsPage" class="page" style="display:none;">
-  <div class="page-back-bar"><button class="page-back-btn" id="fixedPairsBackBtn" onclick="navBack()" data-i18n="backHome">‹ Home</button><span class="page-back-title" data-i18n="fixedPairs">🤝 Fixed Pairs</span></div>
+  <div class="sheet-header">
+      <button class="sheet-close-btn" id="fixedPairsBackBtn" onclick="navBack()">✕</button>
+      <span class="sheet-title" data-i18n="fixedPairs">🤝 Fixed Pairs</span>
+      <div class="sheet-header-spacer"></div>
+    </div>
 
   <div class="card" id="fixedPairsCard">
     <span class="browse-title" data-i18n="fixedPairs"></span>
 
-```
 <div class="fp-picker-row">
   <div class="fp-picker-field" id="fpField1" onclick="fpTogglePicker(1)">
     <div class="fp-avatar-placeholder" id="fpAvatar1"></div>
@@ -1131,7 +1150,6 @@
 
 <button id="fpAddBtn" class="schedule-btn disabled-btn" onclick="modifyFixedPair()" data-i18n="add" disabled></button>
 <div id="fixed-pair-list" class="fixed-pairs-list"></div>
-```
 
   </div>
 </div>
@@ -1144,10 +1162,11 @@
 
   <div id="roundsPage" class="page" style="display:none;">
 
-```
 <!-- Single tight top bar -->
 <div class="rounds-top-bar">
   <button class="rtb-back" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button>
+  <button class="rtb-settings" onclick="toggleRoundSettings()" aria-label="Settings">⚙️</button>
+  <button class="rtb-settings" onclick="showRoundHistory()" aria-label="Past Rounds">🕓</button>
   <div class="rtb-spacer"></div>
   <div class="rtb-live" id="sessionLiveBar" style="display:none;">
     <div class="rtb-dot"></div>
@@ -1172,15 +1191,17 @@
     <span id="btnText">Start</span>
     <span class="icon"> ▶</span>
   </button>
-  <button class="action mid small" onclick="toggleRoundSettings()" aria-label="Settings">⚙️</button>
 </div>
 
-<!-- Round Settings Panel -->
-<div class="round-settings-panel">
-
-
-  <!-- Single roundSettingsBody — contains all settings + player slot -->
-  <div class="round-settings-body" id="roundSettingsBody">
+<!-- Round Settings Sheet (bottom overlay) -->
+<div class="bottom-sheet-overlay" id="roundSettingsOverlay" onclick="closeRoundSettings(event)">
+  <div class="bottom-sheet-panel" id="roundSettingsPanel">
+    <div class="bottom-sheet-handle"></div>
+    <div class="bottom-sheet-title-bar">
+      <div class="bottom-sheet-title" data-i18n="settings">⚙️ Round Settings</div>
+      <button class="bottom-sheet-x" onclick="closeRoundSettings()">✕</button>
+    </div>
+  <div id="roundSettingsBody">
 
     <!-- Courts Row -->
     <div class="setting-row">
@@ -1221,14 +1242,30 @@
       </div>
     </div>
 
-    <!-- Round History -->
-    <div id="roundHistoryContainer" style="margin-top:14px;"></div>
 
+  </div>
   </div>
 </div>
-```
 
   </div>
+
+  <!-- ============================= -->
+
+  <!--      ROUND HISTORY PAGE       -->
+
+  <!-- ============================= -->
+
+  <!-- Round History Sheet (bottom overlay) -->
+<div class="bottom-sheet-overlay" id="roundHistoryOverlay" onclick="closeRoundHistory(event)" style="display:none;">
+  <div class="bottom-sheet-panel">
+    <div class="bottom-sheet-handle"></div>
+    <div class="bottom-sheet-title-bar">
+      <div class="bottom-sheet-title">🕓 Past Rounds</div>
+      <button class="bottom-sheet-x" onclick="closeRoundHistory()">✕</button>
+    </div>
+    <div class="bottom-sheet-content" id="roundHistoryContainer"></div>
+  </div>
+</div>
 
   <!-- ============================= -->
 
@@ -1237,7 +1274,11 @@
   <!-- ============================= -->
 
   <div id="summaryPage" class="page" style="display:none;">
-  <div class="page-back-bar"><button class="page-back-btn" id="summaryBackBtn" onclick="navBack()" data-i18n="backHome">‹ Home</button><span class="page-back-title" data-i18n="summary">📊 Summary</span></div>
+  <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="summary">📊 Summary</span>
+      <div class="sheet-header-spacer"></div>
+    </div>
     <div class="exp_btn" onclick="exportBRR2HTML()" data-i18n="exporthtml">📄</div>
     <div id="reportContainer"></div>
     <div id="export"></div>
@@ -1250,9 +1291,10 @@
   <!-- ============================= -->
 
   <div id="dashboardPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" data-i18n="backHome" onclick="showHomeScreen()">&#8249; Home</button>
-      <span class="page-back-title" data-i18n="dashboard">📡 Dashboard</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="dashboard">📡 Dashboard</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div id="dashboardContainer" class="dashboard-container">
       <div class="dashboard-loading"><div class="help-spinner"></div></div>
@@ -1262,9 +1304,10 @@
   <!-- VIEWER PAGE — session detail -->
 
   <div id="viewerPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" data-i18n="backHome" onclick="showHomeScreen()">&#8249; Home</button>
-      <button class="page-back-btn" onclick="viewerGoBack()">📡 Dashboard</button>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="liveSession">📡 Live Session</span>
+      <button class="sheet-close-btn" onclick="viewerGoBack()" style="background:var(--accent-dim);color:var(--accent);">📊</button>
     </div>
     <div id="viewerResults"></div>
   </div>
@@ -1276,12 +1319,12 @@
   <!-- ============================= -->
 
   <div id="myCardPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" data-i18n="backHome" onclick="showHomeScreen()">&#8249; Home</button>
-      <span class="page-back-title" data-i18n="myCard">My Card</span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="myCard">My Card</span>
+      <div class="sheet-header-spacer"></div>
     </div>
 
-```
 <!-- Not logged in state -->
 <div id="myCardEmpty" style="display:none;">
   <div class="dash-empty">
@@ -1386,7 +1429,6 @@
   </div>
 
 </div>
-```
 
   </div>
 
@@ -1397,9 +1439,12 @@
   <!-- ============================= -->
 
   <div id="helpPage" class="page" style="display:none;">
-  <div class="page-back-bar"><button class="page-back-btn" onclick="showHomeScreen()" data-i18n="backHome">‹ Home</button><span class="page-back-title" data-i18n="help">❓ Help</span></div>
+  <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title" data-i18n="help">❓ Help</span>
+      <div class="sheet-header-spacer"></div>
+    </div>
 
-```
 <!-- Search bar -->
 <div class="help-search-wrap">
   <span class="help-search-icon">🔍</span>
@@ -1413,7 +1458,6 @@
 
 <!-- Content -->
 <div id="helpContainer" class="help-container"></div>
-```
 
   </div>
 
@@ -1429,7 +1473,6 @@
        onclick="if(event.target===this)newImportHideModal()">
     <div class="newImport-container">
 
-```
   <div class="newImport-selected-section">
     <div class="newImport-selected-header">
       <strong>Selected (<span id="newImportSelectedCount">0</span>)</strong>
@@ -1538,7 +1581,6 @@
 
   </div>
 </div>
-```
 
   </div>
 
@@ -1594,7 +1636,6 @@
     </div>
     </div>
 
-```
 <!-- Avatar + Name + Ratings -->
 <div class="profile-identity">
   <img id="pcAvatar" src="male.png" class="profile-avatar">
@@ -1628,7 +1669,6 @@
     <div class="profile-stat-label" data-i18n="allTimeLosses">All-time Losses</div>
   </div>
 </div>
-```
 
   </div>
 
@@ -1653,7 +1693,6 @@
       <div class="paywall-title" data-i18n="clubSchedulerPro">Club Scheduler Pro</div>
       <div class="paywall-subtitle" data-i18n="trialEnded">Your free trial has ended</div>
 
-```
   <div class="paywall-features">
     <div class="paywall-feature" data-i18n="subFeature3">✓ Organiser mode — run sessions</div>
     <div class="paywall-feature" data-i18n="subFeature4">✓ Players &amp; Fixed Pairs management</div>
@@ -1668,7 +1707,6 @@
   <button class="paywall-btn-primary" onclick="subPurchase()" data-i18n="subscribeNow">Subscribe Now</button>
   <button class="paywall-btn-restore" onclick="subRestore()" data-i18n="restorePurchase">Restore Purchase</button>
 </div>
-```
 
   </div>
 
@@ -1689,13 +1727,13 @@
   <!-- ══════════════════════════════════════════════════ -->
 
   <div id="vaultReportPage" class="page" style="display:none;">
-    <div class="page-back-bar">
-      <button class="page-back-btn" onclick="navBack()" data-i18n="backHome">‹ Home</button>
-      <span class="page-back-title">📊 <span data-i18n="report">Report</span></span>
+    <div class="sheet-header">
+      <button class="sheet-close-btn" onclick="showHomeScreen()">✕</button>
+      <span class="sheet-title">📊 <span data-i18n="report">Report</span>
+      <div class="sheet-header-spacer"></div>
     </div>
     <div style="padding:16px;">
 
-```
   <!-- Month selector -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
     <div>
@@ -1721,7 +1759,6 @@
   <div id="reportPreview" style="margin-top:8px;"></div>
 
 </div>
-```
 
   </div>
 

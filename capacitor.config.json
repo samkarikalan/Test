@@ -5,11 +5,12 @@
   "bundledWebRuntime": false,
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 2000,
-      "backgroundColor": "#0f0f13",
+      "launchShowDuration": 2500,
+      "backgroundColor": "#f0f0f5",
       "androidSplashResourceName": "splash",
       "androidScaleType": "CENTER_CROP",
-      "showSpinner": false
+      "showSpinner": false,
+      "splashImmersive": true
     },
     "StatusBar": {
       "style": "DARK",

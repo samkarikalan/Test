@@ -1,5 +1,5 @@
 /* ============================================================
-   PLAYERS TAB — Add, edit, delete, players and fixed pairs
+   PLAYERS TAB -- Add, edit, delete, players and fixed pairs
    File: players.js
    ============================================================ */
 
@@ -327,7 +327,7 @@ function removeFixedPairsForPlayer(playerName) {
 ========================= */
 
 /* =========================
-   RATING SYNC — schedulerState → history
+   RATING SYNC -- schedulerState → history
    Called after save so import history carries latest ratings
 ========================= */
 
@@ -417,7 +417,7 @@ function hideImportModal() {
   document.getElementById('newImportModal').style.display = 'none';
 }
 
-// OK button — moves selectedPlayers into scheduler
+// OK button -- moves selectedPlayers into scheduler
 function addPlayersFromInputUI(replace) {
   const importPlayers = newImportState.selectedPlayers;
   if (!importPlayers || importPlayers.length === 0) { alert('No players selected!'); return; }
@@ -563,6 +563,10 @@ function createPlayerCard(player, index) {
   card.addEventListener("dragstart", onDragStart);
   card.addEventListener("dragover",  onDragOver);
   card.addEventListener("drop",      onDrop);
+  // Touch drag for mobile
+  card.addEventListener("touchstart", onTouchDragStart, { passive: true });
+  card.addEventListener("touchmove",  onTouchDragMove,  { passive: false });
+  card.addEventListener("touchend",   onTouchDragEnd,   { passive: true });
   const genderImg = player.gender === "Female" ? "female.png" : "male.png";
   card.innerHTML = `
     <div class="pec-col pec-active">
@@ -577,7 +581,7 @@ function createPlayerCard(player, index) {
       <span class="rating-badge" data-player="${player.name}">${(typeof getActiveRating === 'function' ? getActiveRating(player.name) : getRating(player.name)).toFixed(1)}</span>
     </div>
     <div class="pec-col pec-delete">
-      <button class="pec-delete-btn" onclick="deletePlayer(${index})" title="Remove player">🗑</button>
+      <button class="circle-btn delete" onclick="deletePlayer(${index})" title="Remove player">−</button>
     </div>
   `;
   return card;
@@ -613,6 +617,85 @@ function onDrop(e) {
   updatePlayerList();
 }
 
+/* ── Touch drag-to-reorder ── */
+let _touchDragEl   = null;
+let _touchDragIdx  = null;
+let _touchClone    = null;
+let _touchStartY   = 0;
+let _touchCardH    = 0;
+
+function onTouchDragStart(e) {
+  const card = e.currentTarget;
+  _touchDragEl  = card;
+  _touchDragIdx = Number(card.dataset.index);
+  _touchStartY  = e.touches[0].clientY;
+  _touchCardH   = card.offsetHeight;
+  // Visual feedback
+  card.style.opacity  = '0.5';
+  card.style.transform = 'scale(1.02)';
+  card.style.zIndex   = '100';
+  card.style.transition = 'none';
+}
+
+function onTouchDragMove(e) {
+  if (!_touchDragEl) return;
+  e.preventDefault();
+  const y = e.touches[0].clientY;
+  const dy = y - _touchStartY;
+  _touchDragEl.style.transform = `translateY(${dy}px) scale(1.02)`;
+
+  // Find which card we're hovering over
+  const container = document.getElementById('playerList');
+  const cards = Array.from(container.querySelectorAll('.player-edit-card'));
+  const rect = _touchDragEl.getBoundingClientRect();
+  const midY = rect.top + rect.height / 2;
+
+  cards.forEach(c => { c.style.boxShadow = ''; });
+  for (const c of cards) {
+    if (c === _touchDragEl) continue;
+    const cr = c.getBoundingClientRect();
+    if (midY > cr.top && midY < cr.bottom) {
+      c.style.boxShadow = '0 0 0 2px var(--accent)';
+      break;
+    }
+  }
+}
+
+function onTouchDragEnd(e) {
+  if (!_touchDragEl) return;
+  const y = e.changedTouches[0].clientY;
+
+  // Reset styles
+  _touchDragEl.style.opacity   = '';
+  _touchDragEl.style.transform = '';
+  _touchDragEl.style.zIndex    = '';
+  _touchDragEl.style.transition = '';
+
+  // Find drop target
+  const container = document.getElementById('playerList');
+  const cards = Array.from(container.querySelectorAll('.player-edit-card'));
+  cards.forEach(c => { c.style.boxShadow = ''; });
+
+  let targetIdx = _touchDragIdx;
+  for (const c of cards) {
+    if (c === _touchDragEl) continue;
+    const cr = c.getBoundingClientRect();
+    if (y > cr.top && y < cr.bottom) {
+      targetIdx = Number(c.dataset.index);
+      break;
+    }
+  }
+
+  if (targetIdx !== _touchDragIdx) {
+    const [moved] = schedulerState.allPlayers.splice(_touchDragIdx, 1);
+    schedulerState.allPlayers.splice(targetIdx, 0, moved);
+    updatePlayerList();
+  }
+
+  _touchDragEl  = null;
+  _touchDragIdx = null;
+}
+
 function updatePlayerList() {
   const container = document.getElementById("playerList");
   container.innerHTML = "";
@@ -626,6 +709,8 @@ function updatePlayerList() {
   updateRoundsPageAccess();
   // Refresh home tiles to reflect updated player count
   if (typeof homeRefreshTiles === 'function') homeRefreshTiles();
+  // Save snapshot if session in progress
+  if (typeof saveSnapshot === 'function') saveSnapshot();
 }
 
 /* =========================

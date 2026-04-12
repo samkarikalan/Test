@@ -1,9 +1,9 @@
 /* =============================================
-   CLUB Scheduler — Service Worker
+   CLUB Scheduler -- Service Worker
    Caches app shell for offline use
    ============================================= */
 
-const CACHE_NAME = 'club-scheduler-v107';
+const CACHE_NAME = 'club-scheduler-v140';
 
 const ASSETS = [
   './KariBRRApp.html',
@@ -23,6 +23,7 @@ const ASSETS = [
   './summary.js',
   './dashboard.js',
   './viewer.js',
+  './report.js',
   './profile.js',
   './supabase.js',
   './importPlayers.js',
@@ -46,7 +47,7 @@ const ASSETS = [
   './help_vi.json'
 ];
 
-/* ── Install: cache all assets (safe — one failure won't block install) ── */
+/* ── Install: cache all assets (safe -- one failure won't block install) ── */
 self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
@@ -79,7 +80,7 @@ self.addEventListener('activate', function(event) {
 
 /* ── Fetch: serve from cache, fall back to network ── */
 self.addEventListener('fetch', function(event) {
-  // Skip Supabase API calls — always go to network
+  // Skip Supabase API calls -- always go to network
   if (event.request.url.includes('supabase.co')) return;
 
   event.respondWith(
@@ -96,7 +97,7 @@ self.addEventListener('fetch', function(event) {
         return response;
       });
     }).catch(function() {
-      // Offline fallback — return cached HTML
+      // Offline fallback -- return cached HTML
       return caches.match('./KariBRRApp.html');
     })
   );

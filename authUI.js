@@ -82,7 +82,7 @@ async function authDoLogin() {
     return;
   }
 
-  // Login success — update profile button then check club
+  // Login success -- update profile button then check club
   if (typeof updateProfileBtn === 'function') updateProfileBtn();
   authAfterLogin(result.user);
 }
@@ -134,7 +134,7 @@ async function authCompleteSignup(otp) {
   authAfterLogin(loginResult.user);
 }
 
-/* ── After successful login — check club ── */
+/* ── After successful login -- check club ── */
 async function authAfterLogin(user) {
   // Set player nickname for profile
   if (typeof setMyPlayer === 'function' && user.nickname) {
@@ -142,7 +142,7 @@ async function authAfterLogin(user) {
   }
   if (typeof updateProfileBtn === 'function') updateProfileBtn();
 
-  // Silent background sync — link players rows where nickname matches but user_account_id is null
+  // Silent background sync -- link players rows where nickname matches but user_account_id is null
   authSyncPlayerLinks(user).catch(function(){});
 
   // Check for pending invite
@@ -179,24 +179,42 @@ async function authAfterLogin(user) {
         if (typeof setMyClub === 'function') setMyClub(m.club_id, m.club_name);
         if (typeof setMyPlayer === 'function') setMyPlayer({ name: m.nickname, gender: 'Male' });
         authHideOverlay();
-        if (typeof selectMode === 'function') selectMode(sessionStorage.getItem('appMode') || 'viewer');
+        if (typeof selectMode === 'function') (function() {
+  var saved = sessionStorage.getItem('appMode') || localStorage.getItem('kbrr_app_mode');
+  if (saved) {
+    selectMode(saved);
+  } else {
+    // First login — show mode select screen
+    var overlay = document.getElementById('modeSelectOverlay');
+    if (overlay) { overlay.style.display = 'flex'; if (typeof mlSyncLangDisplay === 'function') mlSyncLangDisplay(); }
+  }
+})();
         return;
       } else {
         authShowClubPicker(linkedMemberships, user);
         return;
       }
     }
-  } catch(e) { /* offline — fall through to cached club */ }
+  } catch(e) { /* offline -- fall through to cached club */ }
 
   // Check cached club
   var club = (typeof getMyClub === 'function') ? getMyClub() : { id: null };
   if (club && club.id) {
     authHideOverlay();
-    if (typeof selectMode === 'function') selectMode(sessionStorage.getItem('appMode') || 'viewer');
+    if (typeof selectMode === 'function') (function() {
+  var saved = sessionStorage.getItem('appMode') || localStorage.getItem('kbrr_app_mode');
+  if (saved) {
+    selectMode(saved);
+  } else {
+    // First login — show mode select screen
+    var overlay = document.getElementById('modeSelectOverlay');
+    if (overlay) { overlay.style.display = 'flex'; if (typeof mlSyncLangDisplay === 'function') mlSyncLangDisplay(); }
+  }
+})();
     return;
   }
 
-  // No club found — show join screen
+  // No club found -- show join screen
   authShowScreen('joinClub');
 }
 
@@ -236,10 +254,19 @@ async function authPickClub(clubId, clubName, nickname) {
   if (typeof setMyClub   === 'function') setMyClub(clubId, clubName);
   if (typeof setMyPlayer === 'function') setMyPlayer({ name: nickname, gender: 'Male' });
   authHideOverlay();
-  if (typeof selectMode === 'function') selectMode(sessionStorage.getItem('appMode') || 'viewer');
+  if (typeof selectMode === 'function') (function() {
+  var saved = sessionStorage.getItem('appMode') || localStorage.getItem('kbrr_app_mode');
+  if (saved) {
+    selectMode(saved);
+  } else {
+    // First login — show mode select screen
+    var overlay = document.getElementById('modeSelectOverlay');
+    if (overlay) { overlay.style.display = 'flex'; if (typeof mlSyncLangDisplay === 'function') mlSyncLangDisplay(); }
+  }
+})();
 }
 
-/* ── Do Forgot Password — recovery keyword ── */
+/* ── Do Forgot Password -- recovery keyword ── */
 async function authDoForgotReset() {
   var email        = (document.getElementById('forgotEmail')?.value || '').trim();
   var recoveryWord = (document.getElementById('forgotRecoveryWord')?.value || '').trim();
@@ -281,16 +308,34 @@ async function authDoJoinClub() {
   // Clear pending invite
   if (typeof authClearPendingInvite === 'function') authClearPendingInvite();
 
-  // Success — go to app
+  // Success -- go to app
   authHideOverlay();
   if (typeof updateProfileBtn === 'function') updateProfileBtn();
-  selectMode(sessionStorage.getItem('appMode') || 'viewer');
+  (function() {
+  var saved = sessionStorage.getItem('appMode') || localStorage.getItem('kbrr_app_mode');
+  if (saved) {
+    selectMode(saved);
+  } else {
+    // First login — show mode select screen
+    var overlay = document.getElementById('modeSelectOverlay');
+    if (overlay) { overlay.style.display = 'flex'; if (typeof mlSyncLangDisplay === 'function') mlSyncLangDisplay(); }
+  }
+})();
 }
 
 /* ── Skip join club ── */
 function authSkipJoin() {
   authHideOverlay();
-  selectMode(sessionStorage.getItem('appMode') || 'viewer');
+  (function() {
+  var saved = sessionStorage.getItem('appMode') || localStorage.getItem('kbrr_app_mode');
+  if (saved) {
+    selectMode(saved);
+  } else {
+    // First login — show mode select screen
+    var overlay = document.getElementById('modeSelectOverlay');
+    if (overlay) { overlay.style.display = 'flex'; if (typeof mlSyncLangDisplay === 'function') mlSyncLangDisplay(); }
+  }
+})();
 }
 
 /* ── Logout ── */
@@ -360,9 +405,18 @@ async function authDoRequestJoin(clubId, clubName) {
   }
 
   if (result.alreadyMember) {
-    // Already member — go straight to app
+    // Already member -- go straight to app
     authHideOverlay();
-    selectMode(sessionStorage.getItem('appMode') || 'viewer');
+    (function() {
+  var saved = sessionStorage.getItem('appMode') || localStorage.getItem('kbrr_app_mode');
+  if (saved) {
+    selectMode(saved);
+  } else {
+    // First login — show mode select screen
+    var overlay = document.getElementById('modeSelectOverlay');
+    if (overlay) { overlay.style.display = 'flex'; if (typeof mlSyncLangDisplay === 'function') mlSyncLangDisplay(); }
+  }
+})();
     return;
   }
 
@@ -548,7 +602,7 @@ async function authCompleteClaim(otp) {
   var verifyResult = await authVerifyOtp(email, otp);
   if (verifyResult.error) { authShowError('authOtpError', verifyResult.error); return; }
 
-  // OTP verified — complete claim
+  // OTP verified -- complete claim
   var result = await authClaimAccount(clubId, nickname, defaultPw, email, newPassword, recoveryWord);
   if (result.error) { authShowError('authOtpError', result.error); return; }
 

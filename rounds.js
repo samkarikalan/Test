@@ -1,5 +1,5 @@
 /* ============================================================
-   ROUNDS TAB — Court setup, scheduling algorithm, rest queue, global state
+   ROUNDS TAB -- Court setup, scheduling algorithm, rest queue, global state
    File: rounds.js
    ============================================================ */
 
@@ -56,6 +56,11 @@ allRounds = new Proxy(allRounds, {
   set(target, prop, value) {
     target[prop] = value;
     updateSummaryPageAccess();
+  // Refresh round history in gear panel if open
+  const gearBody = document.getElementById('roundSettingsBody');
+  if (gearBody && gearBody.classList.contains('open')) {
+    if (typeof renderRoundHistory === 'function') renderRoundHistory();
+  }
     return true;
   },
   deleteProperty(target, prop) {
@@ -163,7 +168,7 @@ function goToRounds() {
     allRounds.push(AischedulerNextRound(schedulerState));
     currentRoundIndex = 0;
     showRound(0);
-    // Ensure live session is registered — retries silently if it fails
+    // Ensure live session is registered -- retries silently if it fails
     ensureLiveSession();
   } else {   
       schedulerState.numCourts = numCourts;      
@@ -192,14 +197,14 @@ function goBack() {
   btn.disabled = false;
 }
 
-/* ── Ensure live session exists — retries silently until success ── */
+/* ── Ensure live session exists -- retries silently until success ── */
 async function ensureLiveSession() {
   try {
     const existingId = (typeof getMySessionId === 'function') ? getMySessionId() : null;
     if (existingId) return; // already registered
 
     const club = (typeof getMyClub === 'function') ? getMyClub() : null;
-    if (!club || !club.id) return; // no club yet — will retry next round
+    if (!club || !club.id) return; // no club yet -- will retry next round
 
     if (typeof dbStartSession === 'function') {
       await dbStartSession();
@@ -208,7 +213,7 @@ async function ensureLiveSession() {
       if (typeof startSessionHeartbeat === 'function') startSessionHeartbeat();
     }
   } catch(e) {
-    console.warn('ensureLiveSession failed — will retry next round:', e.message);
+    console.warn('ensureLiveSession failed -- will retry next round:', e.message);
   }
 }
 
@@ -228,10 +233,11 @@ function nextRound() {
     if (typeof saveRoundsToDb === 'function') saveRoundsToDb();
   }
   updateSummaryPageAccess();
+  if (typeof saveSnapshot === 'function') saveSnapshot();
 }
 function endRounds() {  
 	sessionFinished = true;
-	updSchedule(allRounds.length - 1, schedulerState); // pass schedulerState
+	updSchedule(allRounds.length - 1, schedulerState, false); // false = don't sync ratings again
     const newRound = AischedulerNextRound(schedulerState); // do NOT wrap in []
     allRounds.push(newRound);
     currentRoundIndex = allRounds.length - 2;
@@ -395,7 +401,7 @@ function allPairsExhausted(queue, pairPlayedSet) {
 
 
 
-function updSchedule(roundIndex, schedulerState) {
+function updSchedule(roundIndex, schedulerState, syncToDb = true) {
   //AUTO_SAVE();
 	const data = allRounds[roundIndex];
   if (!data) return;
@@ -513,10 +519,11 @@ for (const game of games) {
   }
 }
 
-// Rating updates — all modes
+// Rating updates -- all modes
 // Also track wins/losses per player this round
-const roundWins   = new Map();
-const roundLosses = new Map();
+const roundWins         = new Map();
+const roundLosses       = new Map();
+const roundRatingDeltas = new Map(); // uncapped delta for points
 
 for (const game of games) {
   if (!game.winner) continue;
@@ -532,14 +539,19 @@ for (const game of games) {
   const loseLoss = gap < -0.3 ? 0.4 : gap < 0.3 ? 0.2 : 0.1;
 
   for (const p of winners) {
-    setRating(p, (typeof getActiveRating === "function" ? getActiveRating(p) : getRating(p)) + winGain);
+    const prevW = typeof getActiveRating === "function" ? getActiveRating(p) : getRating(p);
+    setRating(p, prevW + winGain);
     roundWins.set(p, (roundWins.get(p) || 0) + 1);
+    // Track uncapped delta (winGain always positive)
+    roundRatingDeltas.set(p, (roundRatingDeltas.get(p) || 0) + winGain);
   }
   for (const p of losers) {
     const current = typeof getActiveRating === "function" ? getActiveRating(p) : getRating(p);
     const updated = Math.max(1.0, current - loseLoss);
     setRating(p, updated);
     roundLosses.set(p, (roundLosses.get(p) || 0) + 1);
+    // Track uncapped delta for points (loseLoss always positive, points decrease too)
+    roundRatingDeltas.set(p, (roundRatingDeltas.get(p) || 0) - loseLoss);
   }
 }
 
@@ -556,8 +568,8 @@ for (const game of games) {
 syncRatings();
 updatePlayerList();
 
-// Sync ratings + wins/losses to Supabase
-if (typeof syncAfterRound === "function") syncAfterRound(roundWins, roundLosses);
+// Sync ratings + wins/losses to Supabase (only from nextRound, not endRounds)
+if (syncToDb && typeof syncAfterRound === "function") syncAfterRound(roundWins, roundLosses, roundRatingDeltas);
 
 // after tracking pairs & games
 checkAndResetPairCycle(schedulerState, games, roundIndex);
@@ -605,27 +617,32 @@ function rebuildRestQueue(restQueue) {
   
 
 function RefreshRound() {
+    // Save current position - shuffle must NOT change round number or advance index
     const savedRoundIndex = schedulerState.roundIndex;
-    schedulerState.roundIndex = allRounds.length - 1;
-    currentRoundIndex = schedulerState.roundIndex;
+    const savedCurrentIndex = currentRoundIndex;
 
-    // Use RandomRound directly — it uses pairPlayedSet + lastRound
-    // to actively avoid repeating pairs, giving genuine variety on reshuffle
+    // Generate a new arrangement for the CURRENT round only
     const newRound = RandomRound(schedulerState);
-    newRound.round = savedRoundIndex + 1; // keep round number stable
 
-    // Restore roundIndex — shuffle should not advance the round counter
+    // Keep the round number exactly the same as before
+    newRound.round = savedRoundIndex;
+
+    // Restore everything - no advancement
     schedulerState.roundIndex = savedRoundIndex;
-    allRounds[allRounds.length - 1] = newRound;
+    currentRoundIndex = savedCurrentIndex;
+
+    // Replace current round in-place
+    allRounds[currentRoundIndex] = newRound;
     showRound(currentRoundIndex);
+    if (typeof saveSnapshot === 'function') saveSnapshot();
 }
 
 function ratingToColor(r) {
-  if (r < 2.0) return "#9e9e9e";  // grey  — beginner
-  if (r < 3.0) return "#4a9eff";  // blue  — developing
-  if (r < 4.0) return "#2dce89";  // green — intermediate
-  if (r < 4.5) return "#f5a623";  // amber — advanced
-  return "#e63757";                // red   — elite
+  if (r < 2.0) return "#9e9e9e";  // grey  -- beginner
+  if (r < 3.0) return "#4a9eff";  // blue  -- developing
+  if (r < 4.0) return "#2dce89";  // green -- intermediate
+  if (r < 4.5) return "#f5a623";  // amber -- advanced
+  return "#e63757";                // red   -- elite
 }
 
 function report() {

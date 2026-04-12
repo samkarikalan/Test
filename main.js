@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════
-   MODE SYSTEM — Viewer / Organiser
+   MODE SYSTEM -- Viewer / Organiser
    Stored in sessionStorage (resets on app close)
 ══════════════════════════════════════════════ */
 
@@ -46,7 +46,7 @@ function applyMode(mode) {
 }
 
 function setViewerMode(isViewer) {
-  // Use body class — all viewer restrictions handled via CSS + JS checks
+  // Use body class -- all viewer restrictions handled via CSS + JS checks
   if (isViewer) {
     document.body.classList.add('viewer-mode');
     // Ensure we're on the club tab by default
@@ -68,7 +68,7 @@ function setViewerMode(isViewer) {
     if (el) { el.style.pointerEvents = isViewer ? 'none' : ''; el.style.opacity = isViewer ? '0.35' : ''; }
   });
 
-  // Import/Add buttons — hide entirely in viewer
+  // Import/Add buttons -- hide entirely in viewer
   ['#openImportBtn', '.open-import-btn', '#addPlayersTypeBtn', '#addPlayersBrowseBtn'].forEach(sel => {
     document.querySelectorAll(sel).forEach(el => {
       el.style.display = isViewer ? 'none' : '';
@@ -77,68 +77,27 @@ function setViewerMode(isViewer) {
 }
 
 function closeModeSheet() {
-  var o = document.getElementById('modeSheetOverlay');
-  if (o) o.remove();
+  var o = document.getElementById('modeSelectOverlay');
+  if (o) o.style.display = 'none';
 }
 
 function openModeSwitcher() {
-  // Remove existing if any
-  const existing = document.getElementById('modeSheetOverlay');
-  if (existing) { existing.remove(); return; }
-
-  const overlay = document.createElement('div');
-  overlay.className = 'mode-launcher-fullscreen';
-  overlay.id = 'modeSheetOverlay';
-
-  const cancelBtn = appMode ? `<button class="ml-cancel" onclick="closeModeSheet()">${t('cancel')}</button>` : '';
-
-  overlay.innerHTML = `
-    <div class="ml-inner">
-      <div class="ml-logo">🏸</div>
-      <div class="ml-title">${t('appTitle')}</div>
-      <div class="ml-sub">${t('howUsingApp')}</div>
-      <div class="ml-modes">
-        <button class="ml-mode viewer ${appMode === 'viewer' ? 'ml-active' : ''}"
-                onclick="switchMode('viewer')">
-          <div class="ml-mode-icon">👁</div>
-          <div class="ml-mode-info">
-            <div class="ml-mode-name">${t('viewer')}</div>
-            <div class="ml-mode-desc">${t('watchLiveDesc')}</div>
-          </div>
-          <span class="ml-arr">›</span>
-        </button>
-        <button class="ml-mode organiser ${appMode === 'organiser' ? 'ml-active' : ''}"
-                onclick="switchMode('organiser')">
-          <div class="ml-mode-icon">🏆</div>
-          <div class="ml-mode-info">
-            <div class="ml-mode-name">${t('roundOrganiser')}</div>
-            <div class="ml-mode-desc">${t('roundOrganiserDesc')}</div>
-          </div>
-          <span class="ml-arr">›</span>
-        </button>
-        <button class="ml-mode vault ${appMode === 'vault' ? 'ml-active' : ''}"
-                onclick="requestVaultMode()">
-          <div class="ml-mode-icon">🔑</div>
-          <div class="ml-mode-info">
-            <div class="ml-mode-name">${t('vaultManager')}</div>
-            <div class="ml-mode-desc">${t('vaultManagerDesc')}</div>
-          </div>
-          <span class="ml-arr">›</span>
-        </button>
-      </div>
-      <div class="ml-footer">
-        <button class="ml-settings-btn" onclick="closeModeSheet();homeGo('settingsPage',null)">⚙️ ${t('settings')}</button>
-      </div>
-      ${cancelBtn ? `<div class="ml-footer" style="margin-top:8px">${cancelBtn}</div>` : ''}
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
+  // Use static overlay only -- update active mode highlight
+  var overlay = document.getElementById('modeSelectOverlay');
+  if (!overlay) return;
+  // Update active state on mode buttons
+  overlay.querySelectorAll('.ml-mode').forEach(function(btn) {
+    btn.classList.remove('ml-active');
+    if (btn.classList.contains(appMode)) btn.classList.add('ml-active');
+  });
+  // Sync language label
+  if (typeof mlSyncLangDisplay === 'function') mlSyncLangDisplay();
+  overlay.style.display = 'flex';
 }
 
 function switchMode(mode) {
-  const overlay = document.getElementById('modeSheetOverlay');
-  if (overlay) overlay.remove();
+  const overlay = document.getElementById('modeSelectOverlay');
+  if (overlay) overlay.style.display = 'none';
 
   // Viewer needs no club
   if (mode === 'viewer') {
@@ -151,14 +110,24 @@ function switchMode(mode) {
     return;
   }
 
-  // Organiser / Vault — check club first
+  // Organiser / Vault -- check club first
   var club = (typeof getMyClub === 'function') ? getMyClub() : null;
   if (!club || !club.id) {
     _showClubSetupSheet(mode);
     return;
   }
 
-  // Vault — also needs admin auth
+  // Organiser -- must be authenticated to the club (user or admin password entered)
+  if (mode === 'organiser') {
+    var clubMode = (typeof getClubMode === 'function') ? getClubMode() : null;
+    if (!clubMode) {
+      // Has a club stored but never logged in with password -- prompt login
+      _showClubSetupSheet(mode);
+      return;
+    }
+  }
+
+  // Vault -- also needs admin auth
   if (mode === 'vault') {
     requestVaultMode();
     return;
@@ -212,9 +181,16 @@ async function initAppFlow() {
     return;
   }
 
-  // ── Step 2: Always show mode select on load ──
+  // ── Step 2: Check for resumable session ──
+  if (typeof checkAndResume === 'function') {
+    const resumed = await checkAndResume();
+    if (resumed) return; // Restored — skip mode select
+  }
+
+  // ── Step 3: Normal startup — show mode select ──
   var overlay = document.getElementById('modeSelectOverlay');
   if (overlay) overlay.style.display = 'flex';
+  if (typeof mlSyncLangDisplay === 'function') mlSyncLangDisplay();
 }
 
 function showOnboardingOverlay(reason) {
@@ -249,7 +225,7 @@ function showOnboardingOverlay(reason) {
 }
 
 /* ============================================================
-   MAIN — Navigation, tab access, scheduler init, round progression
+   MAIN -- Navigation, tab access, scheduler init, round progression
    File: main.js
    ============================================================ */
 
@@ -271,10 +247,14 @@ function isPageVisible(pageId) {
 
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Restore theme and font size from saved prefs FIRST
+  if (typeof initTheme    === 'function') initTheme();
+  if (typeof initFontSize === 'function') initFontSize();
+
   // Show mode select overlay first
   initModeOnLoad();
 
-  // schedulerState starts empty — user imports players fresh each session
+  // schedulerState starts empty -- user imports players fresh each session
   consolidateMasterDB();
   updateRoundsPageAccess();
   updateSummaryPageAccess();
@@ -309,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const lastUpdate = new Date(rows[0].updated_at).getTime();
       if (Date.now() - lastUpdate < AUTO_END_MS) return;
 
-      // 1hr idle — silently end session
+      // 1hr idle -- silently end session
       console.log("Auto-ending session after 1hr idle");
       if (typeof dbCompleteSession === "function") await dbCompleteSession();
       if (typeof flushLiveSession === "function") await flushLiveSession();
@@ -331,7 +311,7 @@ window.addEventListener('beforeunload', () => {
 /* =========================
    CONSOLIDATE MASTER DB
    Merges players from ALL sources into newImportHistory.
-   Safe — never overwrites existing ratings, only adds missing players.
+   Safe -- never overwrites existing ratings, only adds missing players.
    Called on app open and close.
 ========================= */
 function consolidateMasterDB() {
@@ -348,14 +328,14 @@ function consolidateMasterDB() {
         masterMap.set(p.displayName.trim().toLowerCase(), p);
     });
 
-    // Collect players from favorites and session only — NOT from sets
+    // Collect players from favorites and session only -- NOT from sets
     // Sets are separate and should not pollute history
     const allSources = [
       ...favs,
       ...session.map(p => ({ displayName: p.name, gender: p.gender })),
     ];
 
-    // Add missing players — never overwrite existing
+    // Add missing players -- never overwrite existing
     allSources.forEach(p => {
       if (!p || !p.displayName) return;
       const key = p.displayName.trim().toLowerCase();
@@ -379,14 +359,14 @@ function consolidateMasterDB() {
 }
 
 /* ============================================================
-   RATING — SINGLE DOOR
+   RATING -- SINGLE DOOR
    
    Rule: activeRating is computed ONCE at sync time in syncToLocal.
-   Everything else reads newImportHistory[].activeRating — mode-blind.
+   Everything else reads newImportHistory[].activeRating -- mode-blind.
 
-   getActiveRating(name)     — only READ path
-   setActiveRating(name,val) — only WRITE path (in-memory + localStorage)
-   syncRatings()             — refreshes all visible badges
+   getActiveRating(name)     -- only READ path
+   setActiveRating(name,val) -- only WRITE path (in-memory + localStorage)
+   syncRatings()             -- refreshes all visible badges
    
    Mode logic lives ONLY in syncToLocal (read) and dbSyncRatings (write).
    ============================================================ */
@@ -400,7 +380,7 @@ function setRatingMode(mode) {
   syncRatings();
 }
 
-/* READ — just reads activeRating, no mode logic here */
+/* READ -- just reads activeRating, no mode logic here */
 function getActiveRating(name) {
   try {
     const key = name.trim().toLowerCase();
@@ -414,7 +394,7 @@ function getActiveRating(name) {
   } catch(e) { return 1.0; }
 }
 
-/* WRITE — updates in-memory and localStorage, mode-blind */
+/* WRITE -- updates in-memory and localStorage, mode-blind */
 function setActiveRating(name, val) {
   try {
     const key     = name.trim().toLowerCase();
@@ -439,7 +419,7 @@ function setActiveRating(name, val) {
   } catch(e) { console.error("setActiveRating error", e); }
 }
 
-/* Legacy aliases — safe to leave, all point to same door */
+/* Legacy aliases -- safe to leave, all point to same door */
 function getRating(name)         { return getActiveRating(name); }
 function setRating(name, rating) { setActiveRating(name, rating); }
 function getClubRating(name)     { return getActiveRating(name); }
@@ -494,6 +474,9 @@ function showPage(pageID, el) {
   // Show selected page
   document.getElementById(pageID).style.display = 'block';
 
+  // Hide both top bars while inside a page
+  document.querySelectorAll('.home-topbar, .top-bar').forEach(b => b.style.display = 'none');
+
   // Update active tab styling
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   if (el) {
@@ -511,12 +494,12 @@ function showPage(pageID, el) {
   // Sync all rating badges on the newly visible page
   syncRatings();
 
-  // Players page — update list on open
+  // Players page -- update list on open
   if (pageID === 'playersPage') {
     if (typeof updatePlayerList === 'function') updatePlayerList();
   }
 
-  // Fixed Pairs page — refresh selectors on open
+  // Fixed Pairs page -- refresh selectors on open
   if (pageID === 'fixedPairsPage') {
     if (typeof updateFixedPairSelectors === 'function') updateFixedPairSelectors();
     if (typeof renderFixedPairs === 'function') renderFixedPairs();
@@ -532,7 +515,7 @@ function showPage(pageID, el) {
     if (allRounds.length <= 1) {
       resetRounds();
     } else {
-      // Session in progress — just re-render current round, never regenerate
+      // Session in progress -- just re-render current round, never regenerate
       if (typeof showRound === 'function') showRound(currentRoundIndex);
     }
     updateSessionLiveBar();
@@ -540,6 +523,30 @@ function showPage(pageID, el) {
 
   if (pageID === "summaryPage") {
     if (typeof renderSummaryFromSession === 'function') renderSummaryFromSession();
+  }
+
+  if (pageID === "vaultReportPage") {
+    // Update month label
+    const d = new Date();
+    const label = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+    const titleEl = document.getElementById('reportMonthTitle');
+    const subEl   = document.getElementById('reportMonthSub');
+    if (titleEl) titleEl.textContent = label + ' ' + (t('report') || 'Report');
+    if (subEl)   subEl.textContent   = t('monthlyStats') || 'Monthly stats';
+    // Render preview
+    if (typeof reportFetchData === 'function') {
+      reportFetchData().then(data => {
+        const html = reportBuildHTML(data);
+        const preview = document.getElementById('reportPreview');
+        if (preview) {
+          const iframe = document.createElement('iframe');
+          iframe.style.cssText = 'width:100%;height:80vh;border:none;border-radius:16px;';
+          iframe.srcdoc = html;
+          preview.innerHTML = '';
+          preview.appendChild(iframe);
+        }
+      }).catch(() => {});
+    }
   }
 
   if (pageID === "myCardPage") {
@@ -554,6 +561,9 @@ function showPage(pageID, el) {
     if (typeof subShowTrialBanner === 'function') subShowTrialBanner();
     updateModePill(localStorage.getItem('kbrr_app_mode') || 'organiser');
     loadHomeStyle();
+    if (typeof appearSyncFromSaved === 'function') appearSyncFromSaved();
+    // Track that settings is the source for sub-pages
+    if (typeof _navSource !== 'undefined') _navSource = 'settings';
   }
 
   if (pageID === "helpPage") {
@@ -591,7 +601,7 @@ function showPage(pageID, el) {
 
   if (pageID === "vaultClubMgmtPage") {
     if (typeof clubLoginRefresh === 'function') clubLoginRefresh();
-    // All panels hidden on open — user taps a tile to open one
+    // All panels hidden on open -- user taps a tile to open one
     ['Connect','Create','Delete'].forEach(function(p) {
       var el = document.getElementById('clubMgmt' + p + 'Panel');
       if (el) el.style.display = 'none';
@@ -660,7 +670,7 @@ function initPage() {
 }
 
 /* ============================================================
-   SYNC — Server is master.
+   SYNC -- Server is master.
    THIS is the only place mode logic runs for READING.
    Pulls from Supabase → picks correct field based on mode → 
    writes as activeRating → everything else is mode-blind.
@@ -697,7 +707,7 @@ async function syncToLocal() {
       };
     });
 
-    // Server wins — write to local cache
+    // Server wins -- write to local cache
     localStorage.setItem("newImportHistory", JSON.stringify(synced));
 
     // Update in-memory state
@@ -706,7 +716,7 @@ async function syncToLocal() {
       if (typeof newImportRefreshSelectCards === "function") newImportRefreshSelectCards();
     }
 
-    // Update allPlayers in-memory activeRating (safe — doesn't reset active session games)
+    // Update allPlayers in-memory activeRating (safe -- doesn't reset active session games)
     if (schedulerState && schedulerState.allPlayers) {
       synced.forEach(sp => {
         const ap = schedulerState.allPlayers.find(
@@ -760,11 +770,11 @@ function updateSessionLiveBar() {
 }
 
 /* =============================================================
-   VAULT MODE — Admin password gate
+   VAULT MODE -- Admin password gate
 ============================================================= */
 function requestVaultMode() {
-  const overlay = document.getElementById('modeSheetOverlay');
-  if (overlay) overlay.remove();
+  const overlay = document.getElementById('modeSelectOverlay');
+  if (overlay) overlay.style.display = 'none';
 
   if (appMode === 'vault') { switchMode('vault'); return; }
 
@@ -775,8 +785,9 @@ function requestVaultMode() {
     return;
   }
 
-  // Already authenticated as admin this session
-  if (localStorage.getItem('kbrr_club_mode') === 'admin') {
+  // Already authenticated as admin or user this session
+  const clubMode = localStorage.getItem('kbrr_club_mode');
+  if (clubMode === 'admin' || clubMode === 'user') {
     appMode = 'vault';
     sessionStorage.setItem('appMode', 'vault');
     localStorage.setItem('kbrr_app_mode', 'vault');
@@ -789,7 +800,7 @@ function requestVaultMode() {
 }
 
 /* =============================================================
-   CLUB SETUP SHEET — shown when entering Organiser or Vault without a club
+   CLUB SETUP SHEET -- shown when entering Organiser or Vault without a club
    Provides: Join existing club | Create new club
 ============================================================= */
 var _clubSetupTargetMode = null; // mode to enter after club is set up
@@ -822,7 +833,7 @@ function _showClubSetupSheet(targetMode) {
       <!-- JOIN PANEL -->
       <div id="clubSetupPanelJoin" style="margin-top:14px">
         <select id="csJoinClubSelect" class="auth-input" style="margin-bottom:10px">
-          <option value="">— Loading clubs… —</option>
+          <option value="">-- Loading clubs... --</option>
         </select>
         <input type="password" id="csJoinPassword" class="auth-input" placeholder="${t('clubPasswordPh')}" style="margin-bottom:10px">
         <div id="csJoinFeedback" style="font-size:0.82rem;color:var(--red);min-height:18px;margin-bottom:10px"></div>
@@ -871,14 +882,14 @@ async function _clubSetupLoadClubs() {
   if (!select) return;
   try {
     const clubs = await sbGet('clubs', 'select=id,name&order=name.asc');
-    select.innerHTML = '<option value="">— Select club —</option>';
+    select.innerHTML = '<option value="">-- Select club --</option>';
     clubs.forEach(c => {
       const opt = document.createElement('option');
       opt.value = c.id; opt.textContent = c.name;
       select.appendChild(opt);
     });
   } catch(e) {
-    select.innerHTML = '<option value="">— Could not load clubs —</option>';
+    select.innerHTML = '<option value="">-- Could not load clubs --</option>';
   }
 }
 
@@ -894,7 +905,7 @@ async function _clubSetupJoin() {
 
   setFb(t('checkingDot'), true);
   try {
-    // Use server-side filter — avoids RLS blocking password column reads
+    // Use server-side filter -- avoids RLS blocking password column reads
     const encodedPw = encodeURIComponent(pw);
     const asAdmin = await sbGet('clubs', `id=eq.${select.value}&admin_password=eq.${encodedPw}&select=id,name`);
     const asUser  = await sbGet('clubs', `id=eq.${select.value}&select_password=eq.${encodedPw}&select=id,name`);
@@ -975,7 +986,7 @@ async function _clubSetupCreateDirect() {
       if (typeof syncToLocal === 'function') syncToLocal();
 
       const mode = _clubSetupTargetMode;
-      // Creator is always admin — go straight into requested mode
+      // Creator is always admin -- go straight into requested mode
       appMode = mode;
       sessionStorage.setItem('appMode', mode);
       localStorage.setItem('kbrr_app_mode', mode);
@@ -997,7 +1008,7 @@ function _showVaultPasswordPrompt() {
       <div class="mode-sheet-handle"></div>
       <div class="mode-sheet-title">🔑 Vault Manager</div>
       <p style="font-size:0.84rem;color:var(--text-dim);margin-bottom:16px;line-height:1.5">
-        Enter the club admin password to access Vault Manager.
+        Enter your club password (member or admin) to access Vault Manager.
       </p>
       <input type="password" id="vaultPwInput" class="admin-password-input"
              placeholder="${t('enterAdminPasswordPh')}"
@@ -1029,13 +1040,15 @@ async function verifyVaultPassword() {
 
   if (errEl) errEl.textContent = t('checkingDotDot');
   try {
-    const rows = await sbGet('clubs', `id=eq.${club.id}&admin_password=eq.${encodeURIComponent(pw)}&select=id`);
-    if (!rows || !rows.length) {
+    const adminRows = await sbGet('clubs', `id=eq.${club.id}&admin_password=eq.${encodeURIComponent(pw)}&select=id`);
+    const userRows  = await sbGet('clubs', `id=eq.${club.id}&select_password=eq.${encodeURIComponent(pw)}&select=id`);
+    if ((!adminRows || !adminRows.length) && (!userRows || !userRows.length)) {
       if (errEl) errEl.textContent = t('wrongAdminPw');
       if (input) input.value = '';
       return;
     }
-    localStorage.setItem('kbrr_club_mode', 'admin');
+    const role = (adminRows && adminRows.length) ? 'admin' : 'user';
+    localStorage.setItem('kbrr_club_mode', role);
     const ov = document.getElementById('vaultPromptOverlay');
     if (ov) ov.remove();
     switchMode('vault');
@@ -1045,7 +1058,7 @@ async function verifyVaultPassword() {
 }
 
 /* =============================================================
-   POWER BUTTON — End Session
+   POWER BUTTON -- End Session
 ============================================================= */
 async function endSession(fromProfile = false) {
   // Show shuttle cost sheet instead of plain confirm
@@ -1106,24 +1119,24 @@ function showShuttleSheet() {
       <div class="shuttle-calc-box" id="shuttleCalcBox" style="display:none">
         <div class="shuttle-calc-row" id="shuttleCalcShuttles" style="display:none">
           <span class="shuttle-calc-label">🪶 Shuttles</span>
-          <span class="shuttle-calc-val" id="shuttleCostShuttles">—</span>
+          <span class="shuttle-calc-val" id="shuttleCostShuttles">--</span>
         </div>
         <div class="shuttle-calc-row" id="shuttleCalcCourt" style="display:none">
           <span class="shuttle-calc-label">🏟 Court</span>
-          <span class="shuttle-calc-val" id="shuttleCostCourt">—</span>
+          <span class="shuttle-calc-val" id="shuttleCostCourt">--</span>
         </div>
         <div class="shuttle-calc-row" id="shuttleCalcMisc" style="display:none">
           <span class="shuttle-calc-label">📦 Misc</span>
-          <span class="shuttle-calc-val" id="shuttleCostMisc">—</span>
+          <span class="shuttle-calc-val" id="shuttleCostMisc">--</span>
         </div>
         <div class="shuttle-calc-row shuttle-calc-total">
           <span class="shuttle-calc-label">Per player (${playerCount})</span>
-          <span class="shuttle-calc-val shuttle-calc-big" id="shuttleCostPerPlayer">—</span>
+          <span class="shuttle-calc-val shuttle-calc-big" id="shuttleCostPerPlayer">--</span>
         </div>
       </div>
 
       <button class="shuttle-btn-end" onclick="confirmEndSession()">⏹ End Session</button>
-      <button class="shuttle-btn-skip" onclick="skipShuttleAndEnd()">Skip — end without recording</button>
+      <button class="shuttle-btn-skip" onclick="skipShuttleAndEnd()">Skip -- end without recording</button>
     </div>`;
 
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
@@ -1230,7 +1243,7 @@ async function _doEndSession(shuttleData) {
   // Release session slots
   if (typeof dbReleaseMySession === 'function') await dbReleaseMySession();
 
-  // Clear local session state — no reload
+  // Clear local session state -- no reload
   localStorage.removeItem('schedulerState');
   localStorage.removeItem('allRounds');
   localStorage.removeItem('currentRoundIndex');
@@ -1249,6 +1262,25 @@ async function _doEndSession(shuttleData) {
   // Stop heartbeat
   if (typeof stopSessionHeartbeat === 'function') stopSessionHeartbeat();
 
+  // Reset round state machine
+  if (typeof currentState !== 'undefined') currentState = 'idle';
+  if (typeof roundActive  !== 'undefined') roundActive  = false;
+  if (typeof sessionFinished !== 'undefined') sessionFinished = false;
+
+  // Reset Next/Play button appearance
+  const nextBtn  = document.getElementById('nextBtn');
+  const btnText  = document.getElementById('btnText');
+  const btnIcon  = nextBtn ? nextBtn.querySelector('.icon') : null;
+  if (nextBtn)  { nextBtn.classList.add('start-state'); nextBtn.classList.remove('round-active','end'); }
+  if (btnText)  { btnText.textContent = t('startGame') || 'Play'; }
+  if (btnIcon)  { btnIcon.textContent = ' ▶'; }
+
+  // Re-enable all disabled buttons
+  document.querySelectorAll('.disabled').forEach(el => {
+    el.style.pointerEvents = '';
+    el.classList.remove('disabled');
+  });
+
   // Hide live bar
   updateSessionLiveBar();
 
@@ -1256,9 +1288,20 @@ async function _doEndSession(shuttleData) {
   toast.textContent = t('sessionEnded');
   setTimeout(() => toast.remove(), 1500);
 
-  // Stay on dashboard and refresh it
-  if (typeof showPage === 'function') {
-    showPage('dashboardPage', document.getElementById('tabBtnDashboard'));
+  // Clear saved snapshot — session is done
+  if (typeof clearSnapshot === 'function') clearSnapshot();
+
+  // Reset organiser stepper to step 1
+  if (typeof _stepCourtsSet   !== 'undefined') _stepCourtsSet   = false;
+  if (typeof _stepPairsSeen   !== 'undefined') _stepPairsSeen   = false;
+  if (typeof _homeCurrentStep !== 'undefined') _homeCurrentStep = 0;
+
+  // Clear player list UI
+  if (typeof updatePlayerList === 'function') updatePlayerList();
+
+  // Go home — showHomeScreen calls homeUpdateStepper which shows step 1
+  if (typeof showHomeScreen === 'function') {
+    showHomeScreen();
   }
 }
 
@@ -1284,24 +1327,17 @@ document.addEventListener("click", function(e) {
 
 /* ── Tile Style System ── */
 function setTileStyle(style) {
+  // Apply tile style to the whole app (body class) and save
   document.body.classList.remove('tile-style-glow','tile-style-color');
   if (style === 'glow')  document.body.classList.add('tile-style-glow');
   if (style === 'color') document.body.classList.add('tile-style-color');
   localStorage.setItem('kbrr_tile_style', style);
 
-  // Update buttons
+  // Sync tile style buttons active state
   ['flat','glow','color'].forEach(function(s, i) {
     var btn = document.getElementById('styleBtn'+(i+1));
     if (btn) btn.classList.toggle('active', s === style);
   });
-
-  // Update preview box class instantly
-  var box = document.getElementById('stylePreviewBox');
-  if (box) {
-    box.classList.remove('glow','color');
-    if (style === 'glow')  box.classList.add('glow');
-    if (style === 'color') box.classList.add('color');
-  }
 }
 
 function loadHomeStyle() {
