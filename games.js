@@ -146,7 +146,7 @@ function toggleRound() {
     // ── RETURN TO IDLE MODE (advance round) ──
 
     // Require all winners marked -- both modes
-    const currentRoundGames = allRounds[allRounds.length - 1].games;
+    const currentRoundGames = allRounds[currentRoundIndex].games;
     const winnersCount = currentRoundGames.filter(g => g.winner).length;
     if (!currentRoundGames.length || winnersCount !== currentRoundGames.length) {
       // Shake all unmarked trophy cups
