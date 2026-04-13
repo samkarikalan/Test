@@ -233,7 +233,7 @@ function nextRound() {
     if (typeof saveRoundsToDb === 'function') saveRoundsToDb();
   }
   updateSummaryPageAccess();
-  if (typeof saveSnapshot === 'function') saveSnapshot();
+  // Note: saveSnapshot called from toggleRound after state fully settled
 }
 function endRounds() {  
 	sessionFinished = true;
