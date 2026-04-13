@@ -26,6 +26,15 @@ function _deserializeMap(arr) {
 function _deserializeSet(arr) {
   return new Set(Array.isArray(arr) ? arr : []);
 }
+// Nested Map: Map<string, Map<string, number>>
+function _serializeNestedMap(m) {
+  if (!m || !(m instanceof Map)) return [];
+  return Array.from(m.entries()).map(([k, v]) => [k, v instanceof Map ? Array.from(v.entries()) : []]);
+}
+function _deserializeNestedMap(arr) {
+  if (!Array.isArray(arr)) return new Map();
+  return new Map(arr.map(([k, v]) => [k, new Map(Array.isArray(v) ? v : [])]));
+}
 
 /* ── Save full snapshot ── */
 function saveSnapshot() {
@@ -63,7 +72,7 @@ function saveSnapshot() {
         fixedPairs:     JSON.parse(JSON.stringify(ss.fixedPairs || [])),
         PlayedCount:    _serializeMap(ss.PlayedCount),
         restCount:      _serializeMap(ss.restCount),
-        restQueue:      _serializeMap(ss.restQueue),
+        restQueue:      Array.isArray(ss.restQueue) ? ss.restQueue.slice() : [],
         PlayerScoreMap: _serializeMap(ss.PlayerScoreMap),
         playedTogether: _serializeMap(ss.playedTogether),
         fixedMap:       _serializeMap(ss.fixedMap),
@@ -73,6 +82,11 @@ function saveSnapshot() {
         rankPoints:     _serializeMap(ss.rankPoints),
         streakMap:      _serializeMap(ss.streakMap),
         pairPlayedSet:  _serializeSet(ss.pairPlayedSet),
+        opponentMap:    _serializeNestedMap(ss.opponentMap),
+        pairHistory:    _serializeMap(ss.pairHistory),
+        reachablePairs: _serializeSet(ss.reachablePairs),
+        fixedPairGameQueue:     Array.isArray(ss.fixedPairGameQueue) ? ss.fixedPairGameQueue.slice() : [],
+        fixedPairGameQueueHash: ss.fixedPairGameQueueHash || null,
       }
     };
 
@@ -131,7 +145,7 @@ async function restoreSnapshot(blob) {
       schedulerState.fixedPairs      = s.fixedPairs || [];
       schedulerState.PlayedCount     = _deserializeMap(s.PlayedCount);
       schedulerState.restCount       = _deserializeMap(s.restCount);
-      schedulerState.restQueue       = _deserializeMap(s.restQueue);
+      schedulerState.restQueue       = Array.isArray(s.restQueue) ? s.restQueue.slice() : [];
       schedulerState.PlayerScoreMap  = _deserializeMap(s.PlayerScoreMap);
       schedulerState.playedTogether  = _deserializeMap(s.playedTogether);
       schedulerState.fixedMap        = _deserializeMap(s.fixedMap);
@@ -141,6 +155,11 @@ async function restoreSnapshot(blob) {
       schedulerState.rankPoints      = _deserializeMap(s.rankPoints);
       schedulerState.streakMap       = _deserializeMap(s.streakMap);
       schedulerState.pairPlayedSet   = _deserializeSet(s.pairPlayedSet);
+      schedulerState.opponentMap     = _deserializeNestedMap(s.opponentMap);
+      schedulerState.pairHistory     = _deserializeMap(s.pairHistory);
+      schedulerState.reachablePairs  = _deserializeSet(s.reachablePairs);
+      schedulerState.fixedPairGameQueue = Array.isArray(s.fixedPairGameQueue) ? s.fixedPairGameQueue.slice() : [];
+      schedulerState.fixedPairGameQueueHash = s.fixedPairGameQueueHash || null;
 
       // Restore activeplayers (plain array, not proxy for restore)
       schedulerState.activeplayers.splice(0, schedulerState.activeplayers.length,

@@ -148,14 +148,6 @@ function toggleRound() {
     // Require all winners marked -- both modes
     const currentRoundGames = allRounds[currentRoundIndex] ? allRounds[currentRoundIndex].games : [];
     const winnersCount = currentRoundGames.filter(g => g.winner).length;
-    // Debug info in toast
-    (function() {
-      const dbg = document.createElement('div');
-      dbg.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 14px;border-radius:10px;font-size:0.75rem;z-index:99999;text-align:center;max-width:90vw;';
-      dbg.textContent = 'idx=' + currentRoundIndex + ' rounds=' + allRounds.length + ' games=' + currentRoundGames.length + ' winners=' + winnersCount + ' state=' + currentState;
-      document.body.appendChild(dbg);
-      setTimeout(() => dbg.remove(), 4000);
-    })();
     if (!currentRoundGames.length || winnersCount !== currentRoundGames.length) {
       // Shake all unmarked trophy cups
       currentRoundGames.forEach(function(g, idx) {
