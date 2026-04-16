@@ -230,6 +230,125 @@ function RatingAischedulerNextRound(schedulerState) {
 }
 
 
+function _v2_findRatingPairs(playing, usedPairsSet, requiredPairsCount, opponentMap) {
+  const unusedPairs = [];
+  const usedPairs   = [];
+  const allPairs    = [];
+
+  // Build all pair candidates
+  for (let i = 0; i < playing.length; i++) {
+    for (let j = i + 1; j < playing.length; j++) {
+      const a   = playing[i];
+      const b   = playing[j];
+      const key = [a, b].slice().sort().join('&');
+      const isNew = !usedPairsSet || !usedPairsSet.has(key);
+
+      const gap = Math.abs(_v2_ratingOf(a) - _v2_ratingOf(b));
+
+      // 🔥 Improved balance bonus
+      const balanceBonus = Math.max(0, 30 - gap * 30);
+
+      const pairObj = { a, b, key, isNew, balanceBonus };
+      allPairs.push(pairObj);
+
+      if (isNew) unusedPairs.push(pairObj);
+      else       usedPairs.push(pairObj);
+    }
+  }
+
+  function pickBest(candidates) {
+
+    // ✅ 1. SORT (very important)
+    candidates.sort((a, b) => {
+      if (b.isNew !== a.isNew) return b.isNew - a.isNew;
+      return b.balanceBonus - a.balanceBonus;
+    });
+
+    const usedPlayers = new Set();
+    const selected    = [];
+    let   best        = null;
+
+    // ✅ 2. Dynamic branch limit
+    const MAX_BRANCHES = 8000 + playing.length * 1000;
+    let branches = 0;
+
+    // ✅ 3. Perfect score threshold
+    const PERFECT_SCORE = requiredPairsCount * 130; // 100 + ~30
+
+    function dfs(startIndex, baseScore) {
+
+      if (branches++ > MAX_BRANCHES) return;
+
+      // ✅ 4. Perfect solution early stop
+      if (best && best.score >= PERFECT_SCORE) return;
+
+      // ✅ 5. Upper bound pruning
+      const maxRemaining =
+        (requiredPairsCount - selected.length) * 130;
+
+      if (best && baseScore + maxRemaining < best.score) return;
+
+      // ✅ Completed selection
+      if (selected.length === requiredPairsCount) {
+        if (!best || baseScore > best.score) {
+          best = { score: baseScore, pairs: selected.slice() };
+        }
+        return;
+      }
+
+      for (let i = startIndex; i < candidates.length; i++) {
+        const { a, b, isNew, balanceBonus } = candidates[i];
+
+        if (usedPlayers.has(a) || usedPlayers.has(b)) continue;
+
+        usedPlayers.add(a);
+        usedPlayers.add(b);
+        selected.push([a, b]);
+
+        const gap = Math.abs(_v2_ratingOf(a) - _v2_ratingOf(b));
+
+        // 🔥 6. Imbalance penalty
+        const imbalancePenalty = gap > 1.5 ? -40 : 0;
+
+        const newPairScore = isNew ? 100 : 0;
+
+        dfs(
+          i + 1,
+          baseScore + newPairScore + balanceBonus + imbalancePenalty
+        );
+
+        selected.pop();
+        usedPlayers.delete(a);
+        usedPlayers.delete(b);
+      }
+    }
+
+    dfs(0, 0);
+    return best ? best.pairs : null;
+  }
+
+  // 1️⃣ Try new pairs only
+  if (unusedPairs.length >= requiredPairsCount) {
+    const best = pickBest(unusedPairs);
+    if (best) return best;
+  }
+
+  // 2️⃣ Try mixed
+  const combined = [...unusedPairs, ...usedPairs];
+  if (combined.length >= requiredPairsCount) {
+    const best = pickBest(combined);
+    if (best) return best;
+  }
+
+  // 3️⃣ Fallback
+  if (allPairs.length >= requiredPairsCount) {
+    const best = pickBest(allPairs);
+    if (best) return best;
+  }
+
+  return [];
+}
+
 /* ============================================================
    _v2_findRatingPairs
    
@@ -244,94 +363,6 @@ function RatingAischedulerNextRound(schedulerState) {
    a repeat pair. Balance only separates candidates within the same
    freshness tier.
    ============================================================ */
-function _v2_findRatingPairs(playing, usedPairsSet, requiredPairsCount, opponentMap) {
-  const unusedPairs = [];
-  const usedPairs   = [];
-  const allPairs    = [];
-
-  for (let i = 0; i < playing.length; i++) {
-    for (let j = i + 1; j < playing.length; j++) {
-      const a   = playing[i];
-      const b   = playing[j];
-      const key = [a, b].slice().sort().join('&');
-      const isNew = !usedPairsSet || !usedPairsSet.has(key);
-
-      // Rating balance bonus: 0–20, peaks at equal ratings
-      const gap          = Math.abs(_v2_ratingOf(a) - _v2_ratingOf(b));
-      const balanceBonus = Math.max(0, 20 - gap * 20);
-
-      const pairObj = { a, b, key, isNew, balanceBonus };
-      allPairs.push(pairObj);
-      if (isNew) unusedPairs.push(pairObj);
-      else       usedPairs.push(pairObj);
-    }
-  }
-
-  const MAX_BRANCHES = 15000;
-  let   branches     = 0;
-
-  function pickBest(candidates) {
-    const usedPlayers = new Set();
-    const selected    = [];
-    let   best        = null;
-    branches = 0;
-
-    function dfs(startIndex, baseScore) {
-      if (branches++ > MAX_BRANCHES) return;
-
-      if (selected.length === requiredPairsCount) {
-        if (!best || baseScore > best.score) {
-          best = { score: baseScore, pairs: selected.slice() };
-        }
-        return;
-      }
-
-      const remainingSlots = requiredPairsCount - selected.length;
-      if (candidates.length - startIndex < remainingSlots) return;
-
-      for (let i = startIndex; i < candidates.length; i++) {
-        const { a, b, isNew, balanceBonus } = candidates[i];
-        if (usedPlayers.has(a) || usedPlayers.has(b)) continue;
-
-        usedPlayers.add(a);
-        usedPlayers.add(b);
-        selected.push([a, b]);
-
-        const newPairScore = isNew ? 100 : 0;
-
-        dfs(i + 1, baseScore + newPairScore + balanceBonus);
-
-        selected.pop();
-        usedPlayers.delete(a);
-        usedPlayers.delete(b);
-      }
-    }
-
-    dfs(0, 0);
-    return best ? best.pairs : null;
-  }
-
-  // 1) Try unused (new) pairs only
-  if (unusedPairs.length >= requiredPairsCount) {
-    const best = pickBest(unusedPairs);
-    if (best) return best;
-  }
-
-  // 2) Try unused + used combined
-  const combined = [...unusedPairs, ...usedPairs];
-  if (combined.length >= requiredPairsCount) {
-    const best = pickBest(combined);
-    if (best) return best;
-  }
-
-  // 3) All pairs as last fallback
-  if (allPairs.length >= requiredPairsCount) {
-    const best = pickBest(allPairs);
-    if (best) return best;
-  }
-
-  return [];
-}
 
 
 /* ============================================================
