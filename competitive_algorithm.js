@@ -2,12 +2,16 @@
    ALGORITHM -- Original Round Scheduler (restored)
    
    Functions:
-   - AischedulerNextRound   : main entry, rest + pair + matchup
+   - OriginalAischedulerNextRound : main entry for random mode (renamed from AischedulerNextRound)
    - findDisjointPairs      : DFS pair picker, fresh pairs first
    - reorderFreePlayersByLastRound : spreads last-round players across courts
    - getMatchupScores       : scores court matchups by opponent freshness  
    - shuffle                : random shuffle helper
    - betaAischedulerNextRound / backupAischedulerNextRound : unused fallbacks
+
+   NOTE: AischedulerNextRound dispatcher is defined in competitive_algorithm_v2.js
+         It routes to OriginalAischedulerNextRound (random) or
+         RatingAischedulerNextRound (competitive) based on getPlayMode().
    ============================================================ */
 
 // ── Key helper (used by rounds.js updSchedule) ──
@@ -15,7 +19,7 @@ function _pairKey(a, b) {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
-function AischedulerNextRound(schedulerState) {
+function OriginalAischedulerNextRound(schedulerState) {
   const {
     activeplayers,
     numCourts,

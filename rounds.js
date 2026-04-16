@@ -622,7 +622,11 @@ function RefreshRound() {
     const savedCurrentIndex = currentRoundIndex;
 
     // Generate a new arrangement for the CURRENT round only
-    const newRound = RandomRound(schedulerState);
+    // Route by mode: competitive re-runs the rating-aware scheduler,
+    // random uses the pure random shuffle
+    const newRound = (typeof getPlayMode === 'function' && getPlayMode() === 'competitive')
+      ? AischedulerNextRound(schedulerState)
+      : RandomRound(schedulerState);
 
     // Keep the round number exactly the same as before
     newRound.round = savedRoundIndex;
