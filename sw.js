@@ -3,13 +3,13 @@
    Caches app shell for offline use
    ============================================= */
 
-const CACHE_NAME = 'club-scheduler-v007';
+const CACHE_NAME = 'club-scheduler-v008';
 
 const ASSETS = [
-  './index.html?v=007',
+  './index.html?v=008',
   './ui.css?v=007',
   './rounds.css?v=007',
-  './main.js?v=007',
+  './main.js?v=008',
   './HomeScreen.js?v=007',
   './home.js?v=007',
   './settings.js?v=007',
