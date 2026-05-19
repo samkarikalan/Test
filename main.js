@@ -230,55 +230,139 @@ function initModeOnLoad() {
 
 
 /* ── Getting Started Guide ── */
+
+var _guideSteps = [
+  {
+    id: 'account',
+    title: 'Create an Account',
+    desc: 'Sign up with your email to get started',
+    action: 'signup',
+    check: function() { return !!(typeof authGetUser === 'function' && authGetUser()); }
+  },
+  {
+    id: 'club',
+    title: 'Create a Club',
+    desc: 'In Vault Manager → Create Club — set your club name and passwords',
+    action: 'vault',
+    check: function() {
+      var s = localStorage.getItem('scs_guide_club_done');
+      return s === '1';
+    }
+  },
+  {
+    id: 'players',
+    title: 'Add Players',
+    desc: 'In Vault → Players → Add your club members',
+    action: 'vault',
+    check: function() { return localStorage.getItem('scs_guide_players_done') === '1'; }
+  },
+  {
+    id: 'register',
+    title: 'Set Player Passwords',
+    desc: 'In Vault → Players → set default passwords so players can self-join',
+    action: 'vault',
+    check: function() { return localStorage.getItem('scs_guide_register_done') === '1'; }
+  },
+  {
+    id: 'session',
+    title: 'Organise a Session',
+    desc: 'Tap Round Organiser → select players → generate rounds and score games',
+    action: 'organiser',
+    check: function() { return localStorage.getItem('scs_guide_session_done') === '1'; }
+  },
+  {
+    id: 'viewer',
+    title: 'Players Join as Viewer',
+    desc: 'Share the app — players create accounts, join your club and watch live',
+    action: 'viewer',
+    check: function() { return !!(typeof authGetUser === 'function' && authGetUser()); }
+  }
+];
+
 function mlShowGuide() {
-  var el = document.getElementById('mlGuideOverlay');
-  if (el) el.style.display = 'block';
-  // Hide "don't show" button if already seen (they clicked ? manually)
-  var dns = document.getElementById('mlGuideDontShow');
-  if (dns) dns.style.display = 'none';
+  // Navigate to guide page
+  document.querySelectorAll('.page').forEach(function(p) { p.style.display = 'none'; });
+  var guidePage = document.getElementById('guidePage');
+  if (guidePage) {
+    guidePage.style.display = 'block';
+    _guideRender();
+  }
+  // Also hide overlays
+  var modeOverlay = document.getElementById('modeSelectOverlay');
+  if (modeOverlay) modeOverlay.style.display = 'none';
+  var authOverlay = document.getElementById('authOverlay');
+  if (authOverlay) authOverlay.style.display = 'none';
 }
 
 function mlShowGuideFirstTime() {
-  // Only auto-show once ever
   if (localStorage.getItem('scs_guide_seen')) return;
-  var el = document.getElementById('mlGuideOverlay');
-  if (el) el.style.display = 'block';
-  // Show "don't show again" on first-time auto-show
-  var dns = document.getElementById('mlGuideDontShow');
-  if (dns) dns.style.display = 'block';
+  mlShowGuide();
 }
 
 function mlCloseGuide() {
-  var el = document.getElementById('mlGuideOverlay');
-  if (el) el.style.display = 'none';
-  // Mark as seen so it doesn't auto-show again
   localStorage.setItem('scs_guide_seen', '1');
+  var guidePage = document.getElementById('guidePage');
+  if (guidePage) guidePage.style.display = 'none';
+  // Return to mode select if logged in, else auth welcome
+  var user = (typeof authGetUser === 'function') ? authGetUser() : null;
+  if (user) {
+    var modeOverlay = document.getElementById('modeSelectOverlay');
+    if (modeOverlay) { modeOverlay.style.display = 'flex'; if (typeof mlSyncLangDisplay === 'function') mlSyncLangDisplay(); }
+  } else {
+    var authOverlay = document.getElementById('authOverlay');
+    if (authOverlay) { authOverlay.style.display = 'flex'; if (typeof authShowScreen === 'function') authShowScreen('welcome'); }
+  }
 }
 
-function mlGuideNeverShow() {
-  localStorage.setItem('scs_guide_seen', '1');
-  var el = document.getElementById('mlGuideOverlay');
-  if (el) el.style.display = 'none';
+function _guideRender() {
+  var list = document.getElementById('guideStepsList');
+  var progress = document.getElementById('guideProgress');
+  if (!list) return;
+
+  var user = (typeof authGetUser === 'function') ? authGetUser() : null;
+  var isLoggedIn = !!user;
+  var doneCount = 0;
+
+  list.innerHTML = _guideSteps.map(function(step, i) {
+    var done = step.check();
+    if (done) doneCount++;
+    var locked = !isLoggedIn && i > 0; // steps 2-5 locked when not logged in
+    var clickable = !locked;
+
+    return '<div class="ml-guide-step' + (done ? ' ml-guide-done' : '') + (locked ? ' ml-guide-locked' : '') + '"'
+      + (clickable ? ' onclick="mlGuideGo('' + step.action + '')"' : '') + '>'
+      + '<div class="ml-guide-num">' + (done ? '✓' : (i + 1)) + '</div>'
+      + '<div class="ml-guide-info">'
+        + '<div class="ml-guide-title">' + step.title + '</div>'
+        + '<div class="ml-guide-desc">' + step.desc + (locked ? ' <span style="color:var(--accent,#6c8cff);">(login first)</span>' : '') + '</div>'
+      + '</div>'
+      + (clickable ? '<span class="ml-guide-arr">' + (done ? '' : '›') + '</span>' : '')
+      + '</div>';
+  }).join('');
+
+  if (progress) {
+    var total = _guideSteps.length;
+    progress.textContent = doneCount + ' of ' + total + ' complete';
+  }
 }
 
 function mlGuideGo(target) {
-  mlCloseGuide();
-  // Close mode select overlay
-  var overlay = document.getElementById('modeSelectOverlay');
-  if (overlay) overlay.style.display = 'none';
+  localStorage.setItem('scs_guide_seen', '1');
+  var guidePage = document.getElementById('guidePage');
+  if (guidePage) guidePage.style.display = 'none';
+  var modeOverlay = document.getElementById('modeSelectOverlay');
+  var authOverlay = document.getElementById('authOverlay');
 
   if (target === 'signup') {
-    // Show auth signup screen
-    var authOverlay = document.getElementById('authOverlay');
-    if (authOverlay) {
-      authOverlay.style.display = 'flex';
-      if (typeof authShowScreen === 'function') authShowScreen('signup');
-    }
+    if (authOverlay) { authOverlay.style.display = 'flex'; if (typeof authShowScreen === 'function') authShowScreen('signup'); }
   } else if (target === 'vault') {
+    if (modeOverlay) modeOverlay.style.display = 'none';
     if (typeof requestVaultMode === 'function') requestVaultMode();
   } else if (target === 'organiser') {
+    if (modeOverlay) modeOverlay.style.display = 'none';
     if (typeof switchMode === 'function') switchMode('organiser');
   } else if (target === 'viewer') {
+    if (modeOverlay) modeOverlay.style.display = 'none';
     if (typeof switchMode === 'function') switchMode('viewer');
   }
 }
