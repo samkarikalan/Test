@@ -242,6 +242,7 @@ async function dbAddPlayer(name, gender, _unused) {
   localStorage.removeItem(CACHE_PLAYERS);
   localStorage.removeItem(CACHE_TIMESTAMP);
   if (typeof syncToLocal === 'function') await syncToLocal();
+  localStorage.setItem('scs_guide_players_done', '1');
 
   return player;
 }
@@ -425,6 +426,7 @@ async function dbAddClub(clubName, selectPassword, adminPassword, registrationEm
   // Always store creator's user id in created_by
   if (user && user.id) payload.created_by = user.id;
   const created = await sbPost('clubs', payload);
+  localStorage.setItem('scs_guide_club_done', '1');
   return created[0];
 }
 
@@ -629,6 +631,7 @@ async function dbCompleteSession(shuttleData = null) {
     // Purge scheduler_state (large resume blob) immediately — no longer needed.
     // rounds_data kept for win/loss reporting.
     const patch = { status: 'completed', players, updated_at: new Date().toISOString() };
+    localStorage.setItem('scs_guide_session_done', '1');
     if (shuttleData) patch.shuttle_data = shuttleData;
     await sbPatch('sessions', `id=eq.${sessionDbId}`, patch);
     const today = localDateStr();

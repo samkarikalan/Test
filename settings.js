@@ -1144,6 +1144,7 @@ if (existing && existing.length) { _regStagingList[i].status = 'duplicate'; fail
     default_password: defPw
   });
   const player = created[0];
+  if (defPw) localStorage.setItem('scs_guide_register_done', '1');
 
   // Create membership -- no auto-link, player must claim via default password
   await sbPost('memberships', {

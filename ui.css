@@ -8485,14 +8485,22 @@ body.app-light .auth-btn-demo {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--surface, #1e1e2e);
+  border: 1px solid var(--border, rgba(255,255,255,0.07));
   border-radius: 16px;
   padding: 14px 16px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: opacity 0.15s;
 }
-.ml-guide-step:active { background: rgba(255,255,255,0.12); }
+.ml-guide-step:active { opacity: 0.7; }
+.ml-guide-step.ml-guide-done {
+  border-color: rgba(45,206,137,0.3);
+  background: rgba(45,206,137,0.06);
+}
+.ml-guide-step.ml-guide-locked {
+  cursor: default;
+  opacity: 0.45;
+}
 .ml-guide-num {
   width: 32px; height: 32px;
   border-radius: 50%;
@@ -8503,20 +8511,27 @@ body.app-light .auth-btn-demo {
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
+.ml-guide-done .ml-guide-num {
+  background: #2dce89;
+  font-size: 1rem;
+}
 .ml-guide-info { flex: 1; }
 .ml-guide-title {
   font-size: 0.92rem;
   font-weight: 800;
-  color: #fff;
+  color: var(--text, #fff);
   margin-bottom: 2px;
 }
+.ml-guide-done .ml-guide-title { color: #2dce89; }
 .ml-guide-desc {
   font-size: 0.75rem;
-  color: rgba(255,255,255,0.5);
+  color: var(--muted, rgba(255,255,255,0.5));
   line-height: 1.4;
 }
 .ml-guide-arr {
-  color: rgba(255,255,255,0.3);
+  color: var(--muted, rgba(255,255,255,0.3));
   font-size: 1.1rem;
   flex-shrink: 0;
 }
+body.app-light .ml-guide-step { background: #fff; border-color: #eee; }
+body.app-light .ml-guide-step.ml-guide-done { background: #f0fdf8; border-color: rgba(45,206,137,0.3); }
