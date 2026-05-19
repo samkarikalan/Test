@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- v2.2.0 -->
+<!-- v2.2.1 -->
 <html lang="en">
 <head>
 <style>html,body{overscroll-behavior:none;}</style>
-  <link rel="apple-touch-icon" href="icon-192.png?v=185">
-  <link rel="manifest" href="manifest.json?v=185">
+  <link rel="apple-touch-icon" href="icon-192.png?v=005">
+  <link rel="manifest" href="manifest.json?v=005">
   <meta name="theme-color" content="#0f0f13" id="metaThemeColor">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -19,46 +19,46 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-  <script src="snapshot.js?v=185" defer></script>
+  <script src="snapshot.js?v=005" defer></script>
 
-  <script src="supabase.js?v=185" defer></script>
+  <script src="supabase.js?v=005" defer></script>
 
-  <script src="auth.js?v=185" defer></script>
+  <script src="auth.js?v=005" defer></script>
 
-  <script src="authUI.js?v=185" defer></script>
+  <script src="authUI.js?v=005" defer></script>
 
-  <script src="subscription.js?v=185" defer></script>
+  <script src="subscription.js?v=005" defer></script>
 
-  <script src="HomeScreen.js?v=185" defer></script>
+  <script src="HomeScreen.js?v=005" defer></script>
 
-  <script src="main.js?v=185" defer></script>
+  <script src="main.js?v=005" defer></script>
 
-  <script src="engjap.js?v=185" defer></script>
+  <script src="engjap.js?v=005" defer></script>
 
-  <script src="games.js?v=185" defer></script>
+  <script src="games.js?v=005" defer></script>
 
-  <script src="rounds.js?v=185" defer></script>
+  <script src="rounds.js?v=005" defer></script>
 
-  <script src="players.js?v=185" defer></script>
+  <script src="players.js?v=005" defer></script>
 
-  <script src="importPlayers.js?v=185" defer></script>
+  <script src="importPlayers.js?v=005" defer></script>
 
-  <script src="settings.js?v=185" defer></script>
+  <script src="settings.js?v=005" defer></script>
 
-  <script src="summary.js?v=185" defer></script>
+  <script src="summary.js?v=005" defer></script>
 
-  <script src="help.js?v=185" defer></script>
+  <script src="help.js?v=005" defer></script>
 
-  <script src="profile.js?v=186" defer></script>
+  <script src="profile.js?v=005" defer></script>
 
-  <script src="dashboard.js?v=185" defer></script>
+  <script src="dashboard.js?v=005" defer></script>
 
-  <script src="viewer.js?v=185" defer></script>
+  <script src="viewer.js?v=005" defer></script>
 
-  <script src="report.js?v=185" defer></script>
+  <script src="report.js?v=005" defer></script>
 
-  <link rel="stylesheet" href="ui.css?v=185">
-  <link rel="stylesheet" href="rounds.css?v=185">
+  <link rel="stylesheet" href="ui.css?v=005">
+  <link rel="stylesheet" href="rounds.css?v=005">
 </head>
 <body>
 
@@ -82,6 +82,7 @@
         </div>
       </div>
       <div class="scs-topbar-right">
+        <button class="scs-topbar-btn" onclick="mlShowGuide()" title="Getting Started Guide" style="font-size:0.85rem;font-weight:800;color:var(--accent,#6c8cff);">?</button>
         <button class="scs-topbar-btn scs-topbar-theme" onclick="scsToggleTheme()" id="scsThemeBtnML" title="Toggle theme">🌙</button>
         <button class="scs-topbar-btn scs-topbar-power" onclick="authDoLogout()" title="Logout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="display:inline-block;vertical-align:middle"><path d="M12 3v9"/><path d="M18.36 5.64a9 9 0 1 1-12.72 0"/></svg></button>
       </div>
@@ -131,6 +132,84 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Getting Started Guide ── -->
+  <div id="mlGuideOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:99999;overflow-y:auto;">
+    <div style="min-height:100%;display:flex;align-items:flex-start;justify-content:center;padding:20px 16px 40px;">
+      <div style="width:100%;max-width:420px;">
+
+        <!-- Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-top:12px;">
+          <div>
+            <div style="font-size:1.3rem;font-weight:900;color:#fff;">🚀 Getting Started</div>
+            <div style="font-size:0.8rem;color:rgba(255,255,255,0.5);margin-top:2px;">Follow these steps to run your first session</div>
+          </div>
+          <button onclick="mlCloseGuide()" style="background:rgba(255,255,255,0.1);border:none;color:#fff;font-size:1.1rem;width:34px;height:34px;border-radius:50%;cursor:pointer;flex-shrink:0;">✕</button>
+        </div>
+
+        <!-- Steps -->
+        <div style="display:flex;flex-direction:column;gap:10px;">
+
+          <div class="ml-guide-step" onclick="mlGuideGo('signup')">
+            <div class="ml-guide-num">1</div>
+            <div class="ml-guide-info">
+              <div class="ml-guide-title">Create an Account</div>
+              <div class="ml-guide-desc">Sign up with your email to get started</div>
+            </div>
+            <span class="ml-guide-arr">›</span>
+          </div>
+
+          <div class="ml-guide-step" onclick="mlGuideGo('vault')">
+            <div class="ml-guide-num">2</div>
+            <div class="ml-guide-info">
+              <div class="ml-guide-title">Create a Club</div>
+              <div class="ml-guide-desc">In Vault Manager → Create Club — set your club name and passwords</div>
+            </div>
+            <span class="ml-guide-arr">›</span>
+          </div>
+
+          <div class="ml-guide-step" onclick="mlGuideGo('vault')">
+            <div class="ml-guide-num">3</div>
+            <div class="ml-guide-info">
+              <div class="ml-guide-title">Add Players</div>
+              <div class="ml-guide-desc">In Vault → Players → Add your club members and set their default passwords</div>
+            </div>
+            <span class="ml-guide-arr">›</span>
+          </div>
+
+          <div class="ml-guide-step" onclick="mlGuideGo('organiser')">
+            <div class="ml-guide-num">4</div>
+            <div class="ml-guide-info">
+              <div class="ml-guide-title">Organise a Session</div>
+              <div class="ml-guide-desc">Tap Round Organiser → select players → generate rounds and score games</div>
+            </div>
+            <span class="ml-guide-arr">›</span>
+          </div>
+
+          <div class="ml-guide-step" onclick="mlGuideGo('viewer')">
+            <div class="ml-guide-num">5</div>
+            <div class="ml-guide-info">
+              <div class="ml-guide-title">Players Join as Viewer</div>
+              <div class="ml-guide-desc">Share the app link — players create accounts, join your club and watch live scores</div>
+            </div>
+            <span class="ml-guide-arr">›</span>
+          </div>
+
+        </div>
+
+        <!-- Done button -->
+        <button onclick="mlCloseGuide()" style="width:100%;margin-top:24px;padding:15px;background:linear-gradient(135deg,#6c63ff,#574fd6);color:#fff;border:none;border-radius:16px;font-size:1rem;font-weight:800;cursor:pointer;font-family:inherit;">
+          Got it — Let's go! 🏸
+        </button>
+
+        <div id="mlGuideDontShow" style="text-align:center;margin-top:12px;">
+          <button onclick="mlGuideNeverShow()" style="background:none;border:none;color:rgba(255,255,255,0.35);font-size:0.78rem;cursor:pointer;font-family:inherit;">Don't show this again</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
 
   <!-- ============================= -->
 
@@ -663,7 +742,7 @@
 
     <!-- Identity -->
     <div class="mycard-identity">
-      <img id="mcAvatar" src="male.png?v=185" class="mycard-avatar">
+      <img id="mcAvatar" src="male.png?v=005" class="mycard-avatar">
       <div class="mycard-identity-info">
         <div class="mycard-name" id="mcName"></div>
         <div id="mcTier" class="profile-tier"></div>
@@ -1502,7 +1581,7 @@
   <div id="roundTitle">R</div>
   <div style="display:flex;align-items:center;gap:8px;">
     <span class="mode-banner-badge ready-mode" id="roundModeBadge">READY</span>
-    <img id="lockToggleBtn" class="lock-icon" src="lock.png?v=185" alt="Lock" />
+    <img id="lockToggleBtn" class="lock-icon" src="lock.png?v=005" alt="Lock" />
   </div>
 </div>
 
@@ -1878,7 +1957,7 @@
 <!-- Avatar + Name + Ratings -->
 
 <div class="profile-identity">
-  <img id="pcAvatar" src="male.png?v=185" class="profile-avatar">
+  <img id="pcAvatar" src="male.png?v=005" class="profile-avatar">
   <div class="profile-identity-info">
     <div class="profile-name-row">
       <div id="pcName" class="profile-name"></div>
@@ -1953,7 +2032,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js?v=185')
+        navigator.serviceWorker.register('./sw.js?v=005')
           .then(function(reg) {
             console.log('SW registered');
             // Check for updates immediately and on focus

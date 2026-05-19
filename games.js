@@ -1,0 +1,2688 @@
+/* ============================================================
+   GAMES -- Round rendering, win marking, player swaps
+   File: games.js
+   ============================================================ */
+
+let roundActive = false;
+
+let currentState = "idle";
+const statusEl = document.getElementById("statusDisplay");
+const textEl = document.getElementById("btnText");
+const btn = document.getElementById("nextBtn");
+const icon = btn.querySelector(".icon");
+const roundStates = {
+  idle: {
+    key: "nround",
+    icon: "▶",
+    class: ""
+  },
+  active: {
+    key: "endrounds",
+    icon: "▶",
+    class: ""
+  },
+  done: {
+    key: "endSession",
+    icon: "⏹",
+    class: "end"
+  }
+};
+function getPairKey(a, b) {
+  if (!a || !b) return null; // invalid pair -- no key
+  return [a, b].sort().join("|");
+}
+
+// Game identity must be based on PAIR vs PAIR (not 4 flattened players)
+function getGameKey(pair1Key, pair2Key) {
+  return [pair1Key, pair2Key].sort().join("|");
+}
+
+const repetitionHistory = {
+  pairSet: new Set(),
+  gameSet: new Set(),
+  builtUntilRound: -1
+};
+
+function updatePreviousHistory(currentRoundIndex) {
+
+  // Safety reset (if reset/back navigation happens)
+  if (repetitionHistory.builtUntilRound >= currentRoundIndex - 1) {
+    repetitionHistory.pairSet.clear();
+    repetitionHistory.gameSet.clear();
+    repetitionHistory.builtUntilRound = -1;
+  }
+
+  // Build only missing rounds
+  for (
+    let i = repetitionHistory.builtUntilRound + 1;
+    i < currentRoundIndex;
+    i++
+  ) {
+
+    const round = allRounds[i];
+    if (!round?.games) continue;
+
+    for (const game of round.games) {
+
+      const t1 = game.pair1;
+      const t2 = game.pair2;
+
+      if (!t1 || !t2) continue;
+
+      const pair1Key = getPairKey(t1[0], t1[1]);
+      const pair2Key = getPairKey(t2[0], t2[1]);
+
+      // Store pair history
+      repetitionHistory.pairSet.add(pair1Key);
+      repetitionHistory.pairSet.add(pair2Key);
+
+      // Store exact game history (pair vs pair)
+      const gameKey = getGameKey(pair1Key, pair2Key);
+      repetitionHistory.gameSet.add(gameKey);
+    }
+  }
+
+  repetitionHistory.builtUntilRound = currentRoundIndex - 1;
+}
+
+function isPairRepeated(pair) {
+  if (!pair) return false;
+
+  const pairKey = getPairKey(pair[0], pair[1]);
+  return repetitionHistory.pairSet.has(pairKey);
+}
+
+function isGameRepeated(game) {
+  if (!game?.pair1 || !game?.pair2) return false;
+
+  const pair1Key = getPairKey(game.pair1[0], game.pair1[1]);
+  const pair2Key = getPairKey(game.pair2[0], game.pair2[1]);
+
+  const gameKey = getGameKey(pair1Key, pair2Key);
+
+  return repetitionHistory.gameSet.has(gameKey);
+}
+
+
+
+
+
+async function toggleRound() {
+  const btn    = document.getElementById("nextBtn");
+  const textEl = document.getElementById("btnText");
+  const icon   = btn.querySelector(".icon");
+
+  if (currentState === "idle") {
+    // ── ENTER ACTIVE MODE (Start / begin round) ──
+    // Auto-lock if not already locked
+    if (!interactionLocked) lockBtn.click();
+
+    currentState = "active";
+
+    // Disable everything except nextBtn, endBtn, win-cup and team divs (for winner marking by touch)
+    document.querySelectorAll(
+      "button, .player-btn, .mode-card, .lock-icon, .swap-icon, .menu-btn"
+    ).forEach(el => {
+      const keep = el.id === "nextBtn" || el.id === "endBtn" || el.classList.contains("win-cup");
+      if (!keep) {
+        el.style.pointerEvents = "none";
+        el.classList.add("disabled");
+      }
+    });
+
+    // Re-enable team divs so tapping a team marks the winner
+    document.querySelectorAll(".team").forEach(el => {
+      el.style.pointerEvents = "auto";
+    });
+
+    // Show win cups -- both modes require winner marking
+    document.querySelectorAll(".win-cup").forEach(cup => {
+      cup.style.visibility    = "visible";
+      cup.style.pointerEvents = "auto";
+      cup.classList.add("blinking");
+    });
+
+    document.getElementById("roundsPage").classList.add("active-mode");
+    _syncModeBanner();
+    _syncShuffleBtn(); // disable shuffle while round is active
+    if (typeof saveSnapshot === 'function') saveSnapshot();
+
+  } else if (currentState === "active") {
+    // ── RETURN TO IDLE MODE (advance round) ──
+
+    // Require all winners marked -- both modes
+    const currentRoundGames = allRounds[currentRoundIndex] ? allRounds[currentRoundIndex].games : [];
+    const winnersCount = currentRoundGames.filter(g => g.winner).length;
+    if (!currentRoundGames.length || winnersCount !== currentRoundGames.length) {
+      // Shake all unmarked trophy cups
+      currentRoundGames.forEach(function(g, idx) {
+        if (!g.winner) {
+          document.querySelectorAll('.win-cup').forEach(function(cup, ci) {
+            if (ci === idx * 2 || ci === idx * 2 + 1) {
+              cup.classList.remove('cup-shake');
+              void cup.offsetWidth; // reflow to restart animation
+              cup.classList.add('cup-shake');
+              cup.style.filter = 'sepia(1) saturate(5) hue-rotate(300deg)';
+              setTimeout(() => {
+                cup.classList.remove('cup-shake');
+                cup.style.filter = '';
+              }, 800);
+            }
+          });
+        }
+      });
+      // Toast message
+      const existing = document.getElementById('winnerToast');
+      if (existing) existing.remove();
+      const toast = document.createElement('div');
+      toast.id = 'winnerToast';
+      toast.textContent = '🏆 Pick a winner for each court first';
+      toast.style.cssText = 'position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#e63757;color:#fff;padding:10px 20px;border-radius:20px;font-size:0.88rem;font-weight:700;z-index:9999;white-space:nowrap;animation:toastIn 0.3s ease;box-shadow:0 4px 16px rgba(230,55,87,0.4);';
+      document.body.appendChild(toast);
+      setTimeout(() => { toast.style.opacity='0'; toast.style.transition='opacity 0.4s'; setTimeout(()=>toast.remove(),400); }, 2000);
+      return;
+    }
+
+    // Update rank points -- both modes
+    updatePointsAfterRound(schedulerState);
+
+    currentState = "idle";
+    await nextRound();
+    document.getElementById("roundsPage").classList.remove("active-mode");
+
+    // Re-enable everything
+    document.querySelectorAll(".disabled").forEach(el => {
+      el.style.pointerEvents = "";
+      el.classList.remove("disabled");
+      if (el.classList.contains("menu-btn")) {
+        el.onclick = function() { showPage("settingsPage", this); };
+      }
+    });
+
+    // Clear team div pointer-events override (set during live mode)
+    document.querySelectorAll(".team").forEach(el => {
+      el.style.pointerEvents = "";
+    });
+
+    // Hide win cups
+    document.querySelectorAll(".win-cup").forEach(cup => {
+      cup.style.pointerEvents = "none";
+      cup.style.visibility    = "hidden";
+    });
+
+    _syncModeBanner();
+    _syncShuffleBtn();
+    if (typeof saveSnapshot === 'function') saveSnapshot();
+
+  } else if (currentState === "done") {
+    // done behaves same as idle -- just re-enter active
+    currentState = "idle";
+    toggleRound();
+    return;
+  }
+
+  // Update button label
+  if (currentState === "idle") {
+    const isFirst = currentRoundIndex === 0;
+    btn.classList.add("start-state");
+    btn.classList.remove("end", "round-active");
+    textEl.removeAttribute("data-i18n");
+    textEl.textContent = isFirst ? (t("startGame") || "Start") : (t("playRound") || "Play Round");
+    icon.textContent = isFirst ? " ▶" : " ▶";
+  } else if (currentState === "active") {
+    btn.classList.remove("start-state", "end");
+    btn.classList.add("round-active");
+    textEl.removeAttribute("data-i18n");
+    textEl.textContent = t("nextRound") || "Next Round";
+    icon.textContent = " ▶▶";
+  }
+}
+
+
+
+
+
+function setStatus(status) {
+  //statusEl.classList.remove("status-ready", "status-progress");
+
+  /*if (status === t("readyGame")) {
+    statusEl.dataset.i18n = "statusReady";
+    statusEl.classList.add("status-ready");
+  } else if (status === t("inProgressGame")) {
+    statusEl.dataset.i18n = "statusProgress";
+    statusEl.classList.add("status-progress");
+  } 
+*/
+
+  // Re-apply translations so text updates immediately
+  setLanguage(currentLang);
+}
+
+
+
+function getNextFixedPairGames(schedulerState, fixedPairs, numCourts) {
+  const hash = JSON.stringify(fixedPairs);
+
+  // 🔁 Initialize OR reset when queue is empty OR pairs changed
+  if (
+    !schedulerState.fixedPairGameQueue ||
+    schedulerState.fixedPairGameQueue.length === 0 ||
+    schedulerState.fixedPairGameQueueHash !== hash
+  ) {
+    schedulerState.fixedPairGameQueueHash = hash;
+    schedulerState.fixedPairGameQueue = [];
+
+    // Generate ALL unique games (pair vs pair)
+    for (let i = 0; i < fixedPairs.length; i++) {
+      for (let j = i + 1; j < fixedPairs.length; j++) {
+        schedulerState.fixedPairGameQueue.push({
+          pair1: fixedPairs[i],
+          pair2: fixedPairs[j],
+        });
+      }
+    }
+
+    // Optional shuffle (recommended)
+    schedulerState.fixedPairGameQueue = shuffle(
+      schedulerState.fixedPairGameQueue
+    );
+  }
+
+  const games = [];
+  const usedPairs = new Set();
+  const remainingGames = [];
+
+  // 🎯 Select playable games, remove ONLY played ones
+  for (const game of schedulerState.fixedPairGameQueue) {
+    if (games.length >= numCourts) {
+      remainingGames.push(game);
+      continue;
+    }
+
+    const k1 = game.pair1.join("&");
+    const k2 = game.pair2.join("&");
+
+    if (usedPairs.has(k1) || usedPairs.has(k2)) {
+      // Not playable this round → keep it
+      remainingGames.push(game);
+      continue;
+    }
+
+    // ✅ Game is played → remove
+    playername1 = "";
+    playername2 = "";
+    games.push({
+      court: games.length + 1,
+      pair1: [...game.pair1],
+      pair2: [...game.pair2],
+      winners: [playername1, playername2]
+    });
+
+    usedPairs.add(k1);
+    usedPairs.add(k2);
+  }
+
+  // Update queue with unplayed games only
+  schedulerState.fixedPairGameQueue = remainingGames;
+
+  return games;
+}
+
+
+// AischedulerNextRound → defined in competitive_algorithm.js
+// resetForCompetitivePhase → no longer needed
+
+
+function getPlayingAndResting(state) {
+
+  const totalPlayers = state.activeplayers.length;
+  const playersPerRound = state.courts * 4;
+
+  let resting = [];
+  let playing = [];
+
+  if (totalPlayers > playersPerRound) {
+    const needRest = totalPlayers - playersPerRound;
+    // Use existing restQueue order (same logic as RandomRound)
+    resting = state.restQueue.slice(0, needRest);
+  }
+
+  const restSet = new Set(resting);
+  playing = state.activeplayers.filter(p => !restSet.has(p));
+
+  return { playing, resting };
+}
+
+function extractActiveFixedPairs(state, playing) {
+
+  const activePairs = [];
+  const lockedPlayers = new Set();
+
+  for (const pair of state.fixedPairs || []) {
+    const [a, b] = pair;
+
+    if (playing.includes(a) && playing.includes(b)) {
+      activePairs.push([a, b]);
+      lockedPlayers.add(a);
+      lockedPlayers.add(b);
+    }
+  }
+
+  return { activePairs, lockedPlayers };
+}
+
+function groupByTier(state, players) {
+  // Tier boundaries based on persistent player rating (master DB)
+  // 1.0 - 2.0  → Weak
+  // 2.1 - 3.5  → Intermediate
+  // 3.6 - 5.0  → Strong
+
+  const strong = [];
+  const inter  = [];
+  const weak   = [];
+
+  for (const p of players) {
+    const rating = (typeof getActiveRating === "function" ? getActiveRating(p) : getRating(p));
+    if (rating >= 3.6)      strong.push(p);
+    else if (rating >= 2.1) inter.push(p);
+    else                    weak.push(p);
+  }
+
+  return { strong, inter, weak };
+}
+
+function buildBestTeam(state, pool) {
+
+  for (let i = 0; i < pool.length; i++) {
+    for (let j = i + 1; j < pool.length; j++) {
+
+      const p1 = pool[i];
+      const p2 = pool[j];
+
+      const key = createSortedKey(p1, p2);
+
+      if (!state.pairPlayedSet.has(key)) {
+        return [p1, p2];
+      }
+    }
+  }
+
+  // fallback if no unique pair
+  return [pool[0], pool[1]];
+}
+
+// OLD CompetitiveRound removed -- using competitive_algorithm.js instead
+
+function updateAfterRound(state, games) {
+  for (const game of games) {
+
+    // Handle both [team1, team2] array format AND {pair1, pair2} object format
+    const team1 = Array.isArray(game) ? game[0] : game.pair1;
+    const team2 = Array.isArray(game) ? game[1] : game.pair2;
+
+    if (!team1 || !team2) continue;
+
+    const key1 = createSortedKey(team1[0], team1[1]);
+    const key2 = createSortedKey(team2[0], team2[1]);
+
+    state.pairPlayedSet.add(key1);
+    state.pairPlayedSet.add(key2);
+
+    // Update opponent map safely
+    for (const p1 of team1) {
+      for (const p2 of team2) {
+
+        // Ensure maps exist before accessing
+        if (!state.opponentMap.has(p1)) state.opponentMap.set(p1, new Map());
+        if (!state.opponentMap.has(p2)) state.opponentMap.set(p2, new Map());
+
+        state.opponentMap.get(p1).set(p2, (state.opponentMap.get(p1).get(p2) || 0) + 1);
+        state.opponentMap.get(p2).set(p1, (state.opponentMap.get(p2).get(p1) || 0) + 1);
+      }
+    }
+  }
+}
+
+
+function RandomRound(schedulerState) {
+  const {
+    activeplayers,
+    numCourts,
+    fixedPairs,
+    restCount,
+    opponentMap,
+    lastRound,
+  } = schedulerState;
+
+  const totalPlayers = activeplayers.length;
+  const numPlayersPerRound = numCourts * 4;
+  const numResting = Math.max(totalPlayers - numPlayersPerRound, 0);
+
+  const fixedPairPlayers = new Set(fixedPairs.flat());
+  let freePlayers = activeplayers.filter(p => !fixedPairPlayers.has(p));
+
+  let resting = [];
+  let playing = [];
+
+  // ================= REST SELECTION (UNCHANGED) =================
+  if (fixedPairs.length > 0 && numResting >= 2) {
+    let needed = numResting;
+    const fixedMap = new Map();
+    for (const [a, b] of fixedPairs) {
+      fixedMap.set(a, b);
+      fixedMap.set(b, a);
+    }
+
+    for (const p of schedulerState.restQueue) {
+      if (resting.includes(p)) continue;
+
+      const partner = fixedMap.get(p);
+      if (partner) {
+        if (needed >= 2) {
+          resting.push(p, partner);
+          needed -= 2;
+        }
+      } else if (needed > 0) {
+        resting.push(p);
+        needed -= 1;
+      }
+
+      if (needed <= 0) break;
+    }
+
+    playing = activeplayers.filter(p => !resting.includes(p));
+  } else {
+    const sortedPlayers = [...schedulerState.restQueue];
+    resting = sortedPlayers.slice(0, numResting);
+    playing = activeplayers
+      .filter(p => !resting.includes(p))
+      .slice(0, numPlayersPerRound);
+  }
+
+  // ================= PAIR PREP =================
+  const playingSet = new Set(playing);
+  let fixedPairsThisRound = [];
+  for (const pair of fixedPairs) {
+    if (playingSet.has(pair[0]) && playingSet.has(pair[1])) {
+      fixedPairsThisRound.push([pair[0], pair[1]]);
+    }
+  }
+
+  const fixedPairPlayersThisRound = new Set(fixedPairsThisRound.flat());
+  let freePlayersThisRound = playing.filter(
+    p => !fixedPairPlayersThisRound.has(p)
+  );
+
+  freePlayersThisRound = reorderFreePlayersByLastRound(
+    freePlayersThisRound,
+    lastRound,
+    numCourts
+  );
+
+  // ================= ALL FIXED DETECTION =================
+  const allFixed =
+    freePlayersThisRound.length === 0 &&
+    fixedPairs.length >= numCourts * 2;
+
+  // ================= ALL FIXED (QUEUE-BASED ROUND ROBIN) =================
+  if (allFixed) {
+    const games = getNextFixedPairGames(
+      schedulerState,
+      fixedPairs,
+      numCourts
+    );
+
+    const playingPlayers = new Set(
+      games.flatMap(g => [...g.pair1, ...g.pair2])
+    );
+
+    resting = activeplayers.filter(p => !playingPlayers.has(p));
+    playing = [...playingPlayers];
+
+    schedulerState.roundIndex =
+      (schedulerState.roundIndex || 0) + 1;
+
+    return {
+      round: schedulerState.roundIndex,
+      resting: resting.map(p => {
+        const c = restCount.get(p) || 0;
+        return `${p}#${c + 1}`;
+      }),
+      playing,
+      games,
+    };
+  }
+
+  // ================= ORIGINAL FREE-PAIR LOGIC =================
+  const requiredPairsCount = Math.floor(numPlayersPerRound / 2);
+  let neededFreePairs =
+    requiredPairsCount - fixedPairsThisRound.length;
+
+  let selectedPairs = findDisjointPairs(
+    freePlayersThisRound,
+    schedulerState.pairPlayedSet,
+    neededFreePairs,
+    opponentMap
+  );
+
+  let finalFreePairs = selectedPairs || [];
+
+  if (finalFreePairs.length < neededFreePairs) {
+    const free = freePlayersThisRound.slice();
+    const usedPlayers = new Set(finalFreePairs.flat());
+
+    for (let i = 0; i < free.length; i++) {
+      const a = free[i];
+      if (usedPlayers.has(a)) continue;
+
+      for (let j = i + 1; j < free.length; j++) {
+        const b = free[j];
+        if (usedPlayers.has(b)) continue;
+
+        finalFreePairs.push([a, b]);
+        usedPlayers.add(a);
+        usedPlayers.add(b);
+        break;
+      }
+
+      if (finalFreePairs.length >= neededFreePairs) break;
+    }
+  }
+
+  let allPairs = fixedPairsThisRound.concat(finalFreePairs);
+  allPairs = shuffle(allPairs);
+
+  let matchupScores = getMatchupScores(allPairs, opponentMap);
+  const games = [];
+  const usedPairs = new Set();
+
+  for (const match of matchupScores) {
+    const { pair1, pair2 } = match;
+    const p1Key = pair1.join("&");
+    const p2Key = pair2.join("&");
+
+    if (usedPairs.has(p1Key) || usedPairs.has(p2Key)) continue;
+
+    games.push({
+      court: games.length + 1,
+      pair1: [...pair1],
+      pair2: [...pair2],
+    });
+
+    usedPairs.add(p1Key);
+    usedPairs.add(p2Key);
+
+    if (games.length >= numCourts) break;
+  }
+
+  const restingWithNumber = resting.map(p => {
+    const c = restCount.get(p) || 0;
+    return `${p}#${c + 1}`;
+  });
+
+  schedulerState.roundIndex =
+    (schedulerState.roundIndex || 0) + 1;
+
+  return {
+    round: schedulerState.roundIndex,
+    resting: restingWithNumber,
+    playing,
+    games,
+  };
+}
+
+
+
+
+// ==============================
+// Generate next round (no global updates)
+// ==============================
+function betaAischedulerNextRound(schedulerState) {
+  const {
+    activeplayers,
+    numCourts,
+    fixedPairs,
+    restCount,
+    opponentMap,
+    pairPlayedSet
+  } = schedulerState;
+
+  const totalPlayers = activeplayers.length;
+  const playersPerRound = numCourts * 4;
+  const numResting = Math.max(totalPlayers - playersPerRound, 0);
+
+  /* ==========================
+     1️⃣ RESTING / PLAYING
+  ========================== */
+
+  let resting = [];
+  let playing = [];
+
+  if (numResting > 0) {
+    resting = schedulerState.restQueue.slice(0, numResting);
+    playing = activeplayers.filter(p => !resting.includes(p));
+  } else {
+    playing = activeplayers.slice(0, playersPerRound);
+  }
+
+  /* ==========================
+     2️⃣ FIXED PAIRS
+  ========================== */
+
+  const playingSet = new Set(playing);
+  const fixedPairsThisRound = fixedPairs.filter(
+    ([a, b]) => playingSet.has(a) && playingSet.has(b)
+  );
+
+  const fixedPlayers = new Set(fixedPairsThisRound.flat());
+  let freePlayers = playing.filter(p => !fixedPlayers.has(p));
+
+  const requiredPairs = playersPerRound / 2;
+  const neededFreePairs = requiredPairs - fixedPairsThisRound.length;
+
+  /* ==========================
+     3️⃣ BEST FREE PAIRS
+  ========================== */
+
+  let freePairs =
+    findDisjointPairs(
+      freePlayers,
+      pairPlayedSet,
+      neededFreePairs,
+      opponentMap
+    ) || [];
+
+  // fallback safety
+  if (freePairs.length < neededFreePairs) {
+    const used = new Set(freePairs.flat());
+    for (let i = 0; i < freePlayers.length; i++) {
+      for (let j = i + 1; j < freePlayers.length; j++) {
+        const a = freePlayers[i], b = freePlayers[j];
+        if (used.has(a) || used.has(b)) continue;
+        freePairs.push([a, b]);
+        used.add(a); used.add(b);
+        if (freePairs.length === neededFreePairs) break;
+      }
+      if (freePairs.length === neededFreePairs) break;
+    }
+  }
+
+  const allPairs = [...fixedPairsThisRound, ...freePairs];
+
+  /* ==========================
+     4️⃣ BEST COURT MATCHUPS
+  ========================== */
+
+  const matchupScores = getMatchupScores(allPairs, opponentMap);
+
+  const games = [];
+  const usedPairs = new Set();
+
+  for (const m of matchupScores) {
+    const k1 = m.pair1.join("&");
+    const k2 = m.pair2.join("&");
+    if (usedPairs.has(k1) || usedPairs.has(k2)) continue;
+
+    games.push({
+      court: games.length + 1,
+      pair1: [...m.pair1],
+      pair2: [...m.pair2]
+    });
+
+    usedPairs.add(k1);
+    usedPairs.add(k2);
+
+    if (games.length === numCourts) break;
+  }
+
+  /* ==========================
+     5️⃣ REST DISPLAY
+  ========================== */
+
+  const restingWithCount = resting.map(p => {
+    const cnt = restCount.get(p) || 0;
+    return `${p}#${cnt + 1}`;
+  });
+
+  schedulerState.roundIndex = (schedulerState.roundIndex || 0) + 1;
+
+  return {
+    round: schedulerState.roundIndex,
+    resting: restingWithCount,
+    playing,
+    games
+  };
+}
+
+
+
+function backupAischedulerNextRound(schedulerState) {
+  const {
+    activeplayers,
+    numCourts,
+    fixedPairs,
+    restCount,
+    opponentMap,
+  } = schedulerState;
+
+  const totalPlayers = activeplayers.length;
+  const numPlayersPerRound = numCourts * 4;
+  const numResting = Math.max(totalPlayers - numPlayersPerRound, 0);
+
+  // Separate fixed pairs and free players
+  const fixedPairPlayers = new Set(fixedPairs.flat());
+let freePlayers = activeplayers.filter(p => !fixedPairPlayers.has(p));
+
+// ... top of function (resting and playing already declared as let)
+let resting = [];
+let playing = [];
+
+// 1. Select resting and playing players
+if (fixedPairs.length > 0 && numResting >= 2) {
+
+  let needed = numResting;
+  const fixedMap = new Map();
+    for (const [a, b] of fixedPairs) {
+      fixedMap.set(a, b);
+      fixedMap.set(b, a); // Must include reverse
+    }
+
+  // Use only restQueue order
+ for (const p of schedulerState.restQueue) {
+  if (resting.includes(p)) continue;
+
+  const partner = fixedMap.get(p);
+
+  if (partner) {
+    // Fixed pair rule -> only rest together
+    if (needed >= 2) {
+      resting.push(p, partner);
+      needed -= 2;
+    }
+    // If not enough slots -> skip both completely
+  } else {
+    // Only rest free players
+    if (needed > 0) {
+      resting.push(p);
+      needed -= 1;
+    }
+  }
+
+  if (needed <= 0) break;
+}
+
+
+
+  // Playing = everyone else (NO redeclaration)
+  playing = activeplayers.filter(p => !resting.includes(p));
+
+} else {
+
+      // Use restQueue order directly (no sorting)
+    const sortedPlayers = [...schedulerState.restQueue];
+    
+    // Assign resting players
+    resting = sortedPlayers.slice(0, numResting);
+    
+    // Assign playing players
+    playing = activeplayers
+      .filter(p => !resting.includes(p))
+      .slice(0, numPlayersPerRound);
+}
+
+
+  // 2️⃣ Prepare pairs
+  const playingSet = new Set(playing);
+  let fixedPairsThisRound = [];
+  for (const pair of fixedPairs) {
+    if (playingSet.has(pair[0]) && playingSet.has(pair[1])) {
+      fixedPairsThisRound.push([pair[0], pair[1]]);
+    }
+  }
+
+  const fixedPairPlayersThisRound = new Set(fixedPairsThisRound.flat());
+  let freePlayersThisRound = playing.filter(p => !fixedPairPlayersThisRound.has(p));
+  freePlayersThisRound = reorderFreePlayersByLastRound(
+  freePlayersThisRound,
+  lastRound,
+  numCourts
+);
+  const requiredPairsCount = Math.floor(numPlayersPerRound / 2);
+  let neededFreePairs = requiredPairsCount - fixedPairsThisRound.length;
+  //freePlayersThisRound = reorder1324(freePlayersThisRound);
+  let selectedPairs = findDisjointPairs(freePlayersThisRound, schedulerState.pairPlayedSet, neededFreePairs, opponentMap);
+
+  let finalFreePairs = selectedPairs || [];
+
+  // Fallback pairing for leftovers
+  if (finalFreePairs.length < neededFreePairs) {
+    const free = freePlayersThisRound.slice();
+    const usedPlayers = new Set(finalFreePairs.flat());
+    for (let i = 0; i < free.length; i++) {
+      const a = free[i];
+      if (usedPlayers.has(a)) continue;
+      for (let j = i + 1; j < free.length; j++) {
+        const b = free[j];
+        if (usedPlayers.has(b)) continue;
+        finalFreePairs.push([a, b]);
+        usedPlayers.add(a);
+        usedPlayers.add(b);
+        break;
+      }
+      if (finalFreePairs.length >= neededFreePairs) break;
+    }
+  }
+
+  // 3️⃣ Combine all pairs and shuffle
+  let allPairs = fixedPairsThisRound.concat(finalFreePairs);
+  allPairs = shuffle(allPairs);
+
+  // 4️⃣ Create games (courts) using matchupScores (no updates here)
+  let matchupScores = getMatchupScores(allPairs, opponentMap);
+  const games = [];
+  const usedPairs = new Set();
+  for (const match of matchupScores) {
+    const { pair1, pair2 } = match;
+    const p1Key = pair1.join("&");
+    const p2Key = pair2.join("&");
+    if (usedPairs.has(p1Key) || usedPairs.has(p2Key)) continue;
+    games.push({ court: games.length + 1, pair1: [...pair1], pair2: [...pair2] });
+    usedPairs.add(p1Key);
+    usedPairs.add(p2Key);
+    if (games.length >= numCourts) break;
+  }
+
+  // 5️⃣ Prepare resting display with +1 for current round
+  const restingWithNumber = resting.map(p => {
+    const currentRest = restCount.get(p) || 0;
+    return `${p}#${currentRest + 1}`;
+  });
+
+ schedulerState.roundIndex = (schedulerState.roundIndex || 0) + 1;
+
+return {
+    round: schedulerState.roundIndex,
+    resting: restingWithNumber,
+    playing,
+    games,
+  };
+
+  
+}
+
+
+function reorderFreePlayersByLastRound(
+  freePlayersThisRound,
+  lastRound,
+  numCourts
+) {
+  if (numCourts <= 0 || freePlayersThisRound.length === 0) {
+    return [...freePlayersThisRound];
+  }
+
+  const total = freePlayersThisRound.length;
+
+  // per-court capacity
+  const base = Math.floor(total / numCourts);
+  const remainder = total % numCourts;
+
+  // court capacities
+  const capacities = Array.from(
+    { length: numCourts },
+    (_, i) => base + (i < remainder ? 1 : 0)
+  );
+
+  // split by last round
+  const lastRoundSet = new Set(lastRound);
+  const nonPlayed = [];
+  const played = [];
+
+  for (const p of freePlayersThisRound) {
+    (lastRoundSet.has(p) ? played : nonPlayed).push(p);
+  }
+
+  // simulate court fill
+  const courts = Array.from({ length: numCourts }, () => []);
+  let c = 0;
+
+  const distribute = (list) => {
+    for (const p of list) {
+      while (courts[c].length >= capacities[c]) {
+        c = (c + 1) % numCourts;
+      }
+      courts[c].push(p);
+      c = (c + 1) % numCourts;
+    }
+  };
+
+  distribute(nonPlayed);
+  distribute(played);
+
+  // flatten to single ordered array
+  return courts.flat();
+}
+// ==============================
+
+
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+function findDisjointPairs(playing, usedPairsSet, requiredPairsCount, opponentMap) {
+  const allPairs = [];
+  const unusedPairs = [];
+  const usedPairs = [];
+
+  // Build all pairs and classify (new vs old)
+  for (let i = 0; i < playing.length; i++) {
+    for (let j = i + 1; j < playing.length; j++) {
+      const a = playing[i], b = playing[j];
+      const key = [a, b].slice().sort().join("&");
+      const isNew = !usedPairsSet || !usedPairsSet.has(key);
+
+      const pairObj = { a, b, key, isNew };
+      allPairs.push(pairObj);
+
+      if (isNew) unusedPairs.push(pairObj);
+      else usedPairs.push(pairObj);
+    }
+  }
+
+  // ------------------------------
+  //  Opponent Freshness Score
+  // ------------------------------
+  function calculateOpponentFreshnessScore(currentPair, selectedPairs, opponentMap) {
+    let totalScore = 0;
+    const [a, b] = currentPair;
+
+    for (const [x, y] of selectedPairs) {
+      const pair1 = [x, y];
+      const pair2 = [a, b];
+
+      for (const bPlayer of pair2) {
+        let newOpp = 0;
+        for (const aPlayer of pair1) {
+          // Your exact logic:
+          if ((opponentMap.get(bPlayer)?.get(aPlayer) || 0) === 1) {
+            newOpp += 1;
+          }
+        }
+        // Your exact scoring:
+        totalScore += (newOpp === 2) ? 2 : (newOpp === 1 ? 1 : 0);
+      }
+    }
+    return totalScore;
+  }
+
+  // ------------------------------
+  //  DFS Backtracking With Scoring
+  // ------------------------------
+function pickBestFromCandidates(candidates) {
+  const usedPlayers = new Set();
+  const selected = [];
+  let best = null;
+  const MAX_BRANCHES = 15000; // limit search
+  let branches = 0;
+
+  function dfs(startIndex, baseScore) {
+    // stop explosion
+    if (branches++ > MAX_BRANCHES) return;
+
+    if (selected.length === requiredPairsCount) {
+      if (!best || baseScore > best.score) {
+        best = { score: baseScore, pairs: selected.slice() };
+      }
+      return;
+    }
+
+    // Remaining candidates insufficient → prune
+    const remainingSlots = requiredPairsCount - selected.length;
+    if (candidates.length - startIndex < remainingSlots) return;
+
+    for (let i = startIndex; i < candidates.length; i++) {
+      const { a, b, isNew } = candidates[i];
+      if (usedPlayers.has(a) || usedPlayers.has(b)) continue;
+
+      usedPlayers.add(a);
+      usedPlayers.add(b);
+      selected.push([a, b]);
+
+      // opponent freshness score
+      const oppScore = calculateOpponentFreshnessScore(
+        [a, b],
+        selected.slice(0, -1),
+        opponentMap
+      );
+
+      // new-pair strong priority
+      const newPairScore = isNew ? 100 : 0;
+
+      dfs(i + 1, baseScore + newPairScore + oppScore);
+
+      selected.pop();
+      usedPlayers.delete(a);
+      usedPlayers.delete(b);
+    }
+  }
+
+  dfs(0, 0);
+  return best ? best.pairs : null;
+}
+
+  // -----------------------------------
+  // 1) Try unused (new) pairs only
+  // -----------------------------------
+  if (unusedPairs.length >= requiredPairsCount) {
+    const best = pickBestFromCandidates(unusedPairs);
+    if (best) return best;
+  }
+
+  // -----------------------------------
+  // 2) Try unused + used
+  // -----------------------------------
+  const combined = [...unusedPairs, ...usedPairs];
+  if (combined.length >= requiredPairsCount) {
+    const best = pickBestFromCandidates(combined);
+    if (best) return best;
+  }
+
+  // -----------------------------------
+  // 3) Try all pairs as last fallback
+  // -----------------------------------
+  if (allPairs.length >= requiredPairsCount) {
+    const best = pickBestFromCandidates(allPairs);
+    if (best) return best;
+  }
+
+  return [];
+}
+
+
+
+
+function getMatchupScores(allPairs, opponentMap) {
+  const matchupScores = [];
+  for (let i = 0; i < allPairs.length; i++) {
+    for (let j = i + 1; j < allPairs.length; j++) {
+      const [a1, a2] = allPairs[i];
+      const [b1, b2] = allPairs[j];
+      // --- Count past encounters for each of the 4 possible sub-matchups ---
+      const ab11 = opponentMap.get(a1)?.get(b1) || 0;
+      const ab12 = opponentMap.get(a1)?.get(b2) || 0;
+      const ab21 = opponentMap.get(a2)?.get(b1) || 0;
+      const ab22 = opponentMap.get(a2)?.get(b2) || 0;
+      // --- Total previous encounters (lower = better) ---
+      const totalScore = ab11 + ab12 + ab21 + ab22;
+      // --- Freshness: number of unseen sub-matchups (4 = completely new) ---
+      const freshness =
+        (ab11 === 0 ? 1 : 0) +
+        (ab12 === 0 ? 1 : 0) +
+        (ab21 === 0 ? 1 : 0) +
+        (ab22 === 0 ? 1 : 0);
+      // --- Store individual player freshness for tie-breaker ---
+      const opponentFreshness = {
+        a1: (ab11 === 0 ? 1 : 0) + (ab12 === 0 ? 1 : 0),
+        a2: (ab21 === 0 ? 1 : 0) + (ab22 === 0 ? 1 : 0),
+        b1: (ab11 === 0 ? 1 : 0) + (ab21 === 0 ? 1 : 0),
+        b2: (ab12 === 0 ? 1 : 0) + (ab22 === 0 ? 1 : 0),
+      };
+      matchupScores.push({
+        pair1: allPairs[i],
+        pair2: allPairs[j],
+        freshness,         // 0-4
+        totalScore,        // numeric repetition penalty
+        opponentFreshness, // for tie-breaking only
+      });
+    }
+  }
+  // --- Sort by freshness DESC, then totalScore ASC, then opponent freshness DESC ---
+  matchupScores.sort((a, b) => {
+    if (b.freshness !== a.freshness) return b.freshness - a.freshness;
+    if (a.totalScore !== b.totalScore) return a.totalScore - b.totalScore;
+    // Tie-breaker: sum of all 4 individual opponent freshness values
+    const aSum = a.opponentFreshness.a1 + a.opponentFreshness.a2 + a.opponentFreshness.b1 + a.opponentFreshness.b2;
+    const bSum = b.opponentFreshness.a1 + b.opponentFreshness.a2 + b.opponentFreshness.b1 + b.opponentFreshness.b2;
+    return bSum - aSum; // prefer higher sum of unseen opponents
+  });
+  return matchupScores;
+}
+
+
+/* =========================
+ 
+DISPLAY & UI FUNCTIONS
+ 
+========================= */
+// Main round display
+
+function clearPreviousRound() {
+  const resultsDiv = document.getElementById('game-results');
+
+  // Remove all child nodes (old rounds)
+  while (resultsDiv.firstChild) {
+    resultsDiv.removeChild(resultsDiv.firstChild);
+  }
+
+  // Remove any lingering selection highlights
+  window.selectedPlayer = null;
+  window.selectedTeam = null;
+  document.querySelectorAll('.selected, .selected-team, .swapping').forEach(el => {
+    el.classList.remove('selected', 'selected-team', 'swapping');
+  });
+  const roundTitle = document.getElementById("roundTitle");
+  roundTitle.className = "roundTitle";
+  roundTitle.innerText = "R";
+}
+
+
+
+// Show a round
+
+// ============================================================
+
+function showRound(index) {
+  clearPreviousRound();
+  const resultsDiv = document.getElementById('game-results');
+  resultsDiv.innerHTML = '';
+
+  const data = allRounds[index];
+  if (!data) return;
+
+  // ✅ Update round title
+  const roundTitle = document.getElementById("roundTitle");
+  roundTitle.className = "roundTitle";
+  roundTitle.innerText = translations[currentLang].roundno + " " + data.round;
+
+  // ✅ Create sections safely
+  let restDiv = null;
+  if (data.resting && data.resting.length !== 0) {
+    restDiv = renderRestingPlayers(data, index);
+  }
+
+  const gamesDiv = renderGames(data, index);
+
+  // ✅ Wrap everything
+  const wrapper = document.createElement('div');
+  wrapper.className = 'round-wrapper';
+
+  // 🔒 Apply lock state globally
+  if (interactionLocked) {
+    wrapper.classList.add('locked');
+  }
+
+  // ✅ Append conditionally
+  if (restDiv) {
+    wrapper.append(gamesDiv, restDiv);
+  } else {
+    wrapper.append(gamesDiv);
+  }
+
+  resultsDiv.append(wrapper);
+
+  // Sync mode banner and shuffle after every round display
+  _syncModeBanner();
+  _syncShuffleBtn();
+  checkAllWinnersMarked();
+}
+
+
+function goodshowRound(index) {
+  clearPreviousRound();
+  const resultsDiv = document.getElementById('game-results');
+  resultsDiv.innerHTML = '';
+  const data = allRounds[index];
+  if (!data) return;
+  // ✅ Update round title
+  const roundTitle = document.getElementById("roundTitle");
+  roundTitle.className = "roundTitle";
+  roundTitle.innerText = translations[currentLang].roundno + " " + data.round;
+  // ✅ Create sections safely
+  let restDiv = null;
+  if (data.resting && data.resting.length !== 0) {
+    restDiv = renderRestingPlayers(data, index);
+  }
+  const gamesDiv = renderGames(data, index);
+  // ✅ Wrap everything in a container to distinguish latest vs played
+  const wrapper = document.createElement('div');
+  const isLatest = index === allRounds.length - 1;
+  wrapper.className = isLatest ? 'latest-round' : 'played-round';
+  // ✅ Append conditionally
+  if (restDiv) {
+    wrapper.append(gamesDiv,restDiv);
+  } else {
+    wrapper.append(gamesDiv);
+  }
+  resultsDiv.append(wrapper);
+  // ✅ Navigation buttons
+  //document.getElementById('prevBtn').disabled = index === 0;
+  //document.getElementById('nextBtn').disabled = false;
+}
+
+
+// Resting players display
+function t(key) {
+  return translations[currentLang]?.[key] || key;
+}
+
+
+function chkrenderRestingPlayers(data, index) {
+  const restDiv = document.createElement('div');
+  restDiv.className = 'round-header';
+  restDiv.style.paddingLeft = "12px";
+
+  const title = document.createElement('div');
+  title.dataset.i18n = 'sittingOut';
+  title.textContent = t('sittingOut');
+  restDiv.appendChild(title);
+
+  const restBox = document.createElement('div');
+  restBox.className = 'rest-box';
+
+  if (!data.resting || data.resting.length === 0) {
+    const span = document.createElement('span');
+    span.dataset.i18n = 'none';
+    span.textContent = t('none');
+    restBox.appendChild(span);
+  } else {
+    data.resting.forEach(restName => {
+      const baseName = restName.split('#')[0];
+
+      const playerObj = schedulerState.allPlayers.find(
+        p => p.name === baseName
+      );
+
+      if (playerObj) {
+        restBox.appendChild(
+          makeRestButton(
+            { ...playerObj, displayName: restName },
+            data,
+            index
+          )
+        );
+      }
+    });
+  }
+
+  restDiv.appendChild(restBox);
+  return restDiv;
+}
+
+function renderGames(data, roundIndex) {
+
+  const wrapper = document.createElement('div');
+  const playmode = getPlayMode();
+
+  // ⭐ Build previous history
+  const previousPairSet = new Set();
+  const previousGameSet = new Set();
+
+  for (let i = 0; i < roundIndex; i++) {
+    const prev = allRounds[i];
+    if (!prev?.games) continue;
+
+    prev.games.forEach(g => {
+      if (!g?.pair1 || !g?.pair2) return;
+
+      const pair1Key = getPairKey(g.pair1[0], g.pair1[1]);
+      const pair2Key = getPairKey(g.pair2[0], g.pair2[1]);
+
+      if (pair1Key) previousPairSet.add(pair1Key);
+      if (pair2Key) previousPairSet.add(pair2Key);
+
+      // ✅ FIXED -- store game as pair-vs-pair (NOT 4 flattened players)
+      if (pair1Key && pair2Key) {
+        const gameKey = [pair1Key, pair2Key].sort().join("|");
+        previousGameSet.add(gameKey);
+      }
+    });
+  }
+
+  data.games.forEach((game, gameIndex) => {
+
+    const courtDiv = document.createElement('div');
+    courtDiv.className = `courtcard court-${gameIndex + 1}`;
+
+    const courtName = document.createElement('div');
+    courtName.classList.add('courtname');
+    courtName.textContent = `Court ${gameIndex + 1}`;
+
+    const teamsDiv = document.createElement('div');
+    teamsDiv.className = 'teams';
+
+    const makeTeamDiv = (teamSide) => {
+
+      const teamDiv = document.createElement('div');
+      teamDiv.className = 'team';
+      teamDiv.dataset.teamSide = teamSide;
+      teamDiv.dataset.gameIndex = gameIndex;
+
+      const teamPairs = teamSide === 'L' ? game.pair1 : game.pair2;
+
+      // ⭐ Pair repetition detection
+      if (teamPairs && teamPairs.length === 2) {
+        const pairKey = getPairKey(teamPairs[0], teamPairs[1]);
+        if (pairKey && previousPairSet.has(pairKey)) {
+          teamDiv.classList.add('repeated-pair');
+        }
+      }
+
+      teamPairs.forEach((p, i) => {
+        teamDiv.appendChild(
+          makePlayerButton(p, teamSide, gameIndex, i, data, roundIndex)
+        );
+
+      });
+
+      const winCup = document.createElement('img');
+      winCup.src = 'win-cup.png';
+      winCup.className = 'win-cup blinking';
+      winCup.title = t('markWinner');
+      winCup.style.visibility = 'hidden';
+      winCup.style.pointerEvents = 'none';
+
+      if (game.winner === teamSide) {
+        winCup.classList.add('active');
+        winCup.classList.remove('blinking');
+      }
+
+      const toggleWinner = (e) => {
+        if (typeof appMode !== 'undefined' && appMode === 'viewer') return;
+        if (currentState !== "active") return;
+        e.stopPropagation();
+        e.preventDefault();
+
+        const allCups = teamDiv.parentElement.querySelectorAll('.win-cup');
+        const isActive = winCup.classList.contains('active');
+
+        if (!isActive) {
+          allCups.forEach(cup => {
+            cup.classList.remove('active', 'blinking');
+            cup.style.visibility = 'hidden';
+            cup.style.pointerEvents = 'none';
+          });
+
+          winCup.classList.add('active');
+          winCup.classList.remove('blinking');
+          winCup.style.visibility = 'visible';
+          winCup.style.pointerEvents = 'auto';
+
+          game.winner = teamSide;
+          game.winners = teamPairs.slice();
+          if (typeof saveRoundsToDb === "function") saveRoundsToDb();
+          checkAllWinnersMarked();
+        } else {
+          allCups.forEach(cup => {
+            cup.classList.remove('active');
+            cup.classList.add('blinking');
+            cup.style.visibility = 'visible';
+            cup.style.pointerEvents = 'auto';
+          });
+
+          game.winner = undefined;
+          game.winners = [];
+          if (typeof saveRoundsToDb === "function") saveRoundsToDb();
+          checkAllWinnersMarked();
+        }
+      };
+
+      winCup.addEventListener('click', toggleWinner);
+      teamDiv.addEventListener('click', toggleWinner);
+
+      teamDiv.appendChild(winCup);
+
+      // ── Team swap via long-press on teamDiv (300ms) ──
+      const isLatestRound_ts = roundIndex === allRounds.length - 1;
+      if (isLatestRound_ts) {
+        let _tsStartX = 0, _tsStartY = 0;
+        teamDiv.addEventListener('touchstart', e => {
+          if (game.winner) return;
+          if (e.target.closest('button, .win-cup')) return;
+          _tsStartX = e.touches[0].clientX;
+          _tsStartY = e.touches[0].clientY;
+        }, { passive: true });
+        teamDiv.addEventListener('touchend', e => {
+          if (currentState === 'active') return; // live mode — team touch marks winner, no swap
+          if (game.winner) return;
+          if (e.target.closest('button, .win-cup')) return;
+          const dy = Math.abs(e.changedTouches[0].clientY - _tsStartY);
+          const dx = Math.abs(e.changedTouches[0].clientX - _tsStartX);
+          if (dx > 6 || dy > 6) return; // scroll — ignore
+          if (window.selectedTeam) {
+            const src = window.selectedTeam;
+            if (src.gameIndex !== gameIndex) {
+              handleTeamSwapAcrossCourts(src, { teamSide, gameIndex }, data, roundIndex);
+            }
+            window.selectedTeam = null;
+            document.querySelectorAll('.selected-team').forEach(b => b.classList.remove('selected-team'));
+          } else {
+            window.selectedTeam = { teamSide, gameIndex };
+            teamDiv.classList.add('selected-team');
+          }
+        }, { passive: true });
+        teamDiv.addEventListener('touchcancel', () => { _tsStartX = 0; _tsStartY = 0; }, { passive: true });
+      }
+
+      return teamDiv;
+    };
+
+    const teamLeft = makeTeamDiv('L');
+    const teamRight = makeTeamDiv('R');
+
+    // ⭐ FIXED -- Exact game repetition detection
+    if (game?.pair1 && game?.pair2) {
+
+      const pair1Key = getPairKey(game.pair1[0], game.pair1[1]);
+      const pair2Key = getPairKey(game.pair2[0], game.pair2[1]);
+
+      if (pair1Key && pair2Key) {
+        const currentGameKey = [pair1Key, pair2Key].sort().join("|");
+        if (previousGameSet.has(currentGameKey)) {
+          courtDiv.classList.add('repeated-game');
+        }
+      }
+    }
+
+    const vsDivider = document.createElement('div');
+    vsDivider.className = 'vs-divider';
+    vsDivider.innerHTML = `<div class="vs-line"></div><span>${t('vsLabel')}</span><div class="vs-line"></div>`;
+
+    teamsDiv.append(teamLeft, vsDivider, teamRight);
+    courtDiv.append(courtName, teamsDiv);
+    wrapper.appendChild(courtDiv);
+  });
+
+  return wrapper;
+}
+function goodrenderGames(data, roundIndex) {
+  const wrapper = document.createElement('div');
+  const playmode = getPlayMode();
+
+  data.games.forEach((game, gameIndex) => {
+    const courtDiv = document.createElement('div');
+    courtDiv.className = `courtcard court-${gameIndex + 1}`;
+
+    const courtName = document.createElement('div');
+    courtName.classList.add('courtname');
+    courtName.textContent = `Court ${gameIndex + 1}`;
+
+    const teamsDiv = document.createElement('div');
+    teamsDiv.className = 'teams';
+
+    const makeTeamDiv = (teamSide) => {
+      const teamDiv = document.createElement('div');
+      teamDiv.className = 'team';
+      teamDiv.dataset.teamSide = teamSide;
+      teamDiv.dataset.gameIndex = gameIndex;
+
+      // 🔁 Swap icon
+
+      // 👥 Players
+      const teamPairs = teamSide === 'L' ? game.pair1 : game.pair2;
+      teamPairs.forEach((p, i) => {
+        teamDiv.appendChild(
+          makePlayerButton(p, teamSide, gameIndex, i, data, roundIndex)
+        );
+      });
+
+      // 🏆 Win cup (created hidden)
+      const winCup = document.createElement('img');
+      winCup.src = 'win-cup.png';
+      winCup.className = 'win-cup blinking';
+      winCup.title = t('markWinner');
+      winCup.style.visibility = 'hidden';
+      winCup.style.pointerEvents = 'none';
+
+      // Restore winner state
+      if (game.winner === teamSide) {
+        winCup.classList.add('active');
+        winCup.classList.remove('blinking');
+      }
+
+      // 🏆 Winner toggle logic (minimal, correct)
+      const toggleWinner = (e) => {
+        if (typeof appMode !== 'undefined' && appMode === 'viewer') return;
+        if (currentState !== "active") return;
+        e.stopPropagation();
+        e.preventDefault();
+
+        const allCups = teamDiv.parentElement.querySelectorAll('.win-cup');
+        const isActive = winCup.classList.contains('active');
+
+        if (!isActive) {
+          // 👉 Mark this team
+          allCups.forEach(cup => {
+            cup.classList.remove('active', 'blinking');
+            cup.style.visibility = 'hidden';
+            cup.style.pointerEvents = 'none';
+          });
+          
+          winCup.classList.add('active');
+          winCup.classList.remove('blinking');
+          winCup.style.visibility = 'visible';
+          winCup.style.pointerEvents = 'auto';
+
+          game.winner = teamSide;
+          game.winners = teamPairs.slice();
+          if (typeof saveRoundsToDb === "function") saveRoundsToDb();
+          checkAllWinnersMarked();
+        } else {
+          // 👉 Unmark → show BOTH cups again
+          allCups.forEach(cup => {
+            cup.classList.remove('active');
+            cup.classList.add('blinking');
+            cup.style.visibility = 'visible';
+            cup.style.pointerEvents = 'auto';
+          });
+
+          game.winner = undefined;
+          game.winners = [];
+          if (typeof saveRoundsToDb === "function") saveRoundsToDb();
+        }
+      };
+
+      // Attach to BOTH team and cup
+      winCup.addEventListener('click', toggleWinner);
+      teamDiv.addEventListener('click', toggleWinner);
+
+      teamDiv.appendChild(winCup);
+
+      // 🔁 Swap logic (unchanged)
+
+      return teamDiv;
+    };
+
+    const teamLeft = makeTeamDiv('L');
+    const teamRight = makeTeamDiv('R');
+
+    const vsDivider = document.createElement('div');
+    vsDivider.className = 'vs-divider';
+    vsDivider.innerHTML = `<div class="vs-line"></div><span>${t('vsLabel')}</span><div class="vs-line"></div>`;
+
+    teamsDiv.append(teamLeft, vsDivider, teamRight);
+    courtDiv.append(courtName, teamsDiv);
+    wrapper.appendChild(courtDiv);
+  });
+
+  return wrapper;
+}
+
+
+function renderGames2(data, index) {
+  const wrapper = document.createElement('div');
+  const playmode = getPlayMode(); // "competitive" or "random"
+
+  data.games.forEach((game, gameIndex) => {
+    const courtDiv = document.createElement('div');
+    courtDiv.className = `courtcard court-${gameIndex + 1}`;
+
+    const courtName = document.createElement('div');
+    courtName.classList.add('courtname');
+    courtName.textContent = `Court ${gameIndex + 1}`;
+
+    const teamsDiv = document.createElement('div');
+    teamsDiv.className = 'teams';
+
+    const makeTeamDiv = (teamSide) => {
+      const teamDiv = document.createElement('div');
+      teamDiv.className = 'team';
+      teamDiv.dataset.teamSide = teamSide;
+      teamDiv.dataset.gameIndex = gameIndex;
+
+      // 🔁 Swap icon
+
+      // 👥 Players
+      const teamPairs = teamSide === 'L' ? game.pair1 : game.pair2;
+      teamPairs.forEach((p, i) => {
+        teamDiv.appendChild(
+          makePlayerButton(p, teamSide, gameIndex, i, data, index)
+        );
+      });
+
+      // 🏆 Win cup
+      const winCup = document.createElement('img');
+      winCup.src = 'win-cup.png';
+      winCup.className = 'win-cup blinking';
+      winCup.title = t('markWinner');
+
+      // Start hidden
+      winCup.style.visibility = 'hidden';
+      winCup.style.pointerEvents = 'none';
+
+      // Restore state
+      if (game.winner === teamSide) {
+        winCup.classList.add('active');
+        winCup.classList.remove('blinking');
+        winCup.style.visibility = 'visible';
+        winCup.style.pointerEvents = 'auto';
+      }
+
+      // 🏆 Win-cup logic (competitive mode only)
+      if (playmode === 'competitive') {
+        winCup.addEventListener('click', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+
+          const allCups = teamDiv.parentElement.querySelectorAll('.win-cup');
+          const isActive = winCup.classList.contains('active');
+
+          if (!isActive) {
+            // ---- ACTIVATE THIS TEAM ----
+            allCups.forEach(cup => {
+              cup.classList.remove('active', 'blinking');
+              cup.style.visibility = 'hidden';
+              cup.style.pointerEvents = 'none';
+            });
+
+            winCup.classList.add('active');
+            winCup.style.visibility = 'visible';
+            winCup.style.pointerEvents = 'auto';
+
+            // Disable swaps while busy
+
+            game.winner = teamSide;
+            game.winners = teamPairs.slice();
+            if (typeof saveRoundsToDb === "function") saveRoundsToDb();
+          } else {
+            // ---- RESET TO IDLE ----
+            allCups.forEach(cup => {
+              cup.classList.remove('active');
+              cup.classList.add('blinking');
+              cup.style.visibility = 'hidden';
+              cup.style.pointerEvents = 'none';
+            });
+
+            // Re-enable swaps
+
+            game.winner = undefined;
+            game.winners = [];
+            if (typeof saveRoundsToDb === "function") saveRoundsToDb();
+          }
+        });
+      }
+
+      teamDiv.appendChild(winCup);
+
+      // ── Team swap via tap on teamDiv (same feel as player tap) ──
+      const isLatestRound_ts = index === allRounds.length - 1;
+      if (isLatestRound_ts) {
+        let _tsStartX = 0, _tsStartY = 0;
+        teamDiv.addEventListener('touchstart', e => {
+          if (game.winner) return;
+          if (e.target.closest('button, .win-cup')) return;
+          _tsStartX = e.touches[0].clientX;
+          _tsStartY = e.touches[0].clientY;
+        }, { passive: true });
+        teamDiv.addEventListener('touchend', e => {
+          if (game.winner) return;
+          if (e.target.closest('button, .win-cup')) return;
+          const dx = Math.abs(e.changedTouches[0].clientX - _tsStartX);
+          const dy = Math.abs(e.changedTouches[0].clientY - _tsStartY);
+          if (dx > 6 || dy > 6) return; // scroll — ignore
+          if (window.selectedTeam) {
+            const src = window.selectedTeam;
+            if (src.gameIndex !== gameIndex) {
+              handleTeamSwapAcrossCourts(src, { teamSide, gameIndex }, data, index);
+            }
+            window.selectedTeam = null;
+            document.querySelectorAll('.selected-team').forEach(b => b.classList.remove('selected-team'));
+          } else {
+            window.selectedTeam = { teamSide, gameIndex };
+            teamDiv.classList.add('selected-team');
+          }
+        }, { passive: true });
+        teamDiv.addEventListener('touchcancel', () => { _tsStartX = 0; _tsStartY = 0; }, { passive: true });
+      }
+
+      // 🔁 Swap logic (EXACTLY like renderGamesold)
+
+      return teamDiv;
+    };
+
+    const teamLeft = makeTeamDiv('L');
+    const teamRight = makeTeamDiv('R');
+
+    const vsDivider = document.createElement('div');
+    vsDivider.className = 'vs-divider';
+    vsDivider.innerHTML = `<div class="vs-line"></div><span>${t('vsLabel')}</span><div class="vs-line"></div>`;
+
+    teamsDiv.append(teamLeft, vsDivider, teamRight);
+    courtDiv.append(courtName, teamsDiv);
+    wrapper.appendChild(courtDiv);
+
+    // Restore visibility if winner exists
+    if (playmode === 'competitive' && game.winner) {
+      teamsDiv.querySelectorAll('.win-cup').forEach(cup => {
+        if (!cup.classList.contains('active')) {
+          cup.style.visibility = 'hidden';
+          cup.style.pointerEvents = 'none';
+        }
+      });
+    }
+  });
+
+  return wrapper;
+}
+
+
+
+
+
+function updateWinCupVisibility() {
+  const playmode = getPlayMode();
+  document.querySelectorAll('.win-cup').forEach(cup => {
+    cup.style.display = playmode === "competitive" ? "" : "none";
+  });
+}
+
+
+function renderRestingPlayers(data, index) {
+  const restDiv = document.createElement('div');
+  restDiv.className = 'round-header';
+  restDiv.style.paddingLeft = "12px";
+
+  //const title = document.createElement('div');
+  //title.setAttribute("data-i18n", "sittingOut");
+  //restDiv.appendChild(title);
+  const title = document.createElement('div');
+title.dataset.i18n = 'sittingOut';
+title.textContent = t('sittingOut');
+restDiv.appendChild(title);
+  const restBox = document.createElement('div');
+  restBox.className = 'rest-box';
+
+  if (!data.resting || data.resting.length === 0) {
+    const span = document.createElement('span');
+    span.innerText = t('noneGame');
+    restBox.appendChild(span);
+  } else {
+    data.resting.forEach(restName => {
+      // 🔑 Extract real player name (before #)
+      const baseName = restName.split('#')[0];
+
+      const playerObj = schedulerState.allPlayers.find(
+        p => p.name === baseName
+      );
+
+      if (playerObj) {
+        restBox.appendChild(
+          makeRestButton(
+            { ...playerObj, displayName: restName }, // keep #count
+            data,
+            index
+          )
+        );
+      }
+    });
+  }
+
+  restDiv.appendChild(restBox);
+  return restDiv;
+}
+
+
+
+
+function getGenderByName(playerName) {
+  const p = schedulerState.allPlayers.find(pl => pl.name === playerName);
+  return p ? p.gender : null; // "Male" | "Female"
+}
+
+function getTeamTypeFromPairs(playerNames) {
+  let hasMale = false;
+  let hasFemale = false;
+
+  for (const name of playerNames) {
+    const gender = getGenderByName(name);
+
+    if (gender === "Male") hasMale = true;
+    if (gender === "Female") hasFemale = true;
+  }
+
+  if (hasMale && hasFemale) return "mixed";
+  if (hasMale) return "men";
+  if (hasFemale) return "women";
+
+  return "unknown";
+}
+
+
+/* ── Rating Ring Helper ──────────────────────────────────────────────────── */
+function createRatingRing(playerName, gender) {
+  const rating  = typeof getActiveRating === 'function' ? getActiveRating(playerName) : 1.0;
+  const pct     = Math.max(0, Math.min(1, (rating - 1.0) / 4.0));
+  const size    = 30;
+  const r       = 13;
+  const cx = size / 2, cy = size / 2;
+  const circ    = 2 * Math.PI * r;
+  const dash    = circ * pct;
+  const gap     = circ - dash;
+  const segG    = 1.5;
+  const segs    = 12;
+  const segL    = (circ / segs) - segG;
+  let color = '#f44336';
+  if (rating >= 4.0)      color = '#4caf50';
+  else if (rating >= 3.0) color = '#2196f3';
+  else if (rating >= 2.0) color = '#ff9800';
+  const iconSrc = gender === 'Female' ? 'female.png' : 'male.png';
+  const wrap = document.createElement('div');
+  wrap.className = 'rating-ring-wrap';
+  wrap.innerHTML = `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"
+         style="position:absolute;top:0;left:0;transform:rotate(-90deg)">
+      <circle cx="${cx}" cy="${cy}" r="${r}"
+        fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"
+        stroke-dasharray="${segL.toFixed(1)} ${segG}"
+        stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}"
+        fill="none" stroke="${color}" stroke-width="3"
+        stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
+        stroke-linecap="round" opacity="0.9"/>
+    </svg>
+    <img src="${iconSrc}" alt="${gender || 'Male'}"
+         class="gender-icon rating-ring-icon"/>
+  `;
+  return wrap;
+}
+
+/* ── Rating Ring ── */
+function createRatingRing(playerName, gender) {
+  const rating  = typeof getActiveRating === 'function' ? getActiveRating(playerName) : 1.0;
+  const pct     = Math.max(0, Math.min(1, (rating - 1.0) / 4.0));
+  const size    = 30; const r = 13; const cx = 15; const cy = 15;
+  const circ    = 2 * Math.PI * r;
+  const dash    = circ * pct; const gap = circ - dash;
+  const segG    = 1.5; const segL = (circ / 12) - segG;
+  let color = '#f44336';
+  if (rating >= 4.0) color = '#4caf50';
+  else if (rating >= 3.0) color = '#2196f3';
+  else if (rating >= 2.0) color = '#ff9800';
+  const iconSrc = gender === 'Female' ? 'female.png' : 'male.png';
+  const wrap = document.createElement('div');
+  wrap.className = 'rating-ring-wrap';
+  wrap.innerHTML =
+    '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" style="position:absolute;top:0;left:0;transform:rotate(-90deg)">' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3" stroke-dasharray="' + segL.toFixed(1) + ' ' + segG + '" stroke-linecap="round"/>' +
+      '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="3" stroke-dasharray="' + dash.toFixed(2) + ' ' + gap.toFixed(2) + '" stroke-linecap="round" opacity="0.9"/>' +
+    '</svg>' +
+    '<img src="' + iconSrc + '" alt="' + (gender||'Male') + '" class="gender-icon rating-ring-icon"/>';
+  return wrap;
+}
+
+function makeRestButton(player, data, index) {
+  const btn = document.createElement('button');
+  btn.className = 'rest-btn';
+
+  // ───────── GENDER ICON with rating ring ─────────
+  const restName = player.displayName || player.name || '';
+  const restGender = player?.gender || 'Male';
+  btn.appendChild(createRatingRing(restName, restGender));
+
+  // ───────── LABEL ─────────
+  const label = player.displayName || player.name;
+  const textNode = document.createElement('span');
+  textNode.innerText = label;
+  btn.appendChild(textNode);
+
+  /* ───────── COLOR LOGIC ───────── */
+
+  const restMatch = label.match(/#(\d+)/);
+  const restCount = restMatch ? parseInt(restMatch[1], 10) : 0;
+
+  if (IS_MIXED_SESSION && player?.gender) {
+    // Gender-based hue + rest-based lightness
+    const hue = player.gender === "Male" ? 200 : 330;
+    const lightness = Math.min(90, 65 + restCount * 5);
+
+    btn.style.backgroundColor = `hsl(${hue}, 70%, ${lightness}%)`;
+    btn.style.color = "#000";
+  } else {
+    // Original rest-count coloring
+    if (restMatch) {
+      const hue = (restCount * 40) % 360;
+      btn.style.backgroundColor = `hsl(${hue}, 60%, 85%)`;
+    } else {
+      btn.style.backgroundColor = '#eee';
+    }
+    btn.style.color = "#000";
+  }
+
+  /* ─────────────────────────────── */
+
+  const isLatestRound = index === allRounds.length - 1;
+  if (!isLatestRound) return btn;
+
+  const handleTap = (e) => {
+    e.preventDefault();
+
+    if (window.selectedPlayer) {
+      const src = window.selectedPlayer;
+      if (src.from === 'team') {
+        handleDropRestToTeam(
+          e,
+          src.teamSide,
+          src.gameIndex,
+          src.playerIndex,
+          data,
+          index,
+          label
+        );
+      }
+      window.selectedPlayer = null;
+      document
+        .querySelectorAll('.selected')
+        .forEach(b => b.classList.remove('selected'));
+    } else {
+      window.selectedPlayer = { playerName: label, from: 'rest' };
+      btn.classList.add('selected');
+    }
+  };
+
+  btn.addEventListener('click', handleTap);
+  // Scroll-safe tap: only fire on touchend if finger barely moved
+  let _tapStartY_rest = 0;
+  btn.addEventListener('touchstart', e => { _tapStartY_rest = e.touches[0].clientY; }, { passive: true });
+  btn.addEventListener('touchend', e => {
+    if (Math.abs(e.changedTouches[0].clientY - _tapStartY_rest) < 8) handleTap(e);
+  }, { passive: false });
+
+  return btn;
+}
+
+function makePlayerButton(name, teamSide, gameIndex, playerIndex, data, index) {
+  const btn = document.createElement('button');
+
+  // Get player object
+  const baseName = name.split('#')[0];
+  const player = schedulerState.allPlayers.find(p => p.name === baseName);
+
+  btn.className = teamSide === 'L'
+    ? 'Lplayer-btn'
+    : 'Rplayer-btn';
+
+  /* ───────── AVATAR with rating ring ───────── */
+  const playerNameClean = name.split('#')[0];
+  btn.appendChild(createRatingRing(playerNameClean, player?.gender || 'Male'));
+
+  /* ───────── PLAYER NAME ───────── */
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'player-name';
+  nameSpan.textContent = name.split('#')[0];
+  nameSpan.title = name;
+  btn.appendChild(nameSpan);
+
+  /* ───────────────────────────────────── */
+
+  const isLatestRound = index === allRounds.length - 1;
+  if (!isLatestRound) return btn;
+
+  const handleTap = (e) => {
+    e.preventDefault();
+
+    if (window.selectedPlayer) {
+      const src = window.selectedPlayer;
+
+      if (src.from === 'rest') {
+        handleDropRestToTeam(
+          e,
+          teamSide,
+          gameIndex,
+          playerIndex,
+          data,
+          index,
+          src.playerName
+        );
+      } else {
+        handleDropBetweenTeams(
+          e,
+          teamSide,
+          gameIndex,
+          playerIndex,
+          data,
+          index,
+          src
+        );
+      }
+
+      window.selectedPlayer = null;
+      document
+        .querySelectorAll('.selected')
+        .forEach(b => b.classList.remove('selected'));
+    } else {
+      window.selectedPlayer = {
+        playerName: name,
+        teamSide,
+        gameIndex,
+        playerIndex,
+        from: 'team'
+      };
+      btn.classList.add('selected');
+    }
+  };
+
+  btn.addEventListener('click', handleTap);
+  // Scroll-safe tap: threshold scales with name length — short names need tighter boundary
+  // Short name (≤4 chars) → 5px, medium (≤8) → 8px, long → 12px
+  const _nameLen = name.split('#')[0].length;
+  const _tapThreshold_player = _nameLen <= 4 ? 5 : _nameLen <= 8 ? 8 : 12;
+  let _tapStartY_player = 0;
+  btn.addEventListener('touchstart', e => { _tapStartY_player = e.touches[0].clientY; }, { passive: true });
+  btn.addEventListener('touchend', e => {
+    if (Math.abs(e.changedTouches[0].clientY - _tapStartY_player) < _tapThreshold_player) handleTap(e);
+  }, { passive: false });
+
+  return btn;
+}
+
+
+function xxxmakePlayerButton(name, teamSide, gameIndex, playerIndex, data, index) {
+  const btn = document.createElement('button');
+
+  // Determine if gender icons should be shown
+  const showGender = IS_MIXED_SESSION;
+
+  // Get player object
+  const baseName = name.split('#')[0];
+  const player = schedulerState.allPlayers.find(p => p.name === baseName);
+  
+  btn.textContent = name;
+  btn.className = teamSide === 'L' ? 'Lplayer-btn' : 'Rplayer-btn';
+  
+
+  /* ───────── COLOR OVERRIDE ───────── */
+if (IS_MIXED_SESSION && player?.gender) {
+  const genderBtn = document.createElement('span');
+  genderBtn.className =
+    'gender-btn ' +
+    (player.gender === 'Female' ? 'female' : 'male');
+
+  genderBtn.textContent =
+   //player.gender === 'Female' ? '👩' : '👨';
+   player.gender === 'Female' ? "🙎‍♀️" : "👨‍💼" ;
+    
+  btn.prepend(genderBtn);
+}
+
+  /* ───────────────────────────────── */
+
+  const isLatestRound = index === allRounds.length - 1;
+  if (!isLatestRound) return btn;
+
+  const handleTap = (e) => {
+    e.preventDefault();
+
+    if (window.selectedPlayer) {
+      const src = window.selectedPlayer;
+
+      if (src.from === 'rest') {
+        handleDropRestToTeam(
+          e,
+          teamSide,
+          gameIndex,
+          playerIndex,
+          data,
+          index,
+          src.playerName
+        );
+      } else {
+        handleDropBetweenTeams(
+          e,
+          teamSide,
+          gameIndex,
+          playerIndex,
+          data,
+          index,
+          src
+        );
+      }
+
+      window.selectedPlayer = null;
+      document.querySelectorAll('.selected')
+        .forEach(b => b.classList.remove('selected'));
+    } else {
+      window.selectedPlayer = {
+        playerName: name,
+        teamSide,
+        gameIndex,
+        playerIndex,
+        from: 'team'
+      };
+      btn.classList.add('selected');
+    }
+  };
+
+  btn.addEventListener('click', handleTap);
+  btn.addEventListener('touchstart', handleTap);
+
+  return btn;
+}
+
+
+
+
+function xxxmakeRestButton(player, data, index) {
+  const btn = document.createElement('button');
+
+  let genderIcon = "";
+  if (IS_MIXED_SESSION) {
+    genderIcon =
+      player.gender === "Male" ? "👨‍💼 " :
+      player.gender === "Female" ?"🙎‍♀️ "  :
+      "";
+  }
+
+  const label = player.displayName || player.name;
+  btn.innerText = `${genderIcon}${label}`;
+  btn.className = 'rest-btn';
+
+  /* ───────── COLOR LOGIC ───────── */
+
+  const restMatch = label.match(/#(\d+)/);
+  const restCount = restMatch ? parseInt(restMatch[1], 10) : 0;
+
+  if (IS_MIXED_SESSION && genderIcon) {
+    // 🎨 Gender base hue + rest-based lightness
+    const hue = player.gender === "Male" ? 200 : 330;
+    const lightness = Math.min(90, 65 + restCount * 5); // lighter with rest
+
+    btn.style.backgroundColor = `hsl(${hue}, 70%, ${lightness}%)`;
+    btn.style.color = "#000";
+  } else {
+    // ♻️ Original rest-count rainbow
+    if (restMatch) {
+      const hue = (restCount * 40) % 360;
+      btn.style.backgroundColor = `hsl(${hue}, 60%, 85%)`;
+    } else {
+      btn.style.backgroundColor = '#eee';
+    }
+    btn.style.color = "#000";
+  }
+
+  /* ─────────────────────────────── */
+
+  const isLatestRound = index === allRounds.length - 1;
+  if (!isLatestRound) return btn;
+
+  const handleTap = (e) => {
+    e.preventDefault();
+
+    if (window.selectedPlayer) {
+      const src = window.selectedPlayer;
+      if (src.from === 'team') {
+        handleDropRestToTeam(
+          e,
+          src.teamSide,
+          src.gameIndex,
+          src.playerIndex,
+          data,
+          index,
+          label
+        );
+      }
+      window.selectedPlayer = null;
+      document.querySelectorAll('.selected')
+        .forEach(b => b.classList.remove('selected'));
+    } else {
+      window.selectedPlayer = { playerName: label, from: 'rest' };
+      btn.classList.add('selected');
+    }
+  };
+
+  btn.addEventListener('click', handleTap);
+  btn.addEventListener('touchstart', handleTap);
+
+  return btn;
+}
+
+
+function makeTeamButton(label, teamSide, gameIndex, data, index) {
+  const btn = document.createElement('button');
+  btn.className = 'team-btn';
+  btn.innerText = label; // Visible label stays simple (Team L / Team R)
+  // Store internal unique info in dataset
+  btn.dataset.gameIndex = gameIndex;
+  btn.dataset.teamSide = teamSide;
+  const isLatestRound = index === allRounds.length - 1;
+  if (!isLatestRound) return btn;
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (window.selectedTeam) {
+      const src = window.selectedTeam;
+      if (src.gameIndex !== gameIndex) {
+        handleTeamSwapAcrossCourts(src, { teamSide, gameIndex }, data, index);
+      }
+      window.selectedTeam = null;
+      document.querySelectorAll('.selected-team').forEach(b => b.classList.remove('selected-team'));
+    } else {
+      // Store internal info for selection
+      window.selectedTeam = { teamSide, gameIndex };
+      btn.classList.add('selected-team');
+    }
+  });
+  return btn;
+}
+
+function handleDropRestToTeam(
+  e, teamSide, gameIndex, playerIndex, data, roundIndex, movingPlayer = null
+) {
+  const drop = !movingPlayer && e.dataTransfer
+    ? JSON.parse(e.dataTransfer.getData('text/plain'))
+    : { type: 'rest', player: movingPlayer };
+
+  if (drop.type !== 'rest' || !drop.player) return;
+
+  const teamKey = teamSide === 'L' ? 'pair1' : 'pair2';
+
+  const newPlayer = drop.player.replace(/#\d+$/, '');
+  const oldPlayer = data.games[gameIndex][teamKey][playerIndex];
+
+  // Remove the new player from data.resting
+  data.resting = data.resting.filter(p => !p.startsWith(newPlayer));
+
+  // Insert new player into team
+  data.games[gameIndex][teamKey][playerIndex] = newPlayer;
+
+  // ---------------------------------------------
+  // 🔥 schedulerState.restCount is READ-ONLY
+  // ---------------------------------------------
+  const { restCount } = schedulerState;
+
+  if (oldPlayer && oldPlayer !== t('emptyGame')) {
+
+    // Read only value
+    const stored = restCount.get(oldPlayer) || 0;
+
+    // UI number = scheduler stored + 1
+    const nextNum = stored + 1;
+
+    // Add to data.resting
+    data.resting.push(`${oldPlayer}#${nextNum}`);
+  }
+
+  showRound(roundIndex);
+}
+
+function handleDropBetweenTeams(e, teamSide, gameIndex, playerIndex, data, index, src) {
+  // src contains info about the player you selected first
+  const { teamSide: fromTeamSide, gameIndex: fromGameIndex, playerIndex: fromPlayerIndex, playerName: player } = src;
+  if (!player || player === t('emptyGame')) return;
+  const fromTeamKey = fromTeamSide === 'L' ? 'pair1' : 'pair2';
+  const toTeamKey = teamSide === 'L' ? 'pair1' : 'pair2';
+  const fromTeam = data.games[fromGameIndex][fromTeamKey];
+  const toTeam = data.games[gameIndex][toTeamKey];
+  // No need to strip #index anymore
+  const movedPlayer = player;
+  const targetPlayer = toTeam[playerIndex];
+  // ✅ Swap players
+  toTeam[playerIndex] = movedPlayer;
+  fromTeam[fromPlayerIndex] = targetPlayer && targetPlayer !== t('emptyGame') ? targetPlayer : t('emptyGame');
+  showRound(index);
+}
+
+// Add a global flag to prevent concurrent swaps
+let swapInProgress = false;
+const swapQueue = [];
+
+function handleTeamSwapAcrossCourts(src, target, data, index) {
+  if (!src || !target) return;
+  if (src.gameIndex === target.gameIndex && src.teamSide === target.teamSide) return;
+
+  // Queue the swap if another is in progress
+  if (swapInProgress) {
+    swapQueue.push({ src, target, data, index });
+    return;
+  }
+
+  swapInProgress = true;
+
+  const srcKey = src.teamSide === 'L' ? 'pair1' : 'pair2';
+  const targetKey = target.teamSide === 'L' ? 'pair1' : 'pair2';
+
+  // Fetch teams immediately before swapping
+  const srcTeam = data.games[src.gameIndex][srcKey];
+  const targetTeam = data.games[target.gameIndex][targetKey];
+
+  // Animation highlight
+  const srcDiv = document.querySelector(`.team[data-game-index="${src.gameIndex}"][data-team-side="${src.teamSide}"]`);
+  const targetDiv = document.querySelector(`.team[data-game-index="${target.gameIndex}"][data-team-side="${target.teamSide}"]`);
+  [srcDiv, targetDiv].forEach(div => {
+    div.classList.add('swapping');
+    setTimeout(() => div.classList.remove('swapping'), 600);
+  });
+
+  setTimeout(() => {
+    // Swap teams safely using temporary variable
+    const temp = data.games[src.gameIndex][srcKey];
+    data.games[src.gameIndex][srcKey] = data.games[target.gameIndex][targetKey];
+    data.games[target.gameIndex][targetKey] = temp;
+
+    // Refresh the round
+    showRound(index);
+
+    swapInProgress = false;
+
+    // Process next swap in queue if any
+    if (swapQueue.length > 0) {
+      const nextSwap = swapQueue.shift();
+      handleTeamSwapAcrossCourts(nextSwap.src, nextSwap.target, nextSwap.data, nextSwap.index);
+    }
+  }, 300);
+}
+
+
+/* =========================
+ 
+MOBILE BEHAVIOR
+ 
+========================= */
+function enableTouchDrag(el) {
+  let offsetX = 0, offsetY = 0;
+  let clone = null;
+  let isDragging = false;
+  const startDrag = (x, y) => {
+    const rect = el.getBoundingClientRect();
+    offsetX = x - rect.left;
+    offsetY = y - rect.top;
+    clone = el.cloneNode(true);
+    clone.style.position = 'fixed';
+    clone.style.left = `${rect.left}px`;
+    clone.style.top = `${rect.top}px`;
+    clone.style.width = `${rect.width}px`;
+    clone.style.opacity = '0.7';
+    clone.style.zIndex = 9999;
+    clone.classList.add('dragging');
+    document.body.appendChild(clone);
+    isDragging = true;
+  };
+  const moveDrag = (x, y) => {
+    if (!clone) return;
+    clone.style.left = `${x - offsetX}px`;
+    clone.style.top = `${y - offsetY}px`;
+  };
+  const endDrag = () => {
+    if (clone) {
+      clone.remove();
+      clone = null;
+    }
+    isDragging = false;
+  };
+  // --- Touch Events ---
+  // 300ms long-press before drag activates — longer than player swap (200ms)
+  // so the two interactions feel clearly distinct. Quick swipe = scroll.
+  let _dragLongPressTimer = null;
+  let _dragTouchStartX = 0;
+  let _dragTouchStartY = 0;
+  const DRAG_LONG_PRESS_MS = 300;
+  const DRAG_MOVE_CANCEL_PX = 6;
+
+  el.addEventListener('touchstart', e => {
+    const touch = e.touches[0];
+    _dragTouchStartX = touch.clientX;
+    _dragTouchStartY = touch.clientY;
+    // Don't preventDefault yet — let browser decide scroll vs drag
+    _dragLongPressTimer = setTimeout(() => {
+      startDrag(touch.clientX, touch.clientY);
+      if (navigator.vibrate) navigator.vibrate(40); // stronger haptic than player swap
+    }, DRAG_LONG_PRESS_MS);
+  }, { passive: true });
+
+  el.addEventListener('touchmove', e => {
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - _dragTouchStartX);
+    const dy = Math.abs(touch.clientY - _dragTouchStartY);
+    if (!isDragging) {
+      // Cancel long-press if finger moved before threshold
+      if (dx > DRAG_MOVE_CANCEL_PX || dy > DRAG_MOVE_CANCEL_PX) {
+        clearTimeout(_dragLongPressTimer);
+        _dragLongPressTimer = null;
+      }
+      return; // not dragging yet — don't block scroll
+    }
+    e.preventDefault(); // drag active — block scroll
+    moveDrag(touch.clientX, touch.clientY);
+  }, { passive: false });
+
+  el.addEventListener('touchend', e => {
+    clearTimeout(_dragLongPressTimer);
+    _dragLongPressTimer = null;
+    endDrag();
+  }, { passive: true });
+
+  el.addEventListener('touchcancel', e => {
+    clearTimeout(_dragLongPressTimer);
+    _dragLongPressTimer = null;
+    endDrag();
+  }, { passive: true });
+  // --- Mouse Events ---
+  el.addEventListener('mousedown', e => {
+    startDrag(e.clientX, e.clientY);
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (isDragging) moveDrag(e.clientX, e.clientY);
+  });
+  document.addEventListener('mouseup', endDrag);
+}
+
+
+let interactionLocked = true;
+
+// Apply initial state
+document.body.classList.add('locked');
+
+const lockBtn = document.getElementById('lockToggleBtn');
+
+lockBtn.addEventListener('click', () => {
+  if (typeof appMode !== 'undefined' && appMode === 'viewer') return;
+  // Cannot unlock during active round
+  if (currentState === "active") return;
+  interactionLocked = !interactionLocked;
+  document.body.classList.toggle('locked', interactionLocked);
+  lockBtn.src = interactionLocked ? 'lock.png' : 'unlock.png';
+  lockBtn.alt = interactionLocked ? 'Lock' : t('unlockBtn');
+  _syncModeBanner();
+  _syncShuffleBtn();
+});
+
+// ── Mode banner sync ──────────────────────────────────────────
+function _syncModeBanner() {
+  const badge = document.getElementById('roundModeBadge');
+  if (!badge) return;
+
+  if (currentState === "active") {
+    badge.className = 'mode-banner-badge live-mode';
+    badge.textContent = t('liveBadge') || 'LIVE';
+  } else if (!interactionLocked) {
+    badge.className = 'mode-banner-badge setup-mode';
+    badge.textContent = t('setupBadge') || 'SETUP';
+  } else {
+    badge.className = 'mode-banner-badge ready-mode';
+    badge.textContent = t('readyBadge') || 'READY';
+  }
+}
+
+// ── Shuffle button sync ───────────────────────────────────────
+function _syncShuffleBtn() {
+  const btn = document.getElementById('roundShufle');
+  if (!btn) return;
+  // Shuffle allowed in idle regardless of lock state; disabled during active round
+  const allow = currentState !== "active";
+  btn.disabled = !allow;
+  btn.classList.toggle('disabled-btn', !allow);
+}
+
+
+
+
+
+
+
+
+
+function getPlayMode() {
+  return document.getElementById("modeToggle").checked
+    ? "competitive"
+    : "random";
+}
+
+const modeToggle = document.getElementById("modeToggle");
+const modeLabel  = document.getElementById("modeLabel");
+
+// Restore saved mode
+modeToggle.checked = localStorage.getItem("playMode") === "competitive";
+updateModeLabel();
+toggleMinRoundsVisibility(); // ← restore on load
+
+modeToggle.addEventListener("change", () => {
+  localStorage.setItem("playMode", getPlayMode());
+  updateModeLabel();
+  toggleMinRoundsVisibility();
+});
+
+// Min Rounds value
+// minRoundsRow removed from UI -- no warm-up concept
+
+
+
+function toggleMinRoundsVisibility() {
+  // no-op: minRoundsRow removed
+}
+
+function updateModeLabel() {
+  const lbl = document.getElementById('modeLabel');
+  if (lbl) lbl.textContent = getPlayMode() === "competitive" ? "🏆" : "🎲";
+}
+
+// Check if all games in current round have winners -- enable End button
+function checkAllWinnersMarked() {
+  const round = allRounds[currentRoundIndex];
+  if (!round || !round.games || !round.games.length) return;
+  const allMarked = round.games.every(g => g.winner);
+  const endBtn = document.getElementById('endBtn');
+  if (endBtn) {
+    endBtn.style.opacity = allMarked ? '1' : '';
+    endBtn.style.boxShadow = allMarked ? '0 0 0 2px #2dce89' : '';
+    endBtn.title = allMarked ? '' : '';
+  }
+  // Save snapshot whenever winner state changes
+  if (typeof saveSnapshot === 'function') saveSnapshot();
+}
+
+// toggleRoundSettings -- unified version
+function toggleRoundSettings() {
+  const overlay = document.getElementById('roundSettingsOverlay');
+  if (!overlay) return;
+  const isOpen = overlay.style.display === 'flex';
+  if (isOpen) {
+    closeRoundSettings();
+  } else {
+    overlay.style.display = 'flex';
+    updateGearPairsSub();
+    // Sync courts variable from schedulerState before updating buttons
+    if (typeof courts !== 'undefined' && schedulerState && schedulerState.numCourts) {
+      courts = schedulerState.numCourts;
+      const el = document.getElementById('num-courts');
+      if (el) el.textContent = courts;
+    }
+    if (typeof updateCourtButtons === 'function') updateCourtButtons();
+  }
+}
+
+function closeRoundSettings(e) {
+  // Called directly from × button (no event) or from overlay backdrop click
+  if (e && e.target !== document.getElementById('roundSettingsOverlay')) return;
+  const overlay = document.getElementById('roundSettingsOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function showRoundHistory() {
+  renderRoundHistory();
+  const overlay = document.getElementById('roundHistoryOverlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function closeRoundHistory(e) {
+  // Called directly from × button (no event) or from overlay backdrop click
+  if (e && e.target !== document.getElementById('roundHistoryOverlay')) return;
+  const overlay = document.getElementById('roundHistoryOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+/* ── Update Fixed Pairs subtitle in gear panel ── */
+function updateGearPairsSub() {
+  const el = document.getElementById('gearSubPairs');
+  if (!el) return;
+  const n = (typeof schedulerState !== 'undefined' && schedulerState.fixedPairs)
+    ? schedulerState.fixedPairs.length : 0;
+  el.textContent = n > 0
+    ? n + ' ' + (n === 1 ? (t('pairSet')||'pair set') : (t('pairsSet')||'pairs set'))
+    : (t('optional')||'Optional');
+}
+
+/* ── Round History -- same style as Summary, no ranking, newest first ── */
+function renderRoundHistory() {
+  const container = document.getElementById('roundHistoryContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!Array.isArray(allRounds) || allRounds.length === 0) return;
+
+  // Only show PAST completed rounds -- skip current active round
+  // A round is completed if all its games have a winner marked
+  const pastRounds = [];
+  for (let i = 0; i < allRounds.length; i++) {
+    const round = allRounds[i];
+    if (!round || !round.games || !round.games.length) continue;
+    const allMarked = round.games.every(g => g.winner);
+    // Skip current round (last) if not all winners marked
+    if (i === currentRoundIndex && !allMarked) continue;
+    if (allMarked) pastRounds.push({ round, index: i });
+  }
+
+  if (!pastRounds.length) return;
+
+  // Visual separator between settings and rounds history
+  const sep = document.createElement('div');
+  sep.style.cssText = 'margin:14px 0 10px;border-top:1px solid var(--border2);padding-top:12px;';
+  const sepLabel = document.createElement('div');
+  sepLabel.style.cssText = 'font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600;margin-bottom:8px;';
+  sepLabel.textContent = t('roundsLabel') || 'Round History';
+  sep.appendChild(sepLabel);
+  container.appendChild(sep);
+
+  // Set _vRoundsData so _vBuildRound can work
+  window._vRoundsData = allRounds;
+
+  // Render past rounds newest first
+  for (let i = pastRounds.length - 1; i >= 0; i--) {
+    if (typeof _vBuildRound === 'function') {
+      const roundEl = _vBuildRound(pastRounds[i].round);
+      container.appendChild(roundEl);
+    }
+  }
+}
+
+// ── Points helpers ────────────────────────────────────────────
+function applyResult(player, isWin, rankPoints, streakMap) {
+  const streak = streakMap.get(player) || 0;
+  let delta = isWin ? 2 : -2;
+  if (isWin && streak > 0)  delta += 1;
+  if (!isWin && streak < 0) delta -= 1;
+  streakMap.set(player, isWin ? Math.max(streak, 0) + 1 : Math.min(streak, 0) - 1);
+  rankPoints.set(player, (rankPoints.get(player) || 100) + delta);
+}
+
+function updatePointsAfterRound(state) {
+  const round = allRounds[allRounds.length - 1];
+  if (!round?.games) return;
+  for (const game of round.games) {
+    if (!game.winner || !game.pair1 || !game.pair2) continue;
+    const winners = game.winner === 'L' ? game.pair1 : game.pair2;
+    const losers  = game.winner === 'L' ? game.pair2 : game.pair1;
+    for (const p of winners) applyResult(p, true,  state.rankPoints, state.streakMap);
+    for (const p of losers)  applyResult(p, false, state.rankPoints, state.streakMap);
+  }
+}
