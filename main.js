@@ -330,7 +330,7 @@ function _guideRender() {
     var clickable = !locked;
 
     return '<div class="ml-guide-step' + (done ? ' ml-guide-done' : '') + (locked ? ' ml-guide-locked' : '') + '"'
-      + (clickable ? ' onclick="mlGuideGo('' + step.action + '')"' : '') + '>'
+      + (clickable ? ' onclick="mlGuideGo(\'' + step.action + '\')"' : '') + '>'
       + '<div class="ml-guide-num">' + (done ? '✓' : (i + 1)) + '</div>'
       + '<div class="ml-guide-info">'
         + '<div class="ml-guide-title">' + step.title + '</div>'
