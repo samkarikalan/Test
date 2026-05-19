@@ -3,49 +3,49 @@
    Caches app shell for offline use
    ============================================= */
 
-const CACHE_NAME = 'club-scheduler-v006';
+const CACHE_NAME = 'club-scheduler-v007';
 
 const ASSETS = [
-  './index.html?v=006',
-  './ui.css?v=006',
-  './rounds.css?v=006',
-  './main.js?v=006',
-  './HomeScreen.js?v=006',
-  './home.js?v=006',
-  './settings.js?v=006',
-  './players.js?v=006',
-  './rounds.js?v=006',
-  './games.js?v=006',
-  './summary.js?v=006',
-  './dashboard.js?v=006',
-  './viewer.js?v=006',
-  './report.js?v=006',
-  './profile.js?v=006',
-  './auth.js?v=006',
-  './authUI.js?v=006',
-  './subscription.js?v=006',
-  './supabase.js?v=006',
-  './importPlayers.js?v=006',
-  './engjap.js?v=006',
-  './ExportCSS.js?v=006',
-  './build.js?v=006',
-  './app.js?v=006',
-  './github.js?v=006',
-  './help.js?v=006',
-  './snapshot.js?v=006',
-  './manifest.json?v=006',
-  './male.png?v=006',
-  './female.png?v=006',
-  './win-cup.png?v=006',
-  './lock.png?v=006',
-  './unlock.png?v=006',
-  './icon-192.png?v=006',
-  './icon-512.png?v=006',
-  './help_en.json?v=006',
-  './help_jp.json?v=006',
-  './help_kr.json?v=006',
-  './help_zh.json?v=006',
-  './help_vi.json?v=006'
+  './index.html?v=007',
+  './ui.css?v=007',
+  './rounds.css?v=007',
+  './main.js?v=007',
+  './HomeScreen.js?v=007',
+  './home.js?v=007',
+  './settings.js?v=007',
+  './players.js?v=007',
+  './rounds.js?v=007',
+  './games.js?v=007',
+  './summary.js?v=007',
+  './dashboard.js?v=007',
+  './viewer.js?v=007',
+  './report.js?v=007',
+  './profile.js?v=007',
+  './auth.js?v=007',
+  './authUI.js?v=007',
+  './subscription.js?v=007',
+  './supabase.js?v=007',
+  './importPlayers.js?v=007',
+  './engjap.js?v=007',
+  './ExportCSS.js?v=007',
+  './build.js?v=007',
+  './app.js?v=007',
+  './github.js?v=007',
+  './help.js?v=007',
+  './snapshot.js?v=007',
+  './manifest.json?v=007',
+  './male.png?v=007',
+  './female.png?v=007',
+  './win-cup.png?v=007',
+  './lock.png?v=007',
+  './unlock.png?v=007',
+  './icon-192.png?v=007',
+  './icon-512.png?v=007',
+  './help_en.json?v=007',
+  './help_jp.json?v=007',
+  './help_kr.json?v=007',
+  './help_zh.json?v=007',
+  './help_vi.json?v=007'
 ];
 
 /* ── Install: cache all assets (safe -- one failure won't block install) ── */
@@ -114,7 +114,7 @@ self.addEventListener('fetch', function(event) {
     }).catch(function() {
       // Offline — serve from cache
       return caches.match(event.request).then(function(cached) {
-        return cached || caches.match('./index.html?v=006');
+        return cached || caches.match('./index.html?v=007');
       });
     })
   );
