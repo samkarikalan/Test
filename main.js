@@ -292,6 +292,9 @@ function mlShowGuide() {
   if (modeOverlay) modeOverlay.style.display = 'none';
   var authOverlay = document.getElementById('authOverlay');
   if (authOverlay) authOverlay.style.display = 'none';
+  // Hide persistent top bar
+  var topBar = document.getElementById('scsMainTopbar');
+  if (topBar) topBar.style.display = 'none';
 }
 
 function mlShowGuideFirstTime() {
@@ -303,6 +306,9 @@ function mlCloseGuide() {
   localStorage.setItem('scs_guide_seen', '1');
   var guidePage = document.getElementById('guidePage');
   if (guidePage) guidePage.style.display = 'none';
+  // Restore persistent top bar
+  var topBar = document.getElementById('scsMainTopbar');
+  if (topBar) topBar.style.display = '';
   // Return to mode select if logged in, else auth welcome
   var user = (typeof authGetUser === 'function') ? authGetUser() : null;
   if (user) {
